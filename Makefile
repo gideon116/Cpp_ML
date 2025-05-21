@@ -1,5 +1,5 @@
 CXX := g++
-SRCS := learning.cpp tensor_mul.cpp tensor_display.cpp string_to_tensor.cpp
+SRCS := example_matmul.cpp tensor_mul.cpp tensor_display.cpp string_to_tensor.cpp
 TARGET := tensorMul
 
 all:
