@@ -21,7 +21,7 @@ matrixType matmul(matrixType& m1, matrixType& m2) {
     for (int b = 0; b < batch; b++){
         for (int i = 0; i < n1; i++) {
             for (int j = 0; j < n; j++) {
-                for (int k = 0; k < n1; k++) {
+                for (int k = 0; k < n2; k++) {
                     m[b][i][k] += m1[b][i][j] * m2[b][j][k];
                 }
             }
