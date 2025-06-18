@@ -1,9 +1,6 @@
 #include <iostream>
 #include "matrix_operations.h"
 
-using matrix2D = std::vector<std::vector<double>>;
-using matrixType = std::vector<matrix2D>;
-
 // for simple operations (i.e., no matmul) on 2D or 3D matrices
 Tensor matrixOperations::mops(const Tensor& m1, const Tensor& m2, const char ops) 
 {
