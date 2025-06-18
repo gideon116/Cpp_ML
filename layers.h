@@ -5,9 +5,6 @@
 #include <random>
 #include "matrix_operations.h"
 
-using matrix2D = std::vector<std::vector<double>>;
-using matrixType = std::vector<matrix2D>;
-
 // random init for weights
 std::mt19937 gen(4);
 
