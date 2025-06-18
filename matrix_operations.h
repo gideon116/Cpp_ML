@@ -4,9 +4,6 @@
 #include <iostream>
 #include "tensor.h"
 
-using matrix2D = std::vector<std::vector<double>>;
-using matrixType = std::vector<matrix2D>;
-
 class matrixOperations {
     public:
 
