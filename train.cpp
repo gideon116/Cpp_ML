@@ -7,7 +7,7 @@ using matrix3D = std::vector<matrix2D>;
 int main() {
 
     matrixOperations wf;
-
+    
     matrix3D m1 = { // batch, 2, 3
         {{3.5, 3.69, 3.44}, {4.34, 4.42, 2.37}},
         {{3.5, 3.69, 3.43}, {4.34, 4.42, 2.37}},
@@ -17,10 +17,11 @@ int main() {
         {{18, 3}, {3, 3}},
         {{1, 17}, {1, 3}},
     };
+    
 
     Tensor input(m1);
     Tensor real(m2);
-
+    
     double loss;
     double lr = 0.01;
 
@@ -31,7 +32,7 @@ int main() {
     ReLU relu1, relu2;
     std::vector<Layer*> network = {&layer1a, &relu1, &layer2a, &relu2, &layer3a};
     
-    for (int epoch = 0; epoch < 100; epoch++) {
+    for (int epoch = 0; epoch < 10; epoch++) {
         
         // train
         Tensor y(input);
@@ -41,8 +42,7 @@ int main() {
 
         // loss calc
         loss = wf.l2(y, real);
-        std::cout << "epoch " << epoch << std::endl;
-        std::cout << loss << std::endl;
+        std::cout << "epoch: " << epoch << " loss = " << loss << std::endl;
 
         // backprop
         Tensor dy = wf.constMul(
