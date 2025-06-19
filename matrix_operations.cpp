@@ -18,7 +18,8 @@ Tensor matrixOperations::mops(const Tensor& m1, const Tensor& m2, const char ops
     double* pm = m.tensor.get();
 
     if (!bcast) 
-    {
+    {   
+        #pragma omp parallel for
         for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) 
         {
             switch (ops) {
@@ -40,7 +41,8 @@ Tensor matrixOperations::mops(const Tensor& m1, const Tensor& m2, const char ops
                 }
             }
         } else if (bcast) 
-        {
+        {   
+            #pragma omp parallel for
             for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) {
                 switch (ops) {
                     case 's':
@@ -81,11 +83,12 @@ Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2)
     const size_t m2size = m2.row * m2.col;
     const size_t msize = m1.row * m2.col;
     
+    #pragma omp parallel for
     for (size_t i = 0; i < m1.batch * msize; i++) {pm[i]=0.0;}
     
-    
+    #pragma omp parallel for collapse(3) schedule(static)
     for (int b = 0; b < m1.batch; b++){
-
+        
         const double* pm1temp = pm1 + b * m1size; // shift pm1 by one batch worth
         const double* pm2temp = !bcast ? pm2 + b * m2size : pm2; // only shift if m2 is 3D
         double* pmtemp = pm + b * msize;
@@ -111,6 +114,8 @@ Tensor matrixOperations::cops(const Tensor& m1, const double con, const char ops
 
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
+
+    #pragma omp parallel for
     for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) 
     {
         switch (ops) {
@@ -148,6 +153,7 @@ Tensor matrixOperations::transpose(const Tensor& m1){
 
     const size_t msize = m1.row * m1.col;
 
+    #pragma omp parallel for collapse(3) schedule(static)
     for (int b = 0; b < m1.batch; b++){
 
         const double* pm1temp = pm1 + b * msize;
@@ -169,6 +175,8 @@ Tensor matrixOperations::activation(const Tensor& m1, const char ops)
 
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
+
+    #pragma omp parallel for
     for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) 
     {
         switch (ops) {
@@ -197,12 +205,14 @@ Tensor matrixOperations::batchsum(const Tensor& m1)
     const size_t m1size = m1.row * m1.col;
     for (size_t i = 0; i < m1size; i++) {pm[i]=0.0;}
 
+    #pragma omp parallel for collapse(3) schedule(static)
     for (int b = 0; b < m1.batch; b++){
-
+        
         const double* pm1temp = pm1 + b * m1size;
         
         for (size_t i = 0; i < m1.row; i++) {
             for (size_t j = 0; j < m1.col; j++) {
+                #pragma omp atomic
                 pm[i * m1.col + j] += pm1temp[i * m1.col + j];
             }
         }
@@ -223,19 +233,24 @@ double matrixOperations::l2(const Tensor& m1, const Tensor& m2)
     const double* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
     const double* pm2 = m2.tensor.get();
     double loss = 0.0;
-    double diff = 0.0;
+    
 
     if (!bcast) 
     {
+        #pragma omp parallel for reduction(+:loss)
         for (size_t i = 0; i < m1.batch * m1size; i++) 
         {
-            diff = pm1[i] - pm2[i];
+            
+            double diff = pm1[i] - pm2[i];
             loss += diff * diff;
         }
     } else
     {
-        for (size_t i = 0; i < m1.batch * m1size; i++) {
-            diff = pm1[i] - pm2[i % m1size];
+        #pragma omp parallel for reduction(+:loss)
+        for (size_t i = 0; i < m1.batch * m1size; i++) 
+        {
+            
+            double diff = pm1[i] - pm2[i % m1size];
             loss += diff * diff;
         }
     }
