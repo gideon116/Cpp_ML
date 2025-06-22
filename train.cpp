@@ -1,6 +1,8 @@
 #include <iostream>
 #include "layers.h"
 
+
+
 using matrix2D = std::vector<std::vector<double>>;
 using matrix3D = std::vector<matrix2D>;
 
@@ -18,7 +20,6 @@ int main() {
         {{1, 17}, {1, 3}},
     };
     
-
     Tensor input(m1);
     Tensor real(m2);
     
@@ -45,10 +46,7 @@ int main() {
         std::cout << "epoch: " << epoch << " loss = " << loss << std::endl;
 
         // backprop
-        Tensor dy = wf.constMul(
-            wf.subtract(y, real),
-            2.0 / (real.batch * real.row * real.col)
-        );
+        Tensor dy = (y - real) * 2.0 / (real.batch * real.row * real.col);
 
         for (int i = static_cast<int>(network.size()) - 1; i >= 0; i--) {
             dy = (*network[i]).backward_pass(dy, lr, wf);
