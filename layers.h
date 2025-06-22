@@ -20,10 +20,9 @@ class Linear : public Layer {
     public:
         Tensor W;
         Tensor X;
-
         // initilize weights
         Linear(int rows, int cols, std::mt19937& g=gen)
-            : W(rows, cols)
+            : W(std::vector<int>({rows, cols}))
         {
             
             std::normal_distribution<double> dist(0.0, 1.0/std::sqrt(cols));
@@ -32,14 +31,12 @@ class Linear : public Layer {
         }
         
         Tensor forward_pass(const Tensor& px, matrixOperations& wf) 
-        
         override {
             X = Tensor(px);
             return wf.matmul(px, W);
         }
 
         Tensor backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) 
-        
         override {
             // gradient wrt the layer below
             Tensor dx = wf.matmul(dy, wf.transpose(W));
@@ -58,7 +55,6 @@ class ReLU : public Layer {
         Tensor X;
 
         Tensor forward_pass(const Tensor& px, matrixOperations& wf) 
-        
         override { 
             X = wf.relu(px);
             return X;
@@ -66,7 +62,7 @@ class ReLU : public Layer {
 
         Tensor backward_pass(const Tensor& dy, double, matrixOperations& wf) 
         override {
-            return wf.elemwise(wf.d_relu(X), dy);
+            return wf.d_relu(X) * dy;
         }
 };
 
