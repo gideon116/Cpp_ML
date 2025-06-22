@@ -121,8 +121,23 @@ class Tensor
             }
             return *this;
         }
+        // Tensor(const Tensor&) = delete; // copy constructor
+        Tensor(const Tensor& other) // copy constructor
+            :
+                batch(other.batch),
+                row(other.row),
+                col(other.col),
+                rank(other.rank),
+                shape(std::make_unique<int[]>(rank)),
+                tensor(std::make_unique<double[]>(batch*row*col))
+        {
+            std::memcpy(shape.get(), other.shape.get(), sizeof(int)*rank);
+            std::memcpy(tensor.get(), other.tensor.get(), sizeof(double)*batch*row*col);
+        }
 
-        // operator overload helper
+        // operator overloads
+        
+        // Tensor operator overload helper
         Tensor ops(const Tensor& other, const char op) const
         {   
             if (rank != other.rank) throw std::invalid_argument("matrix size mismatch");
@@ -153,6 +168,48 @@ class Tensor
                     c[i] = a[i] / b[i];
                     break;
                 default:
+                    std::cout << "ERROR, SOMETHING WENT WRONG; THATS ALL I KNOW" << std::endl;
+                    break;
+                }
+            }
+            return t;
+        }
+
+        // Tensor overload operators
+        Tensor operator+(const Tensor& other) const { return ops(other, 'A'); }
+        Tensor operator-(const Tensor& other) const { return ops(other, 'S'); }
+        Tensor operator*(const Tensor& other) const { return ops(other, 'M'); }
+        Tensor operator/(const Tensor& other) const { return ops(other, 'D'); }
+
+        // scalar operator overload helper
+        Tensor ops(const double scalar, const char op) const
+        {   
+            
+            Tensor t = Tensor(*this);
+            double* a = (this->tensor).get();
+            double* c = (t.tensor).get();
+
+            for (size_t i = 0; i < batch * row * col; i++) 
+            {   
+                switch (op)
+                {
+                case 'A':
+                    c[i] = a[i] + scalar;
+                    break;
+                case 'S':
+                    c[i] = a[i] - scalar;
+                    break;
+                case 'M':
+                    c[i] = a[i] * scalar;
+                    break;
+                case 'D':
+                    c[i] = a[i] / scalar;
+                    break;
+                case 'I':
+                    c[i] = scalar / a[i];
+                    break;
+                default:
+                    std::cout << "ERROR, SOMETHING WENT WRONG; THATS ALL I KNOW" << std::endl;
                     break;
                 }
             }
@@ -160,24 +217,25 @@ class Tensor
         }
 
         // overload operators
-        Tensor operator+(const Tensor& other) const { return ops(other, 'A'); }
-        Tensor operator-(const Tensor& other) const { return ops(other, 'S'); }
-        Tensor operator*(const Tensor& other) const { return ops(other, 'M'); }
-        Tensor operator/(const Tensor& other) const { return ops(other, 'D'); }
+        Tensor operator+(const double scalar) const { return ops(scalar, 'A'); }
+        Tensor operator-(const double scalar) const { return ops(scalar, 'S'); }
+        Tensor operator*(const double scalar) const { return ops(scalar, 'M'); }
+        Tensor operator/(const double scalar) const { return ops(scalar, 'D'); }
 
-        // Tensor(const Tensor&) = delete; // copy constructor
-        Tensor(const Tensor& other) // copy constructor
-            :
-                batch(other.batch),
-                row(other.row),
-                col(other.col),
-                rank(other.rank),
-                shape(std::make_unique<int[]>(rank)),
-                tensor(std::make_unique<double[]>(batch*row*col))
-        {
-            std::memcpy(shape.get(), other.shape.get(), sizeof(int)*rank);
-            std::memcpy(tensor.get(), other.tensor.get(), sizeof(double)*batch*row*col);
+        // += is special
+        Tensor& operator+=(const double scalar) 
+        {   
+            double* a = (this->tensor).get();
+            for (size_t i = 0; i < batch * row * col; i++) a[i] += scalar;
+            return *this;
         }
-};
+
+    };
+
+// then the scalar is in front
+inline Tensor operator+(double s, const Tensor& t) { return t + s; }
+inline Tensor operator-(double s, const Tensor& t) { return (t * - 1) + s; }
+inline Tensor operator*(double s, const Tensor& t) { return t * s; }
+inline Tensor operator/(double s, const Tensor& t) { return t.ops(s, 'D'); }
 
 #endif
