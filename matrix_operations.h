@@ -32,5 +32,9 @@ class matrixOperations {
         Tensor relu(const Tensor& m1) { return activation(m1, 'r'); }
         Tensor d_relu(const Tensor& m1) { return activation(m1, 'd'); }
 
+        Tensor tensor_from_shape(std::initializer_list<int> shape) { return Tensor::create(shape); }
+        
+        Tensor make_tensor(const std::initializer_list<Tensor>& vs) { return Tensor(vs); }
+
 };
 #endif
