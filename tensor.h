@@ -3,84 +3,44 @@
 
 #include <iostream>
 
-using matrix2D = std::vector<std::vector<double>>;
-using matrix3D = std::vector<matrix2D>;
-using matrix4D = std::vector<matrix3D>;
-
 class Tensor 
 {
     public:
 
-        int batch = 0; int row = 0; int col = 0; int rank = 0;
+        int batch = 1; int row = 0; int col = 0; int rank = 0;
         std::unique_ptr<int[]> shape;
+        std::unique_ptr<int[]> index_helper;
         std::unique_ptr<double[]> tensor;
 
-        Tensor() : batch(0), row(0), col(0), rank(0), shape(nullptr), tensor(nullptr) {}
+        Tensor() : batch(1), row(0), col(0), rank(0), shape(nullptr), index_helper(nullptr), tensor(nullptr) {}
 
         // create from nested vector
-        Tensor(const matrix4D& input) 
-            :   batch(static_cast<int>((input).size()) * static_cast<int>((input)[0].size())), // all non col and row dims -> batch
-                row(static_cast<int>((input)[0][0].size())), 
-                col(static_cast<int>((input)[0][0][0].size())), rank(4), shape(std::make_unique<int[]>(4)),
-                tensor(std::make_unique<double[]>(batch*row*col))
-        {
-            if (batch == 0) throw std::invalid_argument("empty tensor");
+        template<typename TENSOR>
+        Tensor(const TENSOR& input) 
+        {   
+            int level = 0;
+            getRank(input);
+            if (rank == 0) throw std::invalid_argument("need at least one dim");
 
-            shape[0] = static_cast<int>((input).size());
-            shape[1] = static_cast<int>((input)[0].size());
-            shape[2] = row;
-            shape[3] = col;
+            shape = std::make_unique<int[]>(rank);
+            getShape(input, level);
 
-            // TO DO: use multithreading here
-            for (int bi = 0; bi < batch; bi++) {
-                for (int ri = 0; ri < row; ri++) {
-                    for (int ci = 0; ci < col; ci++) {
-                        index(bi, ri, ci) = input[bi/shape[0]][bi%shape[0]][ri][ci];
-                    }
-                }
-            }
+            level = 0;
+            int size = 1;
+            for (int i = 0; i < rank; i++) size *= shape[i];
+            tensor = std::make_unique<double[]>(size);
+            getArr(input, level);
 
-        };
+            index_helper = std::make_unique<int[]>(rank - 1);
+            index_helper[rank - 2] = shape[rank - 1];
+            for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
 
-        Tensor(const matrix3D& input) 
-            :   batch(static_cast<int>((input).size())), row(static_cast<int>((input)[0].size())), 
-                col(static_cast<int>((input)[0][0].size())), rank(3), shape(std::make_unique<int[]>(3)),
-                tensor(std::make_unique<double[]>(batch*row*col))
-        {
-            if (batch == 0) throw std::invalid_argument("empty tensor");
-
-            shape[0] = batch;
-            shape[1] = row;
-            shape[2] = col;
-
-            // TO DO: use multithreading here
-            for (int bi = 0; bi < batch; bi++) {
-                for (int ri = 0; ri < row; ri++) {
-                    for (int ci = 0; ci < col; ci++) {
-                        index(bi, ri, ci) = input[bi][ri][ci];
-                    }
-                }
-            }
-
-        };
-
-        Tensor(const matrix2D& input) 
-            :   batch(1), row(static_cast<int>((input).size())), 
-                col(static_cast<int>((input)[0].size())), rank(2), shape(std::make_unique<int[]>(2)),
-                tensor(std::make_unique<double[]>(row*col))
-        {
-            if (row == 0) throw std::invalid_argument("empty tensor");
-
-            shape[0] = row;
-            shape[1] = col;
-
-            // TO DO: use multithreading here
-            for (int ri = 0; ri < row; ri++) {
-                for (int ci = 0; ci < col; ci++) {
-                    index(0, ri, ci) = input[ri][ci];
-                    
-                }
-            }
+            for (int i = rank - 1; i > -1; i--)
+            {
+                if (i == rank - 1) col = shape[i];
+                else if (i == rank - 2) row = shape[i];
+                else batch *= shape[i];  // all non col and row dims -> batch
+            };
 
         };
 
@@ -94,14 +54,33 @@ class Tensor
             col = in_shape[rank - 1];
             shape = std::make_unique<int[]>(rank);
             for (int i = 0; i < rank; i ++) shape[i] = in_shape[i];
+
+            index_helper = std::make_unique<int[]>(rank - 1);
+            index_helper[rank - 2] = shape[rank - 1];
+            for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
+
             tensor = std::make_unique<double[]>(batch * row * col);
         }
 
         // change by index
-        double& index(int b, int r, int c) { return tensor[(b*row + r)*col + c]; }
+        double& index(const std::vector<size_t>& params)
+        {
+            if (static_cast<int>(params.size()) != rank) throw std::invalid_argument("requested shape does not match tensor");
+            
+            int val = params[rank - 1];
+            for (int i = 0; i < (rank - 1); i++) val += params[i] * index_helper[i];
+            return tensor[val];
+        }
 
         // overload for read only access
-        double index(int b, int r, int c) const { return tensor[(b*row + r)*col + c]; }
+        double index(const std::vector<size_t>& params) const
+        {
+            if (static_cast<int>(params.size()) != rank) throw std::invalid_argument("requested shape does not match tensor");
+            
+            int val = params[rank - 1];
+            for (int i = 0; i < (rank - 1); i++) val += params[i] * index_helper[i];
+            return tensor[val];
+        }
 
         // bc unique ptr forbids copying -> rule of 5
         Tensor(Tensor&&) = default; // move constructor
@@ -114,9 +93,11 @@ class Tensor
                 batch = other.batch; row = other.row; col = other.col; rank = other.rank;
 
                 shape = std::make_unique<int[]>(rank);
+                index_helper = std::make_unique<int[]>(rank-1);
                 tensor = std::make_unique<double[]>(batch*row*col);
 
                 std::memcpy(shape.get(), other.shape.get(), sizeof(int)*rank);
+                std::memcpy(index_helper.get(), other.index_helper.get(), sizeof(int)*(rank-1));
                 std::memcpy(tensor.get(), other.tensor.get(), sizeof(double)*batch*row*col);
             }
             return *this;
@@ -129,9 +110,11 @@ class Tensor
                 col(other.col),
                 rank(other.rank),
                 shape(std::make_unique<int[]>(rank)),
+                index_helper(std::make_unique<int[]>(rank-1)),
                 tensor(std::make_unique<double[]>(batch*row*col))
         {
             std::memcpy(shape.get(), other.shape.get(), sizeof(int)*rank);
+            std::memcpy(index_helper.get(), other.index_helper.get(), sizeof(int)*(rank-1));
             std::memcpy(tensor.get(), other.tensor.get(), sizeof(double)*batch*row*col);
         }
 
@@ -229,6 +212,28 @@ class Tensor
             for (size_t i = 0; i < batch * row * col; i++) a[i] += scalar;
             return *this;
         }
+
+        // init helpers
+        void getArr(const double& d, int& l) { tensor[l] = d; l += 1; }
+        template<typename T>
+        void getArr(const T& vec, int& l)
+        {   
+            int vs = static_cast<int>(vec.size());
+            for (int i = 0; i < vs; i++) getArr(vec[i], l);
+        }
+
+        void getShape(const double& d, int& level){}
+        template<typename T>
+        void getShape(const T& vec, int& level)
+        {   
+            shape[level] = static_cast<int>(vec.size());
+            level += 1;
+            getShape(vec[0], level);
+        }
+
+        void getRank(const double& d){}
+        template<typename T>
+        void getRank(const T& vec) { rank += 1; getRank(vec[0]); }
 
     };
 
