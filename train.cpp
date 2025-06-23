@@ -1,27 +1,20 @@
 #include <iostream>
 #include "layers.h"
-
-
-
-using matrix2D = std::vector<std::vector<double>>;
-using matrix3D = std::vector<matrix2D>;
+#include "tensor.h"
 
 int main() {
 
     matrixOperations wf;
     
-    matrix3D m1 = { // batch, 2, 3
+    Tensor input = {
         {{3.5, 3.69, 3.44}, {4.34, 4.42, 2.37}},
         {{3.5, 3.69, 3.43}, {4.34, 4.42, 2.37}},
     };
 
-    matrix3D m2 = { // batch, 2, 2
+    Tensor real = {
         {{18, 3}, {3, 3}},
         {{1, 17}, {1, 3}},
     };
-    
-    Tensor input(m1);
-    Tensor real(m2);
     
     double loss;
     double lr = 0.01;
