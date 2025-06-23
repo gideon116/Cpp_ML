@@ -10,7 +10,7 @@ Tensor matrixOperations::mops(const Tensor& m1, const Tensor& m2, const char ops
     if (!(m2.batch == 1 || m2.batch == m1.batch)) {throw std::invalid_argument("matrix size mismatch");}
 
     bool bcast = (m2.batch == 1);
-    Tensor m(m1.batch, m1.row, m1.col);
+    Tensor m(std::vector<int>({m1.batch, m1.row, m1.col}));
     m.rank = m1.rank;
 
     const double* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
@@ -72,7 +72,7 @@ Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2)
     const bool bcast = (m2.batch == 1);
     if (!bcast && (m1.batch != m2.batch)) {throw std::invalid_argument("matrix size mismatch");}
 
-    Tensor m(m1.batch, m1.row, m2.col);
+    Tensor m(std::vector<int>({m1.batch, m1.row, m2.col}));
     m.rank = m1.rank;
 
     const double* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
@@ -109,7 +109,7 @@ Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2)
 
 Tensor matrixOperations::cops(const Tensor& m1, const double con, const char ops) 
 {
-    Tensor m(m1.batch, m1.row, m1.col);
+    Tensor m(std::vector<int>({m1.batch, m1.row, m1.col}));
     m.rank = m1.rank;
 
     const double* pm1 = m1.tensor.get();
@@ -143,9 +143,9 @@ Tensor matrixOperations::cops(const Tensor& m1, const double con, const char ops
 
 }
 
-Tensor matrixOperations::transpose(const Tensor& m1){
-
-    Tensor m(m1.batch, m1.col, m1.row);
+Tensor matrixOperations::transpose(const Tensor& m1)
+{
+    Tensor m(std::vector<int>({m1.batch, m1.col, m1.row}));
     m.rank = m1.rank;
 
     const double* pm1 = m1.tensor.get();
@@ -170,7 +170,7 @@ Tensor matrixOperations::transpose(const Tensor& m1){
 
 Tensor matrixOperations::activation(const Tensor& m1, const char ops)
 {
-    Tensor m(m1.batch, m1.row, m1.col);
+    Tensor m(std::vector<int>({m1.batch, m1.row, m1.col}));
     m.rank = m1.rank;
 
     const double* pm1 = m1.tensor.get();
@@ -197,8 +197,8 @@ Tensor matrixOperations::activation(const Tensor& m1, const char ops)
 
 Tensor matrixOperations::batchsum(const Tensor& m1)
 {   
-    Tensor m(m1.row, m1.col);
-    
+
+    Tensor m(std::vector<int>({m1.row, m1.col})); 
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
 
@@ -258,12 +258,35 @@ double matrixOperations::l2(const Tensor& m1, const Tensor& m2)
 }
 
 void matrixOperations::display(const Tensor& m1){
+
+
+    //[ [ [1], [2], [3], [4] ], [ [5], [6], [7], [8] ] ] shape = 2, 4, 1
+    // [1], 2, 3, 4, 5, 6, 7, 
+    // [[1] [2] [3] [4]] [5] [6] [7] [8] skip 12 (4 * 1 + 2) c, skip 1 c
+    //  skip 28 (2 * 12 + 2) c, skip 1 c
+    // (2 * (4 * 1 + 2) + 2)
+
+    /*
+    std::string s = "";
+    for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) s += m1.tensor[i];
+
+    for (int i = m1.rank - 1; i > -1; i--)
+    {
+        for (int j = 0; j < m1.shape[i]; j ++)
+        {
+            m1.tensor[1];
+        }
+    }
+    */
+
+
+
     for (size_t i = 0; i < m1.batch; i++) {
         std::cout << "[ ";
         for (size_t j = 0; j < m1.row; j++) {
             std::cout << " [ ";
             for (size_t k = 0; k < m1.col; k++) {
-                std::cout << m1.index(i, j, k) << " ";
+                std::cout << m1.index({i, j, k}) << " ";
             }
             std::cout << "] ";
         }
