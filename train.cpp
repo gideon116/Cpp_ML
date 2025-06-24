@@ -2,27 +2,29 @@
 #include "layers.h"
 #include "tensor.h"
 
+// TO DO: add a print shape method to tensor, its getting tedious
+
 int main() {
 
     matrixOperations wf;
     
     Tensor input = {
         {{3.5, 3.69, 3.44}, {4.34, 4.42, 2.37}},
-        {{3.5, 3.69, 3.43}, {4.34, 4.42, 2.37}},
+        {{3.5, 3.69, 3.43}, {4.34, 4.42, 2.37}}
     };
 
     Tensor real = {
         {{18, 3}, {3, 3}},
-        {{1, 17}, {1, 3}},
+        {{1, 17}, {1, 3}}
     };
-    
+
     double loss;
     double lr = 0.01;
 
     int units1 = 10;
     int units2 = 10;
 
-    Linear layer1a(input.col, units1), layer2a(units1, units2), layer3a(units2, real.col);
+    Linear layer1a(units1), layer2a(units2), layer3a(real.row);
     ReLU relu1, relu2;
     std::vector<Layer*> network = {&layer1a, &relu1, &layer2a, &relu2, &layer3a};
     
