@@ -10,8 +10,9 @@ Tensor matrixOperations::mops(const Tensor& m1, const Tensor& m2, const char ops
     if (!(m2.batch == 1 || m2.batch == m1.batch)) {throw std::invalid_argument("matrix size mismatch");}
 
     bool bcast = (m2.batch == 1);
-    Tensor m = Tensor::create({m1.batch, m1.row, m1.col});
-    m.rank = m1.rank;
+    std::vector<int> temp(m1.rank);
+    for (int i = 0; i < m1.rank; i ++) temp[i] = m1.shape[i];
+    Tensor m = Tensor::create(temp);
 
     const double* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
     const double* pm2 = m2.tensor.get();
@@ -71,9 +72,15 @@ Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2)
     if (m1.col != m2.row) {throw std::invalid_argument("matrix size mismatch");}
     const bool bcast = (m2.batch == 1);
     if (!bcast && (m1.batch != m2.batch)) {throw std::invalid_argument("matrix size mismatch");}
+    
+    std::vector<int> temp(m1.rank);
 
-    Tensor m = Tensor::create({m1.batch, m1.row, m2.col});
-    m.rank = m1.rank;
+    // TO DO: CATCH < 1 RANK
+    for (int i = 0; i < m1.rank - 1; i ++) temp[i] = m1.shape[i];
+    temp[m1.rank - 1] = m2.col;
+
+    Tensor m = Tensor::create(temp);
+
 
     const double* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
     const double* pm2 = m2.tensor.get();
@@ -109,8 +116,9 @@ Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2)
 
 Tensor matrixOperations::cops(const Tensor& m1, const double con, const char ops) 
 {
-    Tensor m = Tensor::create({m1.batch, m1.row, m1.col});
-    m.rank = m1.rank;
+    std::vector<int> temp(m1.rank);
+    for (int i = 0; i < m1.rank; i ++) temp[i] = m1.shape[i];
+    Tensor m = Tensor::create(temp);
 
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
@@ -145,8 +153,13 @@ Tensor matrixOperations::cops(const Tensor& m1, const double con, const char ops
 
 Tensor matrixOperations::transpose(const Tensor& m1)
 {
-    Tensor m = Tensor::create({m1.batch, m1.col, m1.row});
-    m.rank = m1.rank;
+    std::vector<int> temp(m1.rank);
+    // TO DO: CATCH < 2 RANK
+    for (int i = 0; i < m1.rank - 2; i ++) temp[i] = m1.shape[i];
+    temp[m1.rank - 1] = m1.row;
+    temp[m1.rank - 2] = m1.col;
+    Tensor m = Tensor::create(temp);
+
 
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
@@ -170,8 +183,9 @@ Tensor matrixOperations::transpose(const Tensor& m1)
 
 Tensor matrixOperations::activation(const Tensor& m1, const char ops)
 {
-    Tensor m = Tensor::create({m1.batch, m1.row, m1.col});
-    m.rank = m1.rank;
+    std::vector<int> temp(m1.rank);
+    for (int i = 0; i < m1.rank; i ++) temp[i] = m1.shape[i];
+    Tensor m = Tensor::create(temp);
 
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
@@ -197,7 +211,7 @@ Tensor matrixOperations::activation(const Tensor& m1, const char ops)
 
 Tensor matrixOperations::batchsum(const Tensor& m1)
 {   
-
+    // TO DO: CONFRIM THIS IS ON (just using row and col for batch sum. Usually for weights)
     Tensor m = Tensor::create({m1.row, m1.col}); 
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
