@@ -52,12 +52,6 @@ class Tensor
                     if (shape[i+1] != v.shape[i]) throw std::invalid_argument("ragged tensor");
                 }
             }
-            
-            for (const Tensor& v : vs)
-            {
-                for (int i = 0; i < v.rank; i++) shape[i+1] = v.shape[i];
-                break;
-            }
 
             tensor = std::make_unique<double[]>(tot_size);
             for (const Tensor& v : vs)
@@ -111,6 +105,7 @@ class Tensor
 
         // create from scratch
         static Tensor create(std::initializer_list<int> shape) { return Tensor(shape, create_tag{}); }
+        static Tensor create(std::vector<int> shape) { return Tensor(shape, create_tag{}); }
 
         // change by index
         double& index(const std::vector<size_t>& params)
@@ -286,7 +281,8 @@ class Tensor
     
     private:
         struct create_tag {};
-        Tensor(std::initializer_list<int> in_shape, create_tag)
+        template<typename T>
+        Tensor(T in_shape, create_tag)
         {   
             rank = static_cast<int>(in_shape.size());
             if (rank <= 0) throw std::invalid_argument("need at least one dimension");
