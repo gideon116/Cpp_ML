@@ -5,9 +5,6 @@
 #include <random>
 #include "matrix_operations.h"
 
-// random init for weights
-std::mt19937 gen(4);
-
 class Layer {
     public:
         virtual Tensor forward_pass(const Tensor& px, matrixOperations& wf) = 0;
@@ -16,22 +13,32 @@ class Layer {
 };
 
 class Linear : public Layer {
+    
 
     public:
+        int units;
+        std::normal_distribution<double> dist;
+        std::mt19937 g;
         Tensor W;
         Tensor X;
+        bool init = false;
+        
         // initilize weights
-        Linear(int rows, int cols, std::mt19937& g=gen)
-            : W(std::vector<int>({rows, cols}))
-        {
-            
-            std::normal_distribution<double> dist(0.0, 1.0/std::sqrt(cols));
-            double* pm = W.tensor.get();
-            for (size_t i = 0; i < size_t(rows) * cols; i++) pm[i] = dist(g);
-        }
+        Linear(int unit, int rand=3) : units(unit), dist(0.0, 1.0/std::sqrt(units)), g(rand) {}
         
         Tensor forward_pass(const Tensor& px, matrixOperations& wf) 
         override {
+            if (!init) 
+            {   
+                W = Tensor::create({px.col, units});
+                double* pm = W.tensor.get();
+                for (size_t i = 0; i < size_t(px.col) * units; i++) pm[i] = dist(g);
+                init = true;
+            }
+            else
+            {
+                if (W.row != px.col) throw std::invalid_argument("cannot reuse layer");
+            }
             X = Tensor(px);
             return wf.matmul(px, W);
         }
