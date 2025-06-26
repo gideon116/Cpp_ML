@@ -299,7 +299,6 @@ void matrixOperations::print(const Tensor& m1, std::vector<size_t> v)
         std::cout << "{ ";
         for (int i = 0; i < m1.shape[n]; i++) 
         {
-            
             v.push_back(i);
             std::cout << m1.index(v) << " ";
             v.pop_back();
