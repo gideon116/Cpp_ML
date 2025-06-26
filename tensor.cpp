@@ -64,8 +64,9 @@ double& Tensor::index(const std::vector<size_t>& params)
 {
     if (static_cast<int>(params.size()) != rank) throw std::invalid_argument("requested shape does not match tensor");
     
-    int val = params[rank - 1];
-    for (int i = 0; i < (rank - 1); i++) val += params[i] * index_helper[i];
+    auto p = params.end();
+    size_t val = *(p-1);
+    for (size_t i = 0; i < (rank - 1); i++) val += *(p-rank+i) * index_helper[i];
     return tensor[val];
 }
 
@@ -73,8 +74,9 @@ double Tensor::index(const std::vector<size_t>& params) const
 {
     if (static_cast<int>(params.size()) != rank) throw std::invalid_argument("requested shape does not match tensor");
     
-    int val = params[rank - 1];
-    for (int i = 0; i < (rank - 1); i++) val += params[i] * index_helper[i];
+    auto p = params.end();
+    size_t val = *(p-1);
+    for (size_t i = 0; i < (rank - 1); i++) val += *(p-rank+i) * index_helper[i];
     return tensor[val];
 }
 

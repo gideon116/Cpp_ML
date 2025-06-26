@@ -15,7 +15,7 @@ class matrixOperations {
         Tensor activation(const Tensor& m1, const char ops);
         Tensor batchsum(const Tensor& m1);
         double l2(const Tensor& m1, const Tensor& m2);
-        void display(const Tensor& m1);
+        void print(const Tensor& m1, std::vector<size_t> v={});
         
         // wrappers
         Tensor subtract(const Tensor& m1, const Tensor& m2) { return mops(m1, m2, 's'); }

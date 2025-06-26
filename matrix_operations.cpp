@@ -1,6 +1,8 @@
 #include <iostream>
 #include "matrix_operations.h"
 
+// TO DO: Use lambda + function pointer rather than switch statements 
+
 // for simple operations (i.e., no matmul) on 2D or 3D matrices
 Tensor matrixOperations::mops(const Tensor& m1, const Tensor& m2, const char ops) 
 {
@@ -271,40 +273,32 @@ double matrixOperations::l2(const Tensor& m1, const Tensor& m2)
     return loss / (m1.batch * m1size);
 }
 
-void matrixOperations::display(const Tensor& m1){
+void matrixOperations::print(const Tensor& m1, std::vector<size_t> v)
+{   
 
-
-    //[ [ [1], [2], [3], [4] ], [ [5], [6], [7], [8] ] ] shape = 2, 4, 1
-    // [1], 2, 3, 4, 5, 6, 7, 
-    // [[1] [2] [3] [4]] [5] [6] [7] [8] skip 12 (4 * 1 + 2) c, skip 1 c
-    //  skip 28 (2 * 12 + 2) c, skip 1 c
-    // (2 * (4 * 1 + 2) + 2)
-
-    /*
-    std::string s = "";
-    for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) s += m1.tensor[i];
-
-    for (int i = m1.rank - 1; i > -1; i--)
-    {
-        for (int j = 0; j < m1.shape[i]; j ++)
+    int n = static_cast<int>(v.size());
+    
+    if (n < m1.rank)
+    {   
+        
+        std::cout << "{ ";
+        
+        for (int i = 0; i < m1.shape[(n == 0 ? 1 : n) ]; i++)
         {
-            m1.tensor[1];
+            v.push_back(i);
+            n == 0 ? std::cout << "\n" : std::cout << "";
+            print(m1, v);
+            v.pop_back();
+            
         }
-    }
-    */
-
-
-
-    for (size_t i = 0; i < m1.batch; i++) {
-        std::cout << "[ ";
-        for (size_t j = 0; j < m1.row; j++) {
-            std::cout << " [ ";
-            for (size_t k = 0; k < m1.col; k++) {
-                std::cout << m1.index({i, j, k}) << " ";
-            }
-            std::cout << "] ";
-        }
-        std::cout << "] \n";
+        n == 0 ? std::cout << "\n" : std::cout << "";
+        std::cout << "} ";
+        
         
     }
+    else
+    {
+        std::cout << m1.index(v) << " ";
+    }
 }
+
