@@ -80,6 +80,15 @@ double Tensor::index(const std::vector<size_t>& params) const
     return tensor[val];
 }
 
+void Tensor::printShape()
+{
+    std::cout << "[ ";
+    for (int i = 0; i < rank; i++) std::cout << shape[i] << " ";
+    std::cout << "]";
+    std::cout << "\n";
+
+}
+
 Tensor Tensor::ops(const Tensor& other, const char op) const
 {   
     if (rank != other.rank) throw std::invalid_argument("matrix size mismatch");

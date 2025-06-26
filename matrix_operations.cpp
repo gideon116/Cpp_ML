@@ -275,15 +275,14 @@ double matrixOperations::l2(const Tensor& m1, const Tensor& m2)
 
 void matrixOperations::print(const Tensor& m1, std::vector<size_t> v)
 {   
-
     int n = static_cast<int>(v.size());
     
-    if (n < m1.rank)
+    if (n < m1.rank - 1)
     {   
         
         std::cout << "{ ";
         
-        for (int i = 0; i < m1.shape[(n == 0 ? 1 : n) ]; i++)
+        for (int i = 0; i < m1.shape[n]; i++)
         {
             v.push_back(i);
             n == 0 ? std::cout << "\n" : std::cout << "";
@@ -294,11 +293,19 @@ void matrixOperations::print(const Tensor& m1, std::vector<size_t> v)
         n == 0 ? std::cout << "\n" : std::cout << "";
         std::cout << "} ";
         
-        
     }
     else
     {
-        std::cout << m1.index(v) << " ";
+        std::cout << "{ ";
+        for (int i = 0; i < m1.shape[n]; i++) 
+        {
+            
+            v.push_back(i);
+            std::cout << m1.index(v) << " ";
+            v.pop_back();
+        }
+        std::cout << "} ";
     }
+
 }
 

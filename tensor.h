@@ -93,6 +93,8 @@ class Tensor
         // overload for read only access
         double index(const std::vector<size_t>& params) const;
 
+        void printShape();
+
         // bc unique ptr forbids copying and rule of 5
         Tensor(Tensor&&) = default; // move constructor
         Tensor& operator=(Tensor&&) = default; // move assignment
