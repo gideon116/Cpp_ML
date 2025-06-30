@@ -196,11 +196,21 @@ Tensor matrixOperations::activation(const Tensor& m1, const char ops)
     for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) 
     {
         switch (ops) {
-            case 'r':
+            // relu
+            case 'a':
                 pm[i] = pm1[i] > 0 ?  pm1[i] : 0.0;
                 break;
-            case 'd':
+            // derivative relu
+            case 'b':
                 pm[i] = pm1[i] > 0 ? 1.0 : 0.0;
+                break;
+            // sigmoid
+            case 'c':
+                pm[i] = 1 / (1 + std::exp(-1 * pm1[i]));
+                break;
+            // derivative sigmoid
+            case 'd':
+                pm[i] = pm1[i] * (1 - pm1[i]);
                 break;
             default:
                 std::cout << "ERROR, SOMETHING WENT WRONG; THATS ALL I KNOW" << std::endl;

@@ -6,7 +6,7 @@
 
 class matrixOperations {
     public:
-
+    
         // base ops
         Tensor mops(const Tensor& m1, const Tensor& m2, const char ops);
         Tensor cops(const Tensor& m1, const double con, const char ops);
@@ -29,8 +29,10 @@ class matrixOperations {
         Tensor constDiv(const Tensor& m1, const double con) { return cops(m1, con, 'd'); }
         Tensor constPower(const Tensor& m1, const double con) { return cops(m1, con, 'p'); }
 
-        Tensor relu(const Tensor& m1) { return activation(m1, 'r'); }
-        Tensor d_relu(const Tensor& m1) { return activation(m1, 'd'); }
+        Tensor relu(const Tensor& m1) { return activation(m1, 'a'); }
+        Tensor d_relu(const Tensor& m1) { return activation(m1, 'b'); }
+        Tensor sigmoid(const Tensor& m1) { return activation(m1, 'c'); }
+        Tensor d_sigmoid(const Tensor& m1) { return activation(m1, 'd'); }
 
         Tensor tensor_from_shape(std::initializer_list<int> shape) { return Tensor::create(shape); }
         
