@@ -322,4 +322,99 @@ class MaxPool2D : public Layer {
         }
 };
 
+class ReduceSum : public Layer {
+    public:
+        Tensor X;
+        int ax;
+        bool keepdims = false;
+        bool init = false;
+        int keepdims_rank;
+        std::unique_ptr<int[]> keepdims_shape;
+        std::unique_ptr<int[]> reshape_shape;
+
+        ReduceSum(int a, bool kd=false) : ax(a), keepdims(kd) { if (ax < 0) throw std::invalid_argument("axis connot be negative"); }
+
+        Tensor forward_pass(const Tensor& px, matrixOperations& wf) 
+        override { 
+
+            if (!init) 
+            {
+                if (ax >= px.rank) throw std::invalid_argument("axis outside shape");
+                const int* shape = px.shape.get(); // [b, h, w, c]
+                reshape_shape = std::make_unique<int[]>(px.rank-1); // [b, w, c]
+                keepdims_shape = std::make_unique<int[]>(px.rank);  // [b, 1, w, c]
+
+
+                keepdims_rank = px.rank;
+
+                int j = 0;
+                for (int i = 0; i < px.rank; i++)
+                {
+                    if (i != ax) { reshape_shape[j++] = shape[i]; keepdims_shape[i] = shape[i]; }
+                    else keepdims_shape[i] = 1;
+                }
+                
+                init = true;
+            }
+
+            X = Tensor(px);
+            
+            Tensor out_keepdims = Tensor::create(keepdims_shape.get(), keepdims_rank);
+            for (size_t i = 0; i < out_keepdims.tot_size; i++) out_keepdims.tensor[i] = 0;
+
+            const double* pm = px.tensor.get();
+            double* pm_okd = out_keepdims.tensor.get();
+
+            int eaa = 1; // everything after axis i.e. b, h w, axis, x1, x2 -> eaa = x1 * x2
+            for (int i = ax + 1; i < px.rank; i++) eaa *= px.shape[i];
+
+            for (size_t i = 0; i < out_keepdims.tot_size; i++)
+            {
+                double temp = 0;
+                int mult = (i/eaa) * (1 - px.shape[ax]) ;
+                for (int j = 0; j < px.shape[ax]; j++)
+                {
+                    temp += pm[i  + eaa * (j - mult)];
+                }
+                pm_okd[i] = temp;
+            }
+
+            if (!keepdims) 
+            {
+                Tensor out = Tensor::create(reshape_shape.get(), keepdims_rank - 1);
+                double* p_out = out.tensor.get();
+  
+                for (size_t i = 0; i < out_keepdims.tot_size; i++) p_out[i] = pm_okd[i];
+                return out;
+            }
+
+            return out_keepdims;
+        }
+
+        Tensor backward_pass(const Tensor& dy, double, matrixOperations& wf) 
+        override {
+            if (!init) throw std::invalid_argument("layer not initilized");
+
+            Tensor dx = Tensor(X);
+            for (size_t i = 0; i < dx.tot_size; i++) dx.tensor[i] = 0;
+
+
+            const double* pdy = dy.tensor.get();
+            double* pdx = dx.tensor.get();
+
+            int eaa = 1;
+            for (int i = ax + 1; i < dx.rank; i++) eaa *= dx.shape[i];
+
+            for (size_t i = 0; i < dy.tot_size; i++)
+            {
+                int mult = (i/eaa) * (1 - dx.shape[ax]) ;
+                for (int j = 0; j < dx.shape[ax]; j++)
+                {
+                    pdx[i  + eaa * (j - mult)] = pdy[i];
+                }
+            }
+            return dx;
+        }
+};
+
 #endif

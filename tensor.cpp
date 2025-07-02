@@ -80,6 +80,25 @@ double Tensor::index(const std::vector<size_t>& params) const
     return tensor[val];
 }
 
+double& Tensor::index(const size_t params[])
+{
+    // TO DO: ADD CHECKS!!!!!
+    // if (sizeof(params)/sizeof(params[0]) != rank) throw std::invalid_argument("requested shape does not match tensor");
+    
+    size_t val = params[rank-1];
+    for (size_t i = 0; i < (rank - 1); i++) val += params[i] * index_helper[i];
+    return tensor[val];
+}
+
+double Tensor::index(const size_t params[]) const
+{
+    // if (sizeof(params)/sizeof(params[0]) != rank) throw std::invalid_argument("requested shape does not match tensor");
+    
+    size_t val = params[rank-1];
+    for (size_t i = 0; i < (rank - 1); i++) val += params[i] * index_helper[i];
+    return tensor[val];
+}
+
 void Tensor::printShape()
 {
     std::cout << "[ ";

@@ -22,6 +22,7 @@ class Tensor
         // create from scratch based on shape (init list or vector)
         static Tensor create(std::initializer_list<int> shape) { return Tensor(shape, 'C'); }
         static Tensor create(std::vector<int> shape) { return Tensor(shape, 'C'); }
+        static Tensor create(int shape[], int a_len) { return Tensor(shape, 'C', true, a_len); }
 
         // create from nested vector
         template<typename TENSOR>
@@ -60,8 +61,46 @@ class Tensor
 
             shape = std::make_unique<int[]>(rank);
             {
-                int i = 0;
-                for (int s : in_shape) shape[i++] = s;
+                int i = 0; for (int s : in_shape) shape[i++] = s;
+            }
+
+            tot_size = 1;
+            for (int i = 0; i < rank; i++) tot_size *= shape[i];
+            tensor = std::make_unique<double[]>(tot_size);
+
+            if (rank >= 2)
+            {
+                batch = 1;
+                for (int i = 0; i < rank - 2; i++) batch *= shape[i];
+                row = shape[rank - 2];
+                col = shape[rank - 1];
+
+                index_helper = std::make_unique<int[]>(rank - 1);
+                index_helper[rank - 2] = shape[rank - 1];
+                for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
+            }
+            else
+            {
+                batch = tot_size;
+                row = col = 1;
+                index_helper = nullptr;
+            } 
+        }
+
+        // this is soooo repetetive, MAKE SURE to COMBINE it with the last method somehow
+        template<typename T>
+        Tensor(T in_shape, char, bool is_carray, int carray_len)
+        {   
+            // this is added in cases where c-array is provided
+            rank = carray_len;
+        
+
+            if (rank <= 0) throw std::invalid_argument("need at least one dimension");
+
+            shape = std::make_unique<int[]>(rank);
+            {
+                // b/c init list does not allow indexing
+                for (int s = 0; s < rank; s++) shape[s] = in_shape[s];
             }
 
             tot_size = 1;
@@ -87,11 +126,16 @@ class Tensor
             } 
         }
      
+     
         // change by index
         double& index(const std::vector<size_t>& params);
 
         // overload for read only access
         double index(const std::vector<size_t>& params) const;
+
+        // overload for array based indexing
+        double& index(const size_t params[]);
+        double index(const size_t params[]) const;
 
         void printShape();
 
