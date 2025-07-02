@@ -9,24 +9,39 @@ int main() {
     matrixOperations wf;
     
     Tensor input = {
-        {{3.5, 3.69, 3.44}, {4.34, 4.42, 2.37}},
-        {{3.5, 3.69, 3.43}, {4.34, 4.42, 2.37}}
+        {
+            {{1, 1, 1}, {1, 1, 9}, {1, 1, 9}, {1, 1, 9}, {1, 1, 9}},
+            {{2, 2, 2}, {1, 5, 1}, {2, 2, 2}, {1, 5, 1}, {2, 2, 2}}
+        },
+        {
+            {{1, 1, 1}, {1, 1, 9}, {1, 1, 9}, {1, 1, 9}, {1, 1, 9}},
+            {{2, 2, 2}, {1, 5, 1}, {2, 2, 2}, {1, 5, 1}, {2, 2, 2}}
+        },
     };
 
     Tensor real = {
-        {{18, 3}, {3, 3}},
-        {{1, 17}, {1, 3}}
+        {
+            1, 4
+        },
+        {
+            1, 4
+        }
     };
 
+    input.printShape();
+    real.printShape();
+    std::cout << real.col << " " << real.row << " " << real.batch << " " << std::endl;
+
     double loss;
-    double lr = 0.01;
+    double lr = 0.001;
 
     int units1 = 10;
     int units2 = 10;
 
-    Linear layer1a(units1), layer2a(units2), layer3a(real.row);
+    Linear layer1a(units1), layer2a(units2), layer3a(real.col);
     ReLU relu1, relu2;
-    std::vector<Layer*> network = {&layer1a, &relu1, &layer2a, &relu2, &layer3a};
+    ReduceSum r1(2), r2(2);
+    std::vector<Layer*> network = {&layer1a, &relu1, &layer2a, &relu2, &layer3a, &r1, &r2};
     
     for (int epoch = 0; epoch < 10; epoch++) {
         
@@ -35,7 +50,6 @@ int main() {
         for (Layer* layer : network) {
             y = (*layer).forward_pass(y, wf);
         }
-
         // loss calc
         loss = wf.l2(y, real);
         std::cout << "epoch: " << epoch << " loss = " << loss << std::endl;
@@ -47,6 +61,6 @@ int main() {
             dy = (*network[i]).backward_pass(dy, lr, wf);
         }
     }
-
     return 0;
 }
+
