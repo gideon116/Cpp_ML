@@ -3,7 +3,7 @@
 #include "tensor.h"
 #include "mnist.h"
 
-int main(int argc, char* argv[]) {
+int main() {
 
     int n_test = 10;
     int n_train = 10;
