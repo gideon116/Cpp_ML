@@ -3,21 +3,18 @@
 #include "tensor.h"
 #include "mnist.h"
 
-
-
 int main(int argc, char* argv[]) {
 
     int n_test = 10;
     int n_train = 10;
 
-
     matrixOperations wf;
 
-    Tensor train_im = load_mnist_images("mnist/train-images-idx3-ubyte", 10);
-    Tensor train_l = load_mnist_labels("mnist/train-labels-idx1-ubyte", 10);
+    Tensor train_im = load_mnist_images("mnist/train-images-idx3-ubyte", n_train);
+    Tensor train_l = load_mnist_labels("mnist/train-labels-idx1-ubyte", n_train);
 
-    Tensor test_im = load_mnist_images("mnist/t10k-images-idx3-ubyte", 10);
-    Tensor test_l = load_mnist_labels("mnist/t10k-labels-idx1-ubyte", 10);
+    Tensor test_im = load_mnist_images("mnist/t10k-images-idx3-ubyte", n_test);
+    Tensor test_l = load_mnist_labels("mnist/t10k-labels-idx1-ubyte", n_test);
 
     train_im.printShape();
     train_l.printShape();
@@ -47,14 +44,10 @@ int main(int argc, char* argv[]) {
         std::cout << "epoch: " << epoch << " loss = " << loss << std::endl;
 
         // backprop
-
         for (int i = (int)network.size() - 1; i >= 0; i--) {
             dy = (*network[i]).backward_pass(dy, lr, wf);
         }
     }
-
-
-
 
     return 0;
 }

@@ -141,28 +141,28 @@ class Tensor
 
         // bc unique ptr forbids copying and rule of 5
         Tensor(Tensor&&) = default; // move constructor
+        Tensor(const Tensor& other); // copy constructor
         Tensor& operator=(Tensor&&) = default; // move assignment
         Tensor& operator=(const Tensor& other); // copy assignment
-        Tensor(const Tensor& other); // copy constructor
-
+        
         // operator overloads
         // Tensor operator overload helper
-        Tensor ops(const Tensor& other, const char op) const;
+        Tensor ops(const Tensor& other, double (*f)(double, double)) const;
 
         // Tensor overload operators
-        Tensor operator+(const Tensor& other) const { return ops(other, 'A'); }
-        Tensor operator-(const Tensor& other) const { return ops(other, 'S'); }
-        Tensor operator*(const Tensor& other) const { return ops(other, 'M'); }
-        Tensor operator/(const Tensor& other) const { return ops(other, 'D'); }
+        Tensor operator+(const Tensor& other) const { return ops(other, [](double a, double b){ return a + b; }); }
+        Tensor operator-(const Tensor& other) const { return ops(other, [](double a, double b){ return a - b; }); }
+        Tensor operator*(const Tensor& other) const { return ops(other, [](double a, double b){ return a * b; }); }
+        Tensor operator/(const Tensor& other) const { return ops(other, [](double a, double b){ return a / b; }); }
 
         // scalar operator overload helper
-        Tensor ops(const double scalar, const char op) const;
+        Tensor ops(const double scalar, double (*f)(double, double)) const;
 
         // overload operators
-        Tensor operator+(const double scalar) const { return ops(scalar, 'A'); }
-        Tensor operator-(const double scalar) const { return ops(scalar, 'S'); }
-        Tensor operator*(const double scalar) const { return ops(scalar, 'M'); }
-        Tensor operator/(const double scalar) const { return ops(scalar, 'D'); }
+        Tensor operator+(const double scalar) const { return ops(scalar, [](double a, double b){ return a + b; }); }
+        Tensor operator-(const double scalar) const { return ops(scalar, [](double a, double b){ return a - b; }); }
+        Tensor operator*(const double scalar) const { return ops(scalar, [](double a, double b){ return a * b; }); }
+        Tensor operator/(const double scalar) const { return ops(scalar, [](double a, double b){ return a / b; }); }
 
         // += is special
         Tensor& operator+=(const double scalar);
@@ -194,6 +194,6 @@ class Tensor
 inline Tensor operator+(double s, const Tensor& t) { return t + s; }
 inline Tensor operator-(double s, const Tensor& t) { return (t * - 1) + s; }
 inline Tensor operator*(double s, const Tensor& t) { return t * s; }
-inline Tensor operator/(double s, const Tensor& t) { return t.ops(s, 'D'); }
+inline Tensor operator/(double s, const Tensor& t) { return t.ops(s, [](double a, double b){ return b / a; }); } // here makes sure to put tensor in denom
 
 #endif

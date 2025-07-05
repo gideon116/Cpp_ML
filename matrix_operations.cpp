@@ -1,10 +1,8 @@
 #include <iostream>
 #include "matrix_operations.h"
 
-// TO DO: Use lambda + function pointer rather than switch statements 
-
 // for simple operations (i.e., no matmul) on 2D or 3D matrices
-Tensor matrixOperations::mops(const Tensor& m1, const Tensor& m2, const char ops) 
+Tensor matrixOperations::mops(const Tensor& m1, const Tensor& m2, double (*f)(double, double)) 
 {
     if (m1.row != m2.row || m1.col != m2.col) {throw std::invalid_argument("matrix size mismatch");}
 
@@ -23,49 +21,13 @@ Tensor matrixOperations::mops(const Tensor& m1, const Tensor& m2, const char ops
     if (!bcast) 
     {   
         #pragma omp parallel for
-        for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) 
+        for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++)  pm[i] = f(pm1[i], pm2[i]);
+
+    } else if (bcast) 
         {
-            switch (ops) {
-                case 's':
-                    pm[i] = pm1[i] - pm2[i];
-                    break;
-                case 'a':
-                    pm[i] = pm1[i] + pm2[i];
-                    break;
-                case 'm':
-                    pm[i] = pm1[i] * pm2[i];
-                    break;
-                case 'z':
-                    pm[i] = std::abs(pm1[i] - pm2[i]);
-                    break;
-                default:
-                    std::cout << "ERROR, SOMETHING WENT WRONG; THATS ALL I KNOW" << std::endl;
-                    break;
-                }
-            }
-        } else if (bcast) 
-        {   
             #pragma omp parallel for
-            for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) {
-                switch (ops) {
-                    case 's':
-                        pm[i] = pm1[i] - pm2[i % (m1.row * m1.col)];
-                        break;
-                    case 'a':
-                        pm[i] = pm1[i] + pm2[i % (m1.row * m1.col)];
-                        break;
-                    case 'm':
-                        pm[i] = pm1[i] * pm2[i % (m1.row * m1.col)];
-                        break;
-                    case 'z':
-                        pm[i] = std::abs(pm1[i] - pm2[i % (m1.row * m1.col)]);
-                        break;
-                    default:
-                        std::cout << "ERROR, SOMETHING WENT WRONG; THATS ALL I KNOW" << std::endl;
-                        break;
-                    }
-                }
-            }
+            for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++)  pm[i] = f(pm1[i], pm2[i % (m1.row * m1.col)]);
+        }
     return m;
 }
 
@@ -116,7 +78,7 @@ Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2)
     return m;
 }
 
-Tensor matrixOperations::cops(const Tensor& m1, const double con, const char ops) 
+Tensor matrixOperations::cops(const Tensor& m1, const double con, double (*f)(double, double)) 
 {
     std::vector<int> temp(m1.rank);
     for (int i = 0; i < m1.rank; i ++) temp[i] = m1.shape[i];
@@ -126,29 +88,8 @@ Tensor matrixOperations::cops(const Tensor& m1, const double con, const char ops
     double* pm = m.tensor.get();
 
     #pragma omp parallel for
-    for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) 
-    {
-        switch (ops) {
-            case 's':
-                pm[i] = pm1[i] - con;
-                break;
-            case 'a':
-                pm[i] = pm1[i] + con;
-                break;
-            case 'm':
-                pm[i] = pm1[i] * con;
-                break;
-            case 'd':
-                pm[i] = pm1[i] / con;
-                break;
-            case 'p':
-                pm[i] = std::pow(pm1[i], con);
-                break;
-            default:
-                std::cout << "ERROR, SOMETHING WENT WRONG; THATS ALL I KNOW" << std::endl;
-                break;
-            }
-        }
+    for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) pm[i] = f(pm1[i], con);
+
     return m;
 
 }

@@ -108,7 +108,7 @@ void Tensor::printShape()
 
 }
 
-Tensor Tensor::ops(const Tensor& other, const char op) const
+Tensor Tensor::ops(const Tensor& other, double (*f)(double, double)) const
 {   
     if (rank != other.rank) throw std::invalid_argument("matrix size mismatch");
     for (int i = 0; i < rank; i++) 
@@ -123,59 +123,20 @@ Tensor Tensor::ops(const Tensor& other, const char op) const
 
     for (size_t i = 0; i < batch * row * col; i++) 
     {   
-        switch (op)
-        {
-        case 'A':
-            c[i] = a[i] + b[i];
-            break;
-        case 'S':
-            c[i] = a[i] - b[i];
-            break;
-        case 'M':
-            c[i] = a[i] * b[i];
-            break;
-        case 'D':
-            c[i] = a[i] / b[i];
-            break;
-        default:
-            std::cout << "ERROR, SOMETHING WENT WRONG; THATS ALL I KNOW" << std::endl;
-            break;
-        }
+        c[i] = f(a[i], b[i]);
     }
     return t;
 }
 
-Tensor Tensor::ops(const double scalar, const char op) const
+Tensor Tensor::ops(const double scalar, double (*f)(double, double)) const
 {   
     
     Tensor t = Tensor(*this);
     double* a = (this->tensor).get();
     double* c = (t.tensor).get();
 
-    for (size_t i = 0; i < batch * row * col; i++) 
-    {   
-        switch (op)
-        {
-        case 'A':
-            c[i] = a[i] + scalar;
-            break;
-        case 'S':
-            c[i] = a[i] - scalar;
-            break;
-        case 'M':
-            c[i] = a[i] * scalar;
-            break;
-        case 'D':
-            c[i] = a[i] / scalar;
-            break;
-        case 'I':
-            c[i] = scalar / a[i];
-            break;
-        default:
-            std::cout << "ERROR, SOMETHING WENT WRONG; THATS ALL I KNOW" << std::endl;
-            break;
-        }
-    }
+    for (size_t i = 0; i < batch * row * col; i++)  c[i] = f(a[i], scalar);
+    
     return t;
 }
 

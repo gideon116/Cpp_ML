@@ -2,14 +2,15 @@
 #define MATRIX_OPERATIONS_H
 
 #include <iostream>
+#include <cmath>
 #include "tensor.h"
 
 class matrixOperations {
     public:
     
         // base ops
-        Tensor mops(const Tensor& m1, const Tensor& m2, const char ops);
-        Tensor cops(const Tensor& m1, const double con, const char ops);
+        Tensor mops(const Tensor& m1, const Tensor& m2, double (*f)(double, double)); // third param is a fn pointer
+        Tensor cops(const Tensor& m1, const double con, double (*f)(double, double));
         Tensor matmul(const Tensor& m1, const Tensor& m2);
         Tensor transpose(const Tensor& m1);
         Tensor activation(const Tensor& m1, const char ops);
@@ -20,16 +21,16 @@ class matrixOperations {
         void print(const Tensor& m1, std::vector<size_t> v={});
         
         // wrappers
-        Tensor subtract(const Tensor& m1, const Tensor& m2) { return mops(m1, m2, 's'); }
-        Tensor add(const Tensor& m1, const Tensor& m2) { return mops(m1, m2, 'a'); }
-        Tensor absdiff(const Tensor& m1, const Tensor& m2) { return mops(m1, m2, 'z'); }
-        Tensor elemwise(const Tensor& m1, const Tensor& m2) { return mops(m1, m2, 'm'); }
+        Tensor subtract(const Tensor& m1, const Tensor& m2) { return mops(m1, m2, [](double a, double b) { return a - b; }); }
+        Tensor add(const Tensor& m1, const Tensor& m2) { return mops(m1, m2, [](double a, double b) { return a + b; }); }
+        Tensor absdiff(const Tensor& m1, const Tensor& m2) { return mops(m1, m2, [](double a, double b) { return std::abs(a - b); }); }
+        Tensor elemwise(const Tensor& m1, const Tensor& m2) { return mops(m1, m2, [](double a, double b) { return a * b; }); }
 
-        Tensor constAdd(const Tensor& m1, const double con) { return cops(m1, con, 'a'); }
-        Tensor constSub(const Tensor& m1, const double con) { return cops(m1, con, 's'); }
-        Tensor constMul(const Tensor& m1, const double con) { return cops(m1, con, 'm'); }
-        Tensor constDiv(const Tensor& m1, const double con) { return cops(m1, con, 'd'); }
-        Tensor constPower(const Tensor& m1, const double con) { return cops(m1, con, 'p'); }
+        Tensor constAdd(const Tensor& m1, const double con) { return cops(m1, con, [](double a, double b){ return a + b; }); }
+        Tensor constSub(const Tensor& m1, const double con) { return cops(m1, con, [](double a, double b){ return a - b; }); }
+        Tensor constMul(const Tensor& m1, const double con) { return cops(m1, con, [](double a, double b){ return a * b; }); }
+        Tensor constDiv(const Tensor& m1, const double con) { return cops(m1, con, [](double a, double b){ return a / b; }); }
+        Tensor constPower(const Tensor& m1, const double con) { return cops(m1, con, [](double a, double b){ return std::pow(a, b); }); }
 
         Tensor relu(const Tensor& m1) { return activation(m1, 'a'); }
         Tensor d_relu(const Tensor& m1) { return activation(m1, 'b'); }
