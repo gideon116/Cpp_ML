@@ -1,4 +1,4 @@
-# Cpp_ML
+# Custom C++ Machine Learning Library and Model
 
 A custom machine learning micro-framework written **entirely in C++** with no third party dependencies, just the standard library, a C++14 capable compiler, and (optionally) OpenMP for parallelism.  
 Tensors, layers, and training loops from first principles.
