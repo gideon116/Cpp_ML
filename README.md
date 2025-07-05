@@ -1,19 +1,17 @@
 # Cpp_ML
 
-An experimental machine-learning micro-framework written **entirely in modern C++**—no third-party dependencies, just the standard library, a C++17-capable compiler, and (optionally) OpenMP for parallelism.  
+A custom machine learning micro-framework written **entirely in C++**—no third-party dependencies, just the standard library, a C++14-capable compiler, and (optionally) OpenMP for parallelism.  
 Tensors, layers, and training loops from first principles.
 
 ---
 
 ## Features
 
-* **`Tensor` class** supporting arbitrary rank, broadcasting helpers, and basic arithmetic operators.
-* **Matrix/tensor ops** (mat-mul, soft-max, arg-max, cross-entropy, etc.) with optional OpenMP parallel sections.
+* **`Tensor` class** supporting arbitrary rank, broadcasting helpers, and arithmetic operators.
+* **Matrix/tensor ops** (matmul, softmax, argmax, crossentropy, etc.) with optional OpenMP parallel sections.
 * **Core layers**: `Linear`, `Conv2D`, `MaxPool2D`, `ReLU`, `Sigmoid`, `ReduceSum`; each implements `forward_pass` and `backward_pass`.
-* **Simple sequential `Model` container** with a minimal `fit()` training loop and `predict()` helper.
+* **Sequential `Model` container** with a `fit()` for training loop and `predict()` for inference.
 * **MNIST data loader** (binary format) for quick CNN demos.
-* Header-only **interface**, `.cpp` sources kept lean; everything compiles to a single executable.
-
 ---
 
 ## Getting Started
