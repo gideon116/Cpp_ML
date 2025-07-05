@@ -192,6 +192,10 @@ Tensor matrixOperations::activation(const Tensor& m1, const char ops)
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
 
+    // softmax helper
+    double sum = 1e-19;
+    for (int ind = 0; ind < m1.tot_size; ind++) sum += std::exp(pm1[ind]);
+
     #pragma omp parallel for
     for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) 
     {
@@ -211,6 +215,10 @@ Tensor matrixOperations::activation(const Tensor& m1, const char ops)
             // derivative sigmoid
             case 'd':
                 pm[i] = pm1[i] * (1 - pm1[i]);
+                break;
+            // softmax
+            case 'e':
+                pm[i] = std::exp(pm1[i]) / sum;
                 break;
             default:
                 std::cout << "ERROR, SOMETHING WENT WRONG; THATS ALL I KNOW" << std::endl;
@@ -264,7 +272,7 @@ double matrixOperations::l2(const Tensor& m1, const Tensor& m2)
     if (!bcast) 
     {
         #pragma omp parallel for reduction(+:loss)
-        for (size_t i = 0; i < m1.batch * m1size; i++) 
+        for (size_t i = 0; i < m1.tot_size; i++) 
         {
             
             double diff = pm1[i] - pm2[i];
@@ -273,14 +281,70 @@ double matrixOperations::l2(const Tensor& m1, const Tensor& m2)
     } else
     {
         #pragma omp parallel for reduction(+:loss)
-        for (size_t i = 0; i < m1.batch * m1size; i++) 
+        for (size_t i = 0; i < m1.tot_size; i++) 
         {
-            
+            // if second one need be repeated then just mod
             double diff = pm1[i] - pm2[i % m1size];
             loss += diff * diff;
         }
     }
-    return loss / (m1.batch * m1size);
+    return loss / (m1.tot_size);
+}
+
+double matrixOperations::binarycrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real and m2 pred !!
+{
+    // TO DO: catch mismatch tensor
+
+    const double* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
+    const double* pm2 = m2.tensor.get();
+    double loss = 0.0;
+    const double eps = 1e-19;
+    
+
+    #pragma omp parallel for reduction(+:loss)
+    for (size_t i = 0; i < m1.tot_size; i++)
+    {   
+        int temp_real = pm1[i] > 0.5;
+        
+        loss += -(temp_real * std::log(pm2[i] + eps) + (1 - temp_real) * std::log(1 - pm2[i] + eps));
+    }
+
+    return loss / m1.batch;
+}
+
+double matrixOperations::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m /*m is same as pred*/) // m1 is real and m2 pred !!
+{
+    // TO DO: catch mismatch tensor
+
+    const double* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
+    const double* pm2 = m2.tensor.get();
+    double* pm = m.tensor.get();
+    double loss = 0.0;
+    const double eps = 1e-19;
+    
+
+
+    #pragma omp parallel for reduction(+:loss)
+    for (size_t i = 0; i < m1.tot_size; i++) 
+    {   
+        double sum = 1e-19;
+       
+        for (size_t j = 0; j < m2.shape[m2.rank - 1]; j++) sum += std::exp(pm2[i * m2.shape[m2.rank - 1] + j]);
+        
+        for (size_t j = 0; j < m2.shape[m2.rank - 1]; j++)
+        {
+            double p = std::exp(pm2[i * m2.shape[m2.rank - 1] + j]) / sum;
+            if (j == pm1[i])
+            {
+                loss -= std::log(p + eps);
+                pm[i * m.shape[m.rank - 1] + j] = p - 1; // gradient
+            }
+            else pm[i * m.shape[m.rank - 1] + j] = p;
+        }
+        
+    }
+    
+    return loss / m1.batch;
 }
 
 void matrixOperations::print(const Tensor& m1, std::vector<size_t> v)

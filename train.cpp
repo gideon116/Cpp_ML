@@ -1,66 +1,60 @@
 #include <iostream>
 #include "layers.h"
 #include "tensor.h"
+#include "mnist.h"
 
-// TO DO: add a print shape method to tensor, its getting tedious
 
-int main() {
+
+int main(int argc, char* argv[]) {
+
+    int n_test = 10;
+    int n_train = 10;
+
 
     matrixOperations wf;
-    
-    Tensor input = {
-        {
-            {{1, 1, 1}, {1, 1, 9}, {1, 1, 9}, {1, 1, 9}, {1, 1, 9}},
-            {{2, 2, 2}, {1, 5, 1}, {2, 2, 2}, {1, 5, 1}, {2, 2, 2}}
-        },
-        {
-            {{1, 1, 1}, {1, 1, 9}, {1, 1, 9}, {1, 1, 9}, {1, 1, 9}},
-            {{2, 2, 2}, {1, 5, 1}, {2, 2, 2}, {1, 5, 1}, {2, 2, 2}}
-        },
-    };
 
-    Tensor real = {
-        {
-            1, 4
-        },
-        {
-            1, 4
-        }
-    };
+    Tensor train_im = load_mnist_images("mnist/train-images-idx3-ubyte", 10);
+    Tensor train_l = load_mnist_labels("mnist/train-labels-idx1-ubyte", 10);
 
-    input.printShape();
-    real.printShape();
-    std::cout << real.col << " " << real.row << " " << real.batch << " " << std::endl;
+    Tensor test_im = load_mnist_images("mnist/t10k-images-idx3-ubyte", 10);
+    Tensor test_l = load_mnist_labels("mnist/t10k-labels-idx1-ubyte", 10);
+
+    train_im.printShape();
+    train_l.printShape();
 
     double loss;
     double lr = 0.001;
 
-    int units1 = 10;
-    int units2 = 10;
-
-    Linear layer1a(units1), layer2a(units2), layer3a(real.col);
-    ReLU relu1, relu2;
-    ReduceSum r1(2), r2(2);
-    std::vector<Layer*> network = {&layer1a, &relu1, &layer2a, &relu2, &layer3a, &r1, &r2};
+    int units1 = 8;
+    int units2 = 8;
+    int units3 = 10;
     
-    for (int epoch = 0; epoch < 10; epoch++) {
-        
+    Conv2D cov1(3, 3, units1, 3), cov2(3, 3, units2, 4);
+    Linear layer(units3, 5);
+    ReLU relu1, relu2;
+    ReduceSum r1(1), r2(1);
+    std::vector<Layer*> network = {&cov1, &relu1, &cov2, &r1, &r2, &layer};
+
+    for (int epoch = 0; epoch < 10; epoch++) 
+    {
         // train
-        Tensor y(input);
-        for (Layer* layer : network) {
-            y = (*layer).forward_pass(y, wf);
-        }
+        Tensor y(train_im);
+        for (Layer* layer : network) y = (*layer).forward_pass(y, wf);
+
         // loss calc
-        loss = wf.l2(y, real);
+        Tensor dy(y);
+        loss = wf.categoricalcrossentropy(train_l, y, dy);
         std::cout << "epoch: " << epoch << " loss = " << loss << std::endl;
 
         // backprop
-        Tensor dy = (y - real) * 2.0 / (real.batch * real.row * real.col);
 
-        for (int i = static_cast<int>(network.size()) - 1; i >= 0; i--) {
+        for (int i = (int)network.size() - 1; i >= 0; i--) {
             dy = (*network[i]).backward_pass(dy, lr, wf);
         }
     }
+
+
+
+
     return 0;
 }
-

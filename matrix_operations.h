@@ -15,6 +15,8 @@ class matrixOperations {
         Tensor activation(const Tensor& m1, const char ops);
         Tensor batchsum(const Tensor& m1);
         double l2(const Tensor& m1, const Tensor& m2);
+        double binarycrossentropy(const Tensor& m1, const Tensor& m2);
+        double categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m);
         void print(const Tensor& m1, std::vector<size_t> v={});
         
         // wrappers
