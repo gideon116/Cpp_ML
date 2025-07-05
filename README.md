@@ -11,14 +11,14 @@ Tensors, layers, and training loops from first principles.
 * **Matrix/tensor ops** (matmul, softmax, argmax, crossentropy, etc.) with optional OpenMP parallel sections.
 * **Core layers**: `Linear`, `Conv2D`, `MaxPool2D`, `ReLU`, `Sigmoid`, `ReduceSum`; each implements `forward_pass` and `backward_pass`.
 * **Sequential `Model` container** with a `fit()` for training loop and `predict()` for inference.
-* **MNIST data loader** (binary format) for quick CNN demos.
+* **MNIST data loader** (binary format) for CNN demo.
 ---
 
 ## Getting Started
 
 ### Prerequisites
 
-* C++17 compiler (g++ 10+, clang 12+, or MSVC ≥19.29).  
+* C++14 or higher compiler (g++ 10+, clang 12+, or MSVC ≥19.29).  
 * OpenMP (optional but recommended for speed).  
 * MNIST binary files in `mnist/`.
 
