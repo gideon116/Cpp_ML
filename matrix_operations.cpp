@@ -10,9 +10,7 @@ Tensor matrixOperations::mops(const Tensor& m1, const Tensor& m2, double (*f)(do
     if (!(m2.batch == 1 || m2.batch == m1.batch)) {throw std::invalid_argument("matrix size mismatch");}
 
     bool bcast = (m2.batch == 1);
-    std::vector<int> temp(m1.rank);
-    for (int i = 0; i < m1.rank; i ++) temp[i] = m1.shape[i];
-    Tensor m = Tensor::create(temp);
+    Tensor m = Tensor::create(m1.shape.get(), m1.rank);
 
     const double* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
     const double* pm2 = m2.tensor.get();
@@ -44,7 +42,6 @@ Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2)
     temp[m1.rank - 1] = m2.col;
 
     Tensor m = Tensor::create(temp);
-
 
     const double* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
     const double* pm2 = m2.tensor.get();
@@ -80,9 +77,7 @@ Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2)
 
 Tensor matrixOperations::cops(const Tensor& m1, const double con, double (*f)(double, double)) 
 {
-    std::vector<int> temp(m1.rank);
-    for (int i = 0; i < m1.rank; i ++) temp[i] = m1.shape[i];
-    Tensor m = Tensor::create(temp);
+    Tensor m = Tensor::create(m1.shape.get(), m1.rank);
 
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
@@ -124,18 +119,50 @@ Tensor matrixOperations::transpose(const Tensor& m1)
     return m;
 }
 
-Tensor matrixOperations::activation(const Tensor& m1, const char ops)
+Tensor matrixOperations::argmax(const Tensor& m1)
 {
-    std::vector<int> temp(m1.rank);
-    for (int i = 0; i < m1.rank; i ++) temp[i] = m1.shape[i];
+    std::vector<int> temp(m1.rank - 1);
+    for (int i = 0; i < m1.rank - 1; i ++) temp[i] = m1.shape[i];
     Tensor m = Tensor::create(temp);
 
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
 
-    // softmax helper
-    double sum = 1e-19;
-    for (int ind = 0; ind < m1.tot_size; ind++) sum += std::exp(pm1[ind]);
+    #pragma omp parallel for
+    for (size_t i = 0; i < m1.batch * m1.row; i++)
+    {
+        double temp_val = -1e19;
+        for (size_t j = 0; j < m1.col; j++) 
+        {
+            if (pm1[i * m1.col + j] > temp_val) {pm[i] = j; temp_val = pm1[i * m1.col + j];}
+        }
+    }
+    return m;
+}
+
+Tensor matrixOperations::softmax(const Tensor& m1)
+{
+    Tensor m = Tensor::create(m1.shape.get(), m1.rank);
+
+    const double* pm1 = m1.tensor.get();
+    double* pm = m.tensor.get();
+
+    #pragma omp parallel for
+    for (size_t i = 0; i < m1.batch * m1.row; i++)
+    {
+        double sum = 1e-19;
+        for (size_t j = 0; j < m1.col; j++) sum += std::exp(pm1[i * m1.col + j]);
+        for (size_t j = 0; j < m1.col; j++) pm[i * m1.col + j] = std::exp(pm1[i * m1.col + j]) / sum;
+    }
+    return m;
+}
+
+Tensor matrixOperations::activation(const Tensor& m1, const char ops)
+{
+    Tensor m = Tensor::create(m1.shape.get(), m1.rank);
+
+    const double* pm1 = m1.tensor.get();
+    double* pm = m.tensor.get();
 
     #pragma omp parallel for
     for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) 
@@ -156,10 +183,6 @@ Tensor matrixOperations::activation(const Tensor& m1, const char ops)
             // derivative sigmoid
             case 'd':
                 pm[i] = pm1[i] * (1 - pm1[i]);
-                break;
-            // softmax
-            case 'e':
-                pm[i] = std::exp(pm1[i]) / sum;
                 break;
             default:
                 std::cout << "ERROR, SOMETHING WENT WRONG; THATS ALL I KNOW" << std::endl;
@@ -215,7 +238,6 @@ double matrixOperations::l2(const Tensor& m1, const Tensor& m2)
         #pragma omp parallel for reduction(+:loss)
         for (size_t i = 0; i < m1.tot_size; i++) 
         {
-            
             double diff = pm1[i] - pm2[i];
             loss += diff * diff;
         }
@@ -269,13 +291,12 @@ double matrixOperations::categoricalcrossentropy(const Tensor& m1, const Tensor&
     for (size_t i = 0; i < m1.tot_size; i++) 
     {   
         double sum = 1e-19;
-       
         for (size_t j = 0; j < m2.shape[m2.rank - 1]; j++) sum += std::exp(pm2[i * m2.shape[m2.rank - 1] + j]);
         
         for (size_t j = 0; j < m2.shape[m2.rank - 1]; j++)
         {
             double p = std::exp(pm2[i * m2.shape[m2.rank - 1] + j]) / sum;
-            if (j == pm1[i])
+            if (j == (size_t)pm1[i])
             {
                 loss -= std::log(p + eps);
                 pm[i * m.shape[m.rank - 1] + j] = p - 1; // gradient

@@ -1,9 +1,11 @@
 #include <iostream>
 #include "layers.h"
 #include "tensor.h"
+#include "model.h"
 #include "mnist.h"
 
-int main(int argc, char* argv[]) {
+
+int main() {
 
     int n_test = 10;
     int n_train = 10;
@@ -19,7 +21,6 @@ int main(int argc, char* argv[]) {
     train_im.printShape();
     train_l.printShape();
 
-    double loss;
     double lr = 0.001;
 
     int units1 = 8;
@@ -30,24 +31,18 @@ int main(int argc, char* argv[]) {
     Linear layer(units3, 5);
     ReLU relu1, relu2;
     ReduceSum r1(1), r2(1);
+
     std::vector<Layer*> network = {&cov1, &relu1, &cov2, &r1, &r2, &layer};
-
-    for (int epoch = 0; epoch < 10; epoch++) 
-    {
-        // train
-        Tensor y(train_im);
-        for (Layer* layer : network) y = (*layer).forward_pass(y, wf);
-
-        // loss calc
-        Tensor dy(y);
-        loss = wf.categoricalcrossentropy(train_l, y, dy);
-        std::cout << "epoch: " << epoch << " loss = " << loss << std::endl;
-
-        // backprop
-        for (int i = (int)network.size() - 1; i >= 0; i--) {
-            dy = (*network[i]).backward_pass(dy, lr, wf);
-        }
-    }
+    
+    Model model(network);
+    // model.add(&cov1); model.add(&relu1); model.add(&cov2); model.add(&r1); model.add(&r2); model.add(&layer);
+    model.fit(train_l, train_im, 10, lr);
+    
+    Tensor pred = model.predict(test_im);
+    std::cout << "pred: ";
+    wf.print(wf.argmax(wf.softmax(pred)));
+    std::cout << "\nreal: ";
+    wf.print(test_l);
 
     return 0;
 }

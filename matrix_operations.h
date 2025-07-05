@@ -3,6 +3,10 @@
 
 #include <iostream>
 #include <cmath>
+#include <vector>
+#include <initializer_list>
+#include <stdexcept>
+
 #include "tensor.h"
 
 class matrixOperations {
@@ -13,7 +17,9 @@ class matrixOperations {
         Tensor cops(const Tensor& m1, const double con, double (*f)(double, double));
         Tensor matmul(const Tensor& m1, const Tensor& m2);
         Tensor transpose(const Tensor& m1);
+        Tensor argmax(const Tensor& m1);
         Tensor activation(const Tensor& m1, const char ops);
+        Tensor softmax(const Tensor& m1);
         Tensor batchsum(const Tensor& m1);
         double l2(const Tensor& m1, const Tensor& m2);
         double binarycrossentropy(const Tensor& m1, const Tensor& m2);
