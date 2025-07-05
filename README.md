@@ -11,7 +11,7 @@ Tensors, layers, and training loops from first principles.
 * **Matrix/tensor ops** (mat-mul, soft-max, arg-max, cross-entropy, etc.) with optional OpenMP parallel sections.
 * **Core layers**: `Linear`, `Conv2D`, `MaxPool2D`, `ReLU`, `Sigmoid`, `ReduceSum`; each implements `forward_pass` and `backward_pass`.
 * **Simple sequential `Model` container** with a minimal `fit()` training loop and `predict()` helper.
-* **MNIST data loader** (binary format) for quick CNN demos. :contentReference[oaicite:5]{index=5}  
+* **MNIST data loader** (binary format) for quick CNN demos.
 * Header-only **interface**, `.cpp` sources kept lean; everything compiles to a single executable.
 
 ---
