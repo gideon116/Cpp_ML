@@ -49,7 +49,6 @@ Tensor Conv2D::forward_pass(const Tensor& px, matrixOperations& wf)
         W = Tensor::create({w_height, w_width, ch, units});
         double* pm = W.tensor.get();
         for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
-        out = Tensor::create({px.shape[0], height - w_height + 1, width - w_width + 1, units});
         init = true;
     }
     else
@@ -61,6 +60,7 @@ Tensor Conv2D::forward_pass(const Tensor& px, matrixOperations& wf)
     }
 
     X = Tensor(px);
+    out = Tensor::create({px.shape[0], height - w_height + 1, width - w_width + 1, units});
 
     size_t ind = 0;
     for (size_t b1 = 0; b1 < out.shape[0]; b1++)
@@ -143,7 +143,6 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, matrixOperations& wf)
 
             size_t o_size = (px.shape[0]) * ((height + (height%k_height)) / k_height) * ((width + (width%k_width)) / k_width) * (ch);
             argmax = std::make_unique<size_t[][4]>(o_size);
-            out = Tensor::create({px.shape[0], (height + (height%k_height)) / k_height, (width + (width%k_width)) / k_width, ch});
             init = true;
         }
         else
@@ -155,6 +154,7 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, matrixOperations& wf)
         }
 
         X = Tensor(px);
+        out = Tensor::create({px.shape[0], (height + (height%k_height)) / k_height, (width + (width%k_width)) / k_width, ch});
 
         size_t ind = 0;
         for (size_t b1 = 0; b1 < out.shape[0]; b1++)
@@ -229,17 +229,16 @@ Tensor ReduceSum::forward_pass(const Tensor& px, matrixOperations& wf)
         {
             if (ax >= px.rank) throw std::invalid_argument("axis outside shape");
             const int* shape = px.shape.get(); // [b, h, w, c]
-            reshape_shape = std::make_unique<int[]>(px.rank-1); // [b, w, c]
-            keepdims_shape = std::make_unique<int[]>(px.rank);  // [b, 1, w, c]
-
+            reshape_shape = std::make_unique<int[]>(px.rank-2); // [h, w]
+            keepdims_shape = std::make_unique<int[]>(px.rank-1);  // [h, w, 1]
 
             keepdims_rank = px.rank;
 
             int j = 0;
-            for (int i = 0; i < px.rank; i++)
+            for (int i = 1; i < px.rank; i++)
             {
-                if (i != ax) { reshape_shape[j++] = shape[i]; keepdims_shape[i] = shape[i]; }
-                else keepdims_shape[i] = 1;
+                if (i != ax) { reshape_shape[j++] = shape[i]; keepdims_shape[i - 1] = shape[i]; }
+                else keepdims_shape[i - 1] = 1;
             }
             
             init = true;
@@ -247,7 +246,12 @@ Tensor ReduceSum::forward_pass(const Tensor& px, matrixOperations& wf)
 
         X = Tensor(px);
 
-        Tensor out_keepdims = Tensor::create(keepdims_shape.get(), keepdims_rank);
+        // the whole point of curr_shape is to be flexable with the batch but strict with the other dims
+        int curr_shape_kd[keepdims_rank];
+        curr_shape_kd[0] = px.shape[0];
+        for (int i = 1; i < px.rank; i++) curr_shape_kd[i] = keepdims_shape.get()[i - 1];
+
+        Tensor out_keepdims = Tensor::create(curr_shape_kd, keepdims_rank);
         for (size_t i = 0; i < out_keepdims.tot_size; i++) out_keepdims.tensor[i] = 0;
 
         const double* pm = px.tensor.get();
@@ -269,7 +273,11 @@ Tensor ReduceSum::forward_pass(const Tensor& px, matrixOperations& wf)
 
         if (!keepdims) 
         {
-            Tensor out = Tensor::create(reshape_shape.get(), keepdims_rank - 1);
+            int curr_shape[keepdims_rank - 1];
+            curr_shape[0] = px.shape[0];
+            for (int i = 1; i < px.rank - 1; i++) curr_shape[i] = reshape_shape.get()[i - 1];
+
+            Tensor out = Tensor::create(curr_shape, keepdims_rank - 1);
             double* p_out = out.tensor.get();
 
             for (size_t i = 0; i < out_keepdims.tot_size; i++) p_out[i] = pm_okd[i];

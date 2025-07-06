@@ -306,7 +306,7 @@ double matrixOperations::categoricalcrossentropy(const Tensor& m1, const Tensor&
         
     }
     
-    return loss / m1.batch;
+    return loss / (m1.batch * m1.row);
 }
 
 void matrixOperations::print(const Tensor& m1, std::vector<size_t> v)

@@ -4,11 +4,10 @@
 #include "model.h"
 #include "mnist.h"
 
-
 int main() {
 
     int n_test = 10;
-    int n_train = 10;
+    int n_train = 100;
 
     matrixOperations wf;
 
@@ -18,8 +17,8 @@ int main() {
     Tensor test_im = load_mnist_images("mnist/t10k-images-idx3-ubyte", n_test);
     Tensor test_l = load_mnist_labels("mnist/t10k-labels-idx1-ubyte", n_test);
 
-    train_im.printShape();
-    train_l.printShape();
+    std::cout << "train image shape is: "; train_im.printShape();
+    std::cout << "train label shape is: "; train_l.printShape();
 
     double lr = 0.001;
 

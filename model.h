@@ -13,9 +13,10 @@ class Model
         Model(std::vector<Layer*> inputNetwork) : network(inputNetwork) {}
         void add(Layer* i) { network.push_back(i); }
         void fit(const Tensor& real, const Tensor& input, const int& epochs, const double& lr);
-        Tensor predict(Tensor input)
+        Tensor predict(Tensor& input)
         { 
-            for (Layer* layer : network) input = (*layer).forward_pass(input, wf);
+            input.printShape();
+            for (Layer* layer : network) {input = (*layer).forward_pass(input, wf);}
             return input; 
         }
 
