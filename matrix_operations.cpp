@@ -231,7 +231,6 @@ double matrixOperations::l2(const Tensor& m1, const Tensor& m2)
     const double* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
     const double* pm2 = m2.tensor.get();
     double loss = 0.0;
-    
 
     if (!bcast) 
     {
@@ -263,7 +262,6 @@ double matrixOperations::binarycrossentropy(const Tensor& m1, const Tensor& m2) 
     double loss = 0.0;
     const double eps = 1e-19;
     
-
     #pragma omp parallel for reduction(+:loss)
     for (size_t i = 0; i < m1.tot_size; i++)
     {   
@@ -272,7 +270,7 @@ double matrixOperations::binarycrossentropy(const Tensor& m1, const Tensor& m2) 
         loss += -(temp_real * std::log(pm2[i] + eps) + (1 - temp_real) * std::log(1 - pm2[i] + eps));
     }
 
-    return loss / m1.batch;
+    return loss / m1.tot_size;
 }
 
 double matrixOperations::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m /*m is same as pred*/) // m1 is real and m2 pred !!
@@ -306,7 +304,7 @@ double matrixOperations::categoricalcrossentropy(const Tensor& m1, const Tensor&
         
     }
     
-    return loss / (m1.batch * m1.row);
+    return loss / m1.tot_size;
 }
 
 void matrixOperations::print(const Tensor& m1, std::vector<size_t> v)
@@ -315,7 +313,6 @@ void matrixOperations::print(const Tensor& m1, std::vector<size_t> v)
     
     if (n < m1.rank - 1)
     {   
-        
         std::cout << "{ ";
         
         for (int i = 0; i < m1.shape[n]; i++)
