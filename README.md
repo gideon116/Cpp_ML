@@ -9,7 +9,7 @@ A custom machine learning micro-framework written entirely in C++ with no third 
 * **`Tensor`** class supporting arbitrary rank, broadcasting helpers, and arithmetic operators.
 * **Tensor Operations** (matmul, softmax, argmax, crossentropy, etc.) with optional OpenMP parallel sections.
 * **Core Layers**: `Linear`, `Conv2D`, `MaxPool2D`, `ReLU`, `Sigmoid`, `ReduceSum`; each implements `forward_pass` and `backward_pass`.
-* **Sequential `Model` Container** with a `fit()` for training loop and `predict()` for inference.
+* Sequential **`Model`** container with a `fit()` for training loop and `predict()` for inference.
 * **MNIST Data Loader** (binary format) for CNN demo.
 ---
 
@@ -19,9 +19,8 @@ A custom machine learning micro-framework written entirely in C++ with no third 
 
 * C++14 or higher compiler (g++ 10+, clang 12+, or MSVC ≥19.29).  
 * OpenMP (optional but recommended for speed).  
-* MNIST binary files in `mnist/`.
 
-### Build & Run
+### Build and Run
 
 ```bash
 git clone https://github.com/gideon116/Cpp_ML.git
@@ -31,6 +30,6 @@ cd Cpp_ML
 g++ train.cpp tensor.cpp matrix_operations.cpp layers.cpp && ./a.out
 
 # parallel build
-g++ -std=c++17 -O3 -fopenmp \
+g++ -std=c++14 -O3 -fopenmp \
     train.cpp tensor.cpp matrix_operations.cpp layers.cpp \
     -o mnist_demo
