@@ -126,16 +126,16 @@ class Tensor
             } 
         }
      
-     
         // change by index
-        double& index(const std::vector<size_t>& params);
-
+        double& index(const size_t params[]);
         // overload for read only access
+        double index(const size_t params[]) const;
+     
+        // change for vector based indexing
+        double& index(const std::vector<size_t>& params);
         double index(const std::vector<size_t>& params) const;
 
-        // overload for array based indexing
-        double& index(const size_t params[]);
-        double index(const size_t params[]) const;
+        
 
         void printShape();
 

@@ -19,24 +19,21 @@ Tensor Linear::forward_pass(const Tensor& px, matrixOperations& wf)
             if (W.row != px.col) throw std::invalid_argument("cannot reuse layer");
         }
         X = Tensor(px);
-        return wf.matmul(px, W);
+        return wf.matmul(px, W, true);
     }
 
 Tensor Linear::backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) 
     {
         // gradient wrt the layer below
-        Tensor dx = wf.matmul(dy, wf.transpose(W));
+        Tensor dx = wf.matmul(dy, wf.transpose(W), true);
 
         // gradient wrt weights
-        Tensor dw = wf.batchsum(wf.matmul(wf.transpose(X), dy));
+        Tensor dw = wf.batchsum(wf.matmul(wf.transpose(X), dy, true));
 
         W = W - dw * lr;
 
         return dx;
     }
-
-
-
 
 Tensor Conv2D::forward_pass(const Tensor& px, matrixOperations& wf) 
     {
@@ -63,6 +60,8 @@ Tensor Conv2D::forward_pass(const Tensor& px, matrixOperations& wf)
     out = Tensor::create({px.shape[0], height - w_height + 1, width - w_width + 1, units});
 
     size_t ind = 0;
+    size_t i1[4];
+    size_t i2[4];
     for (size_t b1 = 0; b1 < out.shape[0]; b1++)
     {
         for (size_t h1 = 0; h1 < out.shape[1]; h1++)
@@ -78,7 +77,12 @@ Tensor Conv2D::forward_pass(const Tensor& px, matrixOperations& wf)
                         {
                             for (size_t c2 = 0; c2 < ch; c2++)
                             {
-                                temp += px.index({b1, h2 + h1, w2 + w1, c2}) * W.index({h2, w2, c2, oc});
+                                // doing this to ensure cstyle array for indexing
+                                // not making a new array and just rewriting
+                                i1[0] = b1; i1[1] = h2 + h1; i1[2] = w2 + w1; i1[3] = c2;
+                                i2[0] = h2; i2[1] = w2; i2[2] = c2; i2[3] = oc; 
+
+                                temp += px.index(i1) * W.index(i2);
                             }
                         }
                     }
@@ -95,14 +99,16 @@ Tensor Conv2D::backward_pass(const Tensor& dy, const double lr, matrixOperations
     {
         // gradient wrt the layer below
         Tensor dx = Tensor::create({X.shape[0], X.shape[1], X.shape[2], X.shape[3]});
-        for (size_t i = 0; i < dx.tot_size; i++) dx.tensor[i] = 0;
+        std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(double)); // zero fill
         
         // gradient wrt weights
         Tensor dw = Tensor::create({W.shape[0], W.shape[1], W.shape[2], W.shape[3]});
-        for (size_t i = 0; i < dw.tot_size; i++) dw.tensor[i] = 0;
+        std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(double)); // zero fill
 
 
         size_t ind = 0;
+        size_t i1[4];
+        size_t i2[4];
         for (size_t b1 = 0; b1 < dy.shape[0]; b1++)
         {
             for (size_t h1 = 0; h1 < dy.shape[1]; h1++)
@@ -118,8 +124,13 @@ Tensor Conv2D::backward_pass(const Tensor& dy, const double lr, matrixOperations
                             {
                                 for (size_t c2 = 0; c2 < ch; c2++)
                                 {
-                                    dx.index({b1, h2 + h1, w2 + w1, c2}) += grad * W.index({h2, w2, c2, oc});
-                                    dw.index({h2, w2, c2, oc}) += grad * X.index({b1, h2 + h1, w2 + w1, c2});
+                                    // doing this to ensure cstyle array for indexing
+                                    // not making a new array and just rewriting
+                                    i1[0] = b1; i1[1] = h2 + h1; i1[2] = w2 + w1; i1[3] = c2;
+                                    i2[0] = h2; i2[1] = w2; i2[2] = c2; i2[3] = oc; 
+
+                                    dx.index(i1) += grad * W.index(i2);
+                                    dw.index(i2) += grad * X.index(i1);
                                 }
                             }
                         }
@@ -142,7 +153,9 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, matrixOperations& wf)
             height = px.shape[1]; width = px.shape[2]; ch = px.shape[3];
 
             size_t o_size = (px.shape[0]) * ((height + (height%k_height)) / k_height) * ((width + (width%k_width)) / k_width) * (ch);
-            argmax = std::make_unique<size_t[][4]>(o_size);
+            
+            // this get the argmax in a nested for loop (2D) I made it flat for speed
+            argmax = std::make_unique<size_t[]>(o_size * 4);
             init = true;
         }
         else
@@ -157,6 +170,7 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, matrixOperations& wf)
         out = Tensor::create({px.shape[0], (height + (height%k_height)) / k_height, (width + (width%k_width)) / k_width, ch});
 
         size_t ind = 0;
+        size_t i1[4];
         for (size_t b1 = 0; b1 < out.shape[0]; b1++)
         {
             for (size_t h1 = 0; h1 < out.shape[1]; h1++)
@@ -173,7 +187,10 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, matrixOperations& wf)
                             for (size_t w2 = w1 * k_width; w2 < w1 * k_width + k_width; w2++)
                             {
                                 if (w2 >= width) break;
-                                double val = px.index({b1, h2, w2, c});
+
+                                i1[0] = b1; i1[1] = h2; i1[2] = w2; i1[3] = c;
+                                double val = px.index(i1);
+
                                 if (val > temp_val)
                                 {
                                     temp_val = val;
@@ -185,7 +202,7 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, matrixOperations& wf)
                             }
                         }
                         out.tensor[ind] = temp_val;
-                        for (int ii = 0; ii < 4; ii++) argmax[ind][ii] = temp_ind[ii];
+                        for (int ii = 0; ii < 4; ii++) argmax[ind * 4 + ii] = temp_ind[ii];
                         ind++;
                     }
                 }
@@ -199,10 +216,11 @@ Tensor MaxPool2D::backward_pass(const Tensor& dy, const double lr, matrixOperati
 
         // gradient wrt the layer below
         Tensor dx = Tensor::create({X.shape[0], X.shape[1], X.shape[2], X.shape[3]});
-        for (size_t i = 0; i < dx.tot_size; i++) dx.tensor[i] = 0;
+        std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(double));  // zero fill
 
 
         size_t ind = 0;
+        size_t i1[4];
         for (size_t b1 = 0; b1 < dy.shape[0]; b1++)
         {
             for (size_t h1 = 0; h1 < dy.shape[1]; h1++)
@@ -211,8 +229,9 @@ Tensor MaxPool2D::backward_pass(const Tensor& dy, const double lr, matrixOperati
                 {
                     for (size_t c = 0; c < dy.shape[3]; c++)    
                     {
-                        dx.index({argmax[ind][0], argmax[ind][1], argmax[ind][2], argmax[ind][3]})
-                                    = dy.tensor[ind];
+                        i1[0] = argmax[ind * 4 + 0]; i1[1] = argmax[ind * 4 + 1]; 
+                        i1[2] = argmax[ind * 4 + 2]; i1[3] = argmax[ind * 4 + 3];
+                        dx.index(i1) = dy.tensor[ind];
                         ind++; 
                     }
                 }
@@ -292,8 +311,7 @@ Tensor ReduceSum::backward_pass(const Tensor& dy, double, matrixOperations& wf)
         if (!init) throw std::invalid_argument("layer not initilized");
 
         Tensor dx = Tensor(X);
-        for (size_t i = 0; i < dx.tot_size; i++) dx.tensor[i] = 0;
-
+        std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(double)); // zero fill
 
         const double* pdy = dy.tensor.get();
         double* pdx = dx.tensor.get();

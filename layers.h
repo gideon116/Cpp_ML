@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <random>
+#include <cstring>
 #include "matrix_operations.h"
 
 class Layer {
@@ -103,7 +104,7 @@ class MaxPool2D : public Layer {
         int width;
         int ch;
 
-        std::unique_ptr<size_t[][4]> argmax;
+        std::unique_ptr<size_t[]> argmax;
         
         Tensor X;
         Tensor out;

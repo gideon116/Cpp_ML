@@ -1,4 +1,3 @@
-#include <iostream>
 #include "layers.h"
 #include "tensor.h"
 #include "model.h"
@@ -24,14 +23,16 @@ int main() {
 
     int units1 = 8;
     int units2 = 8;
-    int units3 = 10;
+    int units3 = 100;
+    int units4 = 20;
+    int units5 = 10;
     
     Conv2D cov1(3, 3, units1, 3), cov2(3, 3, units2, 4);
-    Linear layer(units3, 5);
+    Linear ffn1(units3, 5), ffn2(units4, 6), out(units5, 7);
     ReLU relu1, relu2;
     ReduceSum r1(1), r2(1);
 
-    std::vector<Layer*> network = {&cov1, &relu1, &cov2, &r1, &r2, &layer};
+    std::vector<Layer*> network = {&cov1, &relu1, &ffn1, &cov2, &r1, &r2, &ffn2, &out};
     
     Model model(network);
     // model.add(&cov1); model.add(&relu1); model.add(&cov2); model.add(&r1); model.add(&r2); model.add(&layer);

@@ -6,6 +6,7 @@
 #include <vector>
 #include <initializer_list>
 #include <stdexcept>
+#include <thread>
 
 #include "tensor.h"
 
@@ -16,6 +17,7 @@ class matrixOperations {
         Tensor mops(const Tensor& m1, const Tensor& m2, double (*f)(double, double)); // third param is a fn pointer
         Tensor cops(const Tensor& m1, const double con, double (*f)(double, double));
         Tensor matmul(const Tensor& m1, const Tensor& m2);
+        Tensor matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads=0);
         Tensor transpose(const Tensor& m1);
         Tensor argmax(const Tensor& m1);
         Tensor activation(const Tensor& m1, const char ops);

@@ -51,9 +51,6 @@ Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2)
     const size_t m2size = m2.row * m2.col;
     const size_t msize = m1.row * m2.col;
     
-    #pragma omp parallel for
-    for (size_t i = 0; i < m1.batch * msize; i++) {pm[i]=0.0;}
-    
     #pragma omp parallel for collapse(3) schedule(static)
     for (int b = 0; b < m1.batch; b++){
         
@@ -72,6 +69,81 @@ Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2)
             }
         }
     }
+    return m;
+}
+
+Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads)
+{
+    if (m1.col != m2.row) {throw std::invalid_argument("matrix size mismatch");}
+    const bool bcast = (m2.batch == 1);
+    if (!bcast && (m1.batch != m2.batch)) {throw std::invalid_argument("matrix size mismatch");}
+    
+    std::vector<int> temp(m1.rank);
+
+    // TO DO: CATCH < 1 RANK
+    for (int i = 0; i < m1.rank - 1; i ++) temp[i] = m1.shape[i];
+    temp[m1.rank - 1] = m2.col;
+
+    Tensor m = Tensor::create(temp);
+
+    const double* pm1 = m1.tensor.get();
+    const double* pm2 = m2.tensor.get();
+    double* pm = m.tensor.get();
+
+    const size_t m1size = m1.row * m1.col;
+    const size_t m2size = m2.row * m2.col;
+    const size_t msize = m1.row * m2.col;
+
+    // multi thread additions
+
+    if (n_threads == 0)
+    {
+        int avaliable_threads = std::thread::hardware_concurrency(); // may be 0
+        n_threads = std::min<int>( m1.row,  avaliable_threads > 0 ? avaliable_threads : 1 );
+    }
+
+    const int stride = m1.row / n_threads;
+    const int rem = m1.row % n_threads;
+
+    // spin up
+    std::thread* threads = new std::thread[n_threads];
+
+    for (int b = 0; b < m1.batch; b++){
+        
+        const double* pm1temp = pm1 + b * m1size; // shift pm1 by one batch worth
+        const double* pm2temp = !bcast ? pm2 + b * m2size : pm2; // only shift if m2 is 3D
+        double* pmtemp = pm + b * msize;
+
+        for (int th = 0; th < n_threads; th++)
+        {
+            int temp = (th < n_threads - 1) ? stride : stride + rem;
+            threads[th] = std::thread(
+
+                // we dont want to capture everything in scope !
+                [th, stride, temp, pm1temp, pm2temp, pmtemp](size_t m1col, size_t m2col)
+                {
+                    for (size_t i = th * stride; i < (th * stride) + temp; i++) {
+                        for (size_t k = 0; k < m2col; k++) {
+
+                            double sum = 0;
+                            for (size_t j = 0; j < m1col; j++) {
+                                sum += pm1temp[i * m1col + j] * pm2temp[j * m2col + k];
+                            }
+                            pmtemp[i * m2col + k] = sum;
+                        }
+                    }
+                },
+                
+                // pass these are parameters cause we dont want to copy the entire tensor
+                m1.col, m2.col);
+        }
+
+        // free
+        for (int i = 0; i < n_threads; i++) threads[i].join();
+    }
+
+    // clean up
+    delete[] threads;
     return m;
 }
 
@@ -283,17 +355,23 @@ double matrixOperations::categoricalcrossentropy(const Tensor& m1, const Tensor&
     double loss = 0.0;
     const double eps = 1e-19;
     
-
+    const size_t num_classes = m2.shape[m2.rank - 1];
 
     #pragma omp parallel for reduction(+:loss)
     for (size_t i = 0; i < m1.tot_size; i++) 
     {   
+        size_t tempid = i * num_classes;
+
+        // find max per class and subtract to make stable
+        double cur_max = pm2[tempid];
+        for (size_t j = 0; j < num_classes; j++) { if (pm2[tempid + j] > cur_max) cur_max = pm2[tempid + j]; }
+    
         double sum = 1e-19;
-        for (size_t j = 0; j < m2.shape[m2.rank - 1]; j++) sum += std::exp(pm2[i * m2.shape[m2.rank - 1] + j]);
+        for (size_t j = 0; j < num_classes; j++) sum += std::exp(pm2[tempid + j] - cur_max);
         
-        for (size_t j = 0; j < m2.shape[m2.rank - 1]; j++)
+        for (size_t j = 0; j < num_classes; j++)
         {
-            double p = std::exp(pm2[i * m2.shape[m2.rank - 1] + j]) / sum;
+            double p = std::exp(pm2[tempid + j] - cur_max) / sum;
             if (j == (size_t)pm1[i])
             {
                 loss -= std::log(p + eps);
