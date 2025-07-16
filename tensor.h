@@ -191,9 +191,9 @@ class Tensor
     };
 
 // when the scalar is in front
-inline Tensor operator+(double s, const Tensor& t) { return t + s; }
-inline Tensor operator-(double s, const Tensor& t) { return (t * - 1) + s; }
-inline Tensor operator*(double s, const Tensor& t) { return t * s; }
-inline Tensor operator/(double s, const Tensor& t) { return t.ops(s, [](double a, double b){ return b / a; }); } // here makes sure to put tensor in denom
+Tensor operator+(double s, const Tensor& t);
+Tensor operator-(double s, const Tensor& t);
+Tensor operator*(double s, const Tensor& t);
+Tensor operator/(double s, const Tensor& t);
 
 #endif

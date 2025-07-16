@@ -1,20 +1,19 @@
 #include <iostream>
 #include "matrix_operations.h"
 
-
-Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2)
+Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
 {
     if (m1.col != m2.row) {throw std::invalid_argument("matrix size mismatch [3]");}
     const bool bcast = (m2.batch == 1);
     if (!bcast && (m1.batch != m2.batch)) {throw std::invalid_argument("matrix size mismatch [4]");}
     
-    std::vector<int> temp(m1.rank);
+    std::unique_ptr<int[]> temp_shape = std::make_unique<int[]>(m1.rank);
 
     // TO DO: CATCH < 1 RANK
-    for (int i = 0; i < m1.rank - 1; i ++) temp[i] = m1.shape[i];
-    temp[m1.rank - 1] = m2.col;
+    for (int i = 0; i < m1.rank - 1; i ++) temp_shape[i] = m1.shape[i];
+    temp_shape[m1.rank - 1] = m2.col;
 
-    Tensor m = Tensor::create(temp);
+    Tensor m = Tensor::create(temp_shape.get(), m1.rank);
 
     const double* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
     const double* pm2 = m2.tensor.get();
@@ -45,19 +44,19 @@ Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2)
     return m;
 }
 
-Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads)
+Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads)
 {
     if (m1.col != m2.row) {throw std::invalid_argument("matrix size mismatch [5]");}
     const bool bcast = (m2.batch == 1);
     if (!bcast && (m1.batch != m2.batch)) {throw std::invalid_argument("matrix size mismatch [6]");}
     
-    std::vector<int> temp(m1.rank);
+    std::unique_ptr<int[]> temp_shape = std::make_unique<int[]>(m1.rank);
 
     // TO DO: CATCH < 1 RANK
-    for (int i = 0; i < m1.rank - 1; i ++) temp[i] = m1.shape[i];
-    temp[m1.rank - 1] = m2.col;
+    for (int i = 0; i < m1.rank - 1; i ++) temp_shape[i] = m1.shape[i];
+    temp_shape[m1.rank - 1] = m2.col;
 
-    Tensor m = Tensor::create(temp);
+    Tensor m = Tensor::create(temp_shape.get(), m1.rank);
 
     const double* pm1 = m1.tensor.get();
     const double* pm2 = m2.tensor.get();
@@ -118,7 +117,7 @@ Tensor matrixOperations::matmul(const Tensor& m1, const Tensor& m2, bool, int n_
     return m;
 }
 
-Tensor matrixOperations::cops(const Tensor& m1, const double con, double (*f)(double, double)) 
+Tensor wef::cops(const Tensor& m1, const double con, double (*f)(double, double)) 
 {
     Tensor m = Tensor::create(m1.shape.get(), m1.rank);
 
@@ -132,14 +131,14 @@ Tensor matrixOperations::cops(const Tensor& m1, const double con, double (*f)(do
 
 }
 
-Tensor matrixOperations::transpose(const Tensor& m1)
+Tensor wef::transpose(const Tensor& m1)
 {
-    std::vector<int> temp(m1.rank);
+    std::unique_ptr<int[]> temp_shape = std::make_unique<int[]>(m1.rank);
     // TO DO: CATCH < 2 RANK
-    for (int i = 0; i < m1.rank - 2; i ++) temp[i] = m1.shape[i];
-    temp[m1.rank - 1] = m1.row;
-    temp[m1.rank - 2] = m1.col;
-    Tensor m = Tensor::create(temp);
+    for (int i = 0; i < m1.rank - 2; i ++) temp_shape[i] = m1.shape[i];
+    temp_shape[m1.rank - 1] = m1.row;
+    temp_shape[m1.rank - 2] = m1.col;
+    Tensor m = Tensor::create(temp_shape.get(), m1.rank);
 
 
     const double* pm1 = m1.tensor.get();
@@ -162,11 +161,13 @@ Tensor matrixOperations::transpose(const Tensor& m1)
     return m;
 }
 
-Tensor matrixOperations::argmax(const Tensor& m1)
+Tensor wef::argmax(const Tensor& m1)
 {
-    std::vector<int> temp(m1.rank - 1);
-    for (int i = 0; i < m1.rank - 1; i ++) temp[i] = m1.shape[i];
-    Tensor m = Tensor::create(temp);
+    // ENSURE RANK > 0 and make it work with other axis not just -1
+    std::unique_ptr<int[]> temp_shape = std::make_unique<int[]>(m1.rank - 1);
+
+    for (int i = 0; i < m1.rank - 1; i ++) temp_shape[i] = m1.shape[i];
+    Tensor m = Tensor::create(temp_shape.get(), m1.rank - 1);
 
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
@@ -183,7 +184,7 @@ Tensor matrixOperations::argmax(const Tensor& m1)
     return m;
 }
 
-Tensor matrixOperations::softmax(const Tensor& m1)
+Tensor wef::softmax(const Tensor& m1)
 {
     Tensor m = Tensor::create(m1.shape.get(), m1.rank);
 
@@ -200,7 +201,7 @@ Tensor matrixOperations::softmax(const Tensor& m1)
     return m;
 }
 
-Tensor matrixOperations::activation(const Tensor& m1, const char ops)
+Tensor wef::activation(const Tensor& m1, const char ops)
 {
     Tensor m = Tensor::create(m1.shape.get(), m1.rank);
 
@@ -236,7 +237,7 @@ Tensor matrixOperations::activation(const Tensor& m1, const char ops)
 
 }
 
-Tensor matrixOperations::reducesum(const Tensor& m1, const int ax)
+Tensor wef::reducesum(const Tensor& m1, const int ax)
 {   
     if (ax >= m1.rank) throw std::invalid_argument("axis outside shape");
 
@@ -264,7 +265,7 @@ Tensor matrixOperations::reducesum(const Tensor& m1, const int ax)
     return m;
 }
 
-Tensor matrixOperations::batchsum(const Tensor& m1)
+Tensor wef::batchsum(const Tensor& m1)
 {   
     // TO DO: CONFRIM THIS IS ON (just using row and col for batch sum. Usually for weights)
     Tensor m = Tensor::create({m1.row, m1.col}); 
@@ -289,7 +290,7 @@ Tensor matrixOperations::batchsum(const Tensor& m1)
     return m;
 }
 
-double matrixOperations::l2(const Tensor& m1, const Tensor& m2)
+double wef::l2(const Tensor& m1, const Tensor& m2)
 {
     if (m1.row != m2.row || m1.col != m2.col) {throw std::invalid_argument("matrix size mismatch [6]");}
 
@@ -324,7 +325,7 @@ double matrixOperations::l2(const Tensor& m1, const Tensor& m2)
     return loss / (m1.tot_size);
 }
 
-double matrixOperations::binarycrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real and m2 pred !!
+double wef::binarycrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real and m2 pred !!
 {
     // TO DO: catch mismatch tensor
 
@@ -344,7 +345,7 @@ double matrixOperations::binarycrossentropy(const Tensor& m1, const Tensor& m2) 
     return loss / m1.tot_size;
 }
 
-double matrixOperations::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m /*m is same as pred*/) // m1 is real and m2 pred !!
+double wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m /*m is same as pred*/) // m1 is real and m2 pred !!
 {
     // Note m1 is actual labels and m2 is probabilities 
     // eg: m1 = {{1}, {2}}, m2 = {{0, 1, 0}, {0, 0, 1}}
@@ -387,7 +388,7 @@ double matrixOperations::categoricalcrossentropy(const Tensor& m1, const Tensor&
     return loss / m1.tot_size;
 }
 
-double matrixOperations::categoricalcrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real and m2 pred !!
+double wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real and m2 pred !!
 {
     // TO DO: catch mismatch tensor
 
@@ -423,7 +424,7 @@ double matrixOperations::categoricalcrossentropy(const Tensor& m1, const Tensor&
     return loss / m1.tot_size;
 }
 
-void matrixOperations::print(const Tensor& m1, std::vector<size_t> v)
+void wef::print(const Tensor& m1, std::vector<size_t> v)
 {   
     int n = static_cast<int>(v.size());
     
@@ -457,3 +458,8 @@ void matrixOperations::print(const Tensor& m1, std::vector<size_t> v)
 
 }
 
+Tensor wef::pow(const Tensor& m1, const double con) { return cops(m1, con, [](double a, double b){ return std::pow(a, b); }); }
+Tensor wef::relu(const Tensor& m1) { return activation(m1, 'a'); }
+Tensor wef::d_relu(const Tensor& m1) { return activation(m1, 'b'); }
+Tensor wef::sigmoid(const Tensor& m1) { return activation(m1, 'c'); }
+Tensor wef::d_sigmoid(const Tensor& m1) { return activation(m1, 'd'); }

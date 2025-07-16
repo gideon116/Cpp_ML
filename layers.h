@@ -8,8 +8,8 @@
 
 class Layer {
     public:
-        virtual Tensor forward_pass(const Tensor& px, matrixOperations& wf) = 0;
-        virtual Tensor backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) = 0;
+        virtual Tensor forward_pass(const Tensor& px) = 0;
+        virtual Tensor backward_pass(const Tensor& dy, const double lr) = 0;
         virtual ~Layer() = default;
 };
 
@@ -26,23 +26,23 @@ class Linear : public Layer {
         // initilize weights
         Linear(int unit, int rand=3) : units(unit), dist(0.0, 1.0/std::sqrt(units)), g(rand) {}
         
-        Tensor forward_pass(const Tensor& px, matrixOperations& wf) override;
-        Tensor backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) override;
+        Tensor forward_pass(const Tensor& px) override;
+        Tensor backward_pass(const Tensor& dy, const double lr) override;
 };
 
 class ReLU : public Layer {
     public:
         Tensor X;
 
-        Tensor forward_pass(const Tensor& px, matrixOperations& wf) 
+        Tensor forward_pass(const Tensor& px) 
         override { 
-            X = wf.relu(px);
+            X = wef::relu(px);
             return X;
         }
 
-        Tensor backward_pass(const Tensor& dy, double, matrixOperations& wf)
+        Tensor backward_pass(const Tensor& dy, double)
         override {
-            return wf.d_relu(X) * dy;
+            return wef::d_relu(X) * dy;
         }
 };
 
@@ -50,15 +50,15 @@ class sigmoid : public Layer {
     public:
         Tensor X;
 
-        Tensor forward_pass(const Tensor& px, matrixOperations& wf) 
+        Tensor forward_pass(const Tensor& px) 
         override { 
-            X = wf.sigmoid(px);
+            X = wef::sigmoid(px);
             return X;
         }
 
-        Tensor backward_pass(const Tensor& dy, double, matrixOperations& wf) 
+        Tensor backward_pass(const Tensor& dy, double) 
         override {
-            return wf.d_sigmoid(X) * dy;
+            return wef::d_sigmoid(X) * dy;
         }
 };
 
@@ -81,10 +81,10 @@ class Conv2D : public Layer {
         Conv2D(int w_h, int w_w, int u, int rand=3)
             : g(rand), w_height(w_h), w_width(w_w), units(u) {}
         
-        Tensor forward_pass(const Tensor& px, matrixOperations& wf) override;
-        Tensor forward_pass_multi(const Tensor& px, matrixOperations& wf);
-        Tensor backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) override;
-        Tensor backward_pass_multi(const Tensor& dy, const double lr, matrixOperations& wf);
+        Tensor forward_pass(const Tensor& px) override;
+        Tensor forward_pass_multi(const Tensor& px);
+        Tensor backward_pass(const Tensor& dy, const double lr) override;
+        Tensor backward_pass_multi(const Tensor& dy, const double lr);
     };
 
 class MaxPool2D : public Layer {
@@ -103,8 +103,8 @@ class MaxPool2D : public Layer {
         MaxPool2D(int k_h, int k_w)
             : k_height(k_h), k_width(k_w) { if (k_h < 1 || k_w < 1) throw std::invalid_argument("kernel must be greater than 0"); }
         
-        Tensor forward_pass(const Tensor& px, matrixOperations& wf) override;
-        Tensor backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) override;
+        Tensor forward_pass(const Tensor& px) override;
+        Tensor backward_pass(const Tensor& dy, const double lr) override;
     };
 
 class ReduceSum : public Layer {
@@ -119,8 +119,8 @@ class ReduceSum : public Layer {
 
         ReduceSum(int a, bool kd=false) : ax(a), keepdims(kd) { if (ax < 0) throw std::invalid_argument("axis connot be negative"); }
 
-        Tensor forward_pass(const Tensor& px, matrixOperations& wf) override;
-        Tensor backward_pass(const Tensor& dy, double, matrixOperations& wf)  override;
+        Tensor forward_pass(const Tensor& px) override;
+        Tensor backward_pass(const Tensor& dy, double)  override;
     };
 
 
@@ -139,8 +139,8 @@ class LayerNorm : public Layer {
         // initilize weights
         LayerNorm(const int ax, const double ep=0.01) : axis(ax), eps(ep) {}
         
-        Tensor forward_pass(const Tensor& px, matrixOperations& wf) override;
-        Tensor backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) override;
+        Tensor forward_pass(const Tensor& px) override;
+        Tensor backward_pass(const Tensor& dy, const double lr) override;
 };
 
 
@@ -150,7 +150,7 @@ public:
     Tensor X, out, dx;
     bool init = false;
 
-    Tensor forward_pass(const Tensor& px, matrixOperations&) override 
+    Tensor forward_pass(const Tensor& px) override 
     {
         X = Tensor(px);
         int flat = 1;
@@ -164,7 +164,7 @@ public:
 
         return out;
     }
-    Tensor backward_pass(const Tensor& dy, double, matrixOperations&) override 
+    Tensor backward_pass(const Tensor& dy, double) override 
     {
         dx = Tensor::create(X.shape.get(), X.rank);
         double* dx_ptr = dx.tensor.get();

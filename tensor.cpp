@@ -265,3 +265,9 @@ Tensor& Tensor::operator+=(const double scalar)
     for (size_t i = 0; i < batch * row * col; i++) a[i] += scalar;
     return *this;
 }
+
+// when the scalar is in front
+Tensor operator+(double s, const Tensor& t) { return t + s; }
+Tensor operator-(double s, const Tensor& t) { return (t * - 1) + s; }
+Tensor operator*(double s, const Tensor& t) { return t * s; }
+Tensor operator/(double s, const Tensor& t) { return t.ops(s, [](double a, double b){ return b / a; }); } // here makes sure to put tensor in denom

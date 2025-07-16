@@ -16,13 +16,12 @@ class Model
         Tensor predict(Tensor& input)
         { 
             input.printShape();
-            for (Layer* layer : network) {input = (*layer).forward_pass(input, wf);}
+            for (Layer* layer : network) {input = (*layer).forward_pass(input);}
             return input; 
         }
 
     private:
         std::vector<Layer*> network;
-        matrixOperations wf;
 };
 
 void Model::fit(const Tensor& real, const Tensor& input, const int& epochs, const double& lr)
@@ -32,16 +31,16 @@ void Model::fit(const Tensor& real, const Tensor& input, const int& epochs, cons
     {
         // train
         Tensor y(input);
-        for (Layer* layer : network) y = (*layer).forward_pass(y, wf);
+        for (Layer* layer : network) y = (*layer).forward_pass(y);
 
         // loss calc
         Tensor dy(y);
-        loss = wf.categoricalcrossentropy(real, y, dy);
+        loss = wef::categoricalcrossentropy(real, y, dy);
         std::cout << "epoch: " << epoch + 1 << " loss = " << loss << std::endl;
 
         // backprop
         for (int i = (int)network.size() - 1; i >= 0; i--) {
-            dy = (*network[i]).backward_pass(dy, lr, wf);
+            dy = (*network[i]).backward_pass(dy, lr);
         }
     }
 }

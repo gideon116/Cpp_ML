@@ -4,7 +4,7 @@
 #include "layers.h"
 
 
-Tensor Linear::forward_pass(const Tensor& px, matrixOperations& wf) 
+Tensor Linear::forward_pass(const Tensor& px) 
     {
         if (!init) 
         {   
@@ -26,19 +26,19 @@ Tensor Linear::forward_pass(const Tensor& px, matrixOperations& wf)
             if (W.row != px.col) throw std::invalid_argument("cannot reuse layer");
         }
         X = Tensor(px);
-        return wf.matmul(px, W, true) + B;
+        return wef::matmul(px, W, true) + B;
     }
 
-Tensor Linear::backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) 
+Tensor Linear::backward_pass(const Tensor& dy, const double lr) 
     {
         // gradient wrt the layer below
-        dx = wf.matmul(dy, wf.transpose(W), true);
+        dx = wef::matmul(dy, wef::transpose(W), true);
 
         // gradient wrt weights
-        dw = wf.batchsum(wf.matmul(wf.transpose(X), dy, /*threads=*/true));
+        dw = wef::batchsum(wef::matmul(wef::transpose(X), dy, /*threads=*/true));
 
         // gradient wrt bias
-        db = wf.reducesum(wf.batchsum((dy)), /*axis=*/0);
+        db = wef::reducesum(wef::batchsum((dy)), /*axis=*/0);
 
         W = W - dw * lr / dy.shape[0];
         B = B - db * lr / dy.shape[0];
@@ -46,7 +46,7 @@ Tensor Linear::backward_pass(const Tensor& dy, const double lr, matrixOperations
         return dx;
     }
 
-Tensor Conv2D::forward_pass_multi(const Tensor& px, matrixOperations& wf) 
+Tensor Conv2D::forward_pass_multi(const Tensor& px) 
     {
     if (!init) 
     {   
@@ -116,7 +116,7 @@ Tensor Conv2D::forward_pass_multi(const Tensor& px, matrixOperations& wf)
     return out;
     }
 
-Tensor Conv2D::forward_pass/*_multi*/(const Tensor& px, matrixOperations& wf) 
+Tensor Conv2D::forward_pass/*_multi*/(const Tensor& px) 
     {
     if (!init) 
     {   
@@ -208,7 +208,7 @@ Tensor Conv2D::forward_pass/*_multi*/(const Tensor& px, matrixOperations& wf)
     return out;
     }
 
-Tensor Conv2D::backward_pass/*_multi*/(const Tensor& dy, const double lr, matrixOperations& wf) 
+Tensor Conv2D::backward_pass/*_multi*/(const Tensor& dy, const double lr) 
     {   
         double* dx_ptr = dx.tensor.get();
         double* dw_ptr = dw.tensor.get();
@@ -256,7 +256,7 @@ Tensor Conv2D::backward_pass/*_multi*/(const Tensor& dy, const double lr, matrix
         return dx;
     }
 
-Tensor Conv2D::backward_pass_multi(const Tensor& dy, const double lr, matrixOperations& wf) 
+Tensor Conv2D::backward_pass_multi(const Tensor& dy, const double lr) 
     {
         std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(double)); // zero fill
         std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(double)); // zero fill
@@ -300,7 +300,7 @@ Tensor Conv2D::backward_pass_multi(const Tensor& dy, const double lr, matrixOper
     }
 
 
-Tensor MaxPool2D::forward_pass(const Tensor& px, matrixOperations& wf) 
+Tensor MaxPool2D::forward_pass(const Tensor& px) 
     {
         if (!init)
         {   
@@ -372,7 +372,7 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, matrixOperations& wf)
         return out;
     }
 
-Tensor MaxPool2D::backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) 
+Tensor MaxPool2D::backward_pass(const Tensor& dy, const double lr) 
     {
         std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(double));  // zero fill
         size_t ind = 0;
@@ -397,7 +397,7 @@ Tensor MaxPool2D::backward_pass(const Tensor& dy, const double lr, matrixOperati
     }
 
 
-Tensor ReduceSum::forward_pass(const Tensor& px, matrixOperations& wf) 
+Tensor ReduceSum::forward_pass(const Tensor& px) 
     { 
 
         if (!init) 
@@ -465,7 +465,7 @@ Tensor ReduceSum::forward_pass(const Tensor& px, matrixOperations& wf)
         return out_keepdims;
     }
 
-Tensor ReduceSum::backward_pass(const Tensor& dy, double, matrixOperations& wf) 
+Tensor ReduceSum::backward_pass(const Tensor& dy, double) 
     {
         if (!init) throw std::invalid_argument("layer not initilized");
 
@@ -486,7 +486,7 @@ Tensor ReduceSum::backward_pass(const Tensor& dy, double, matrixOperations& wf)
         return dx;
     }
 
-Tensor LayerNorm::forward_pass(const Tensor& px, matrixOperations& wf)
+Tensor LayerNorm::forward_pass(const Tensor& px)
 {
     if (!init) 
         {
@@ -515,17 +515,17 @@ Tensor LayerNorm::forward_pass(const Tensor& px, matrixOperations& wf)
         X = Tensor(px);
 
         // follwoing Ba et al. 2016
-        mu = wf.reducesum(px, /*axis=*/axis) / ax_val;
+        mu = wef::reducesum(px, /*axis=*/axis) / ax_val;
         x_mu = px - mu;
-        var = wf.reducesum(x_mu * x_mu, /*axis=*/axis) / ax_val;
-        inv_std = wf.constPower(var + eps, -0.5);
+        var = wef::reducesum(x_mu * x_mu, /*axis=*/axis) / ax_val;
+        inv_std = wef::pow(var + eps, -0.5);
         x_i_hat = x_mu * inv_std;
         y_i = x_i_hat * gamma + beta;
 
         return y_i;
 }
 
-Tensor LayerNorm::backward_pass(const Tensor& dy, const double lr, matrixOperations& wf)
+Tensor LayerNorm::backward_pass(const Tensor& dy, const double lr)
 {
     if (!init) throw std::invalid_argument("layer not initilized");
 
@@ -535,16 +535,16 @@ Tensor LayerNorm::backward_pass(const Tensor& dy, const double lr, matrixOperati
     {
         if (i != axis)
         {
-            d_gamma = wf.reducesum(d_gamma, i);
-            d_beta = wf.reducesum(d_beta, i);
+            d_gamma = wef::reducesum(d_gamma, i);
+            d_beta = wef::reducesum(d_beta, i);
         }
     }
 
     dx = inv_std * (1.0 / ax_val) * 
     (
         gamma * dy * ax_val 
-        - wf.reducesum(gamma * dy, axis)
-        - x_i_hat * (wf.reducesum(gamma * dy * x_i_hat, axis))
+        - wef::reducesum(gamma * dy, axis)
+        - x_i_hat * (wef::reducesum(gamma * dy * x_i_hat, axis))
     );
 
     gamma = gamma - d_gamma * lr / dy.shape[0];
