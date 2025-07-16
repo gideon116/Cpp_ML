@@ -20,8 +20,7 @@ class Linear : public Layer {
         int units;
         std::normal_distribution<double> dist;
         std::mt19937 g;
-        Tensor W;
-        Tensor X;
+        Tensor W, B, X, dx, dw, db;
         bool init = false;
         
         // initilize weights
@@ -70,19 +69,12 @@ class Conv2D : public Layer {
         
         std::mt19937 g;
         
-        int w_height;
-        int w_width;
-        int units;
-        
-        int height;
-        int width;
-        int ch;
+        int w_height, w_width, units;
+        int height, width, ch;
 
         std::normal_distribution<double> dist;
         
-        Tensor W;
-        Tensor X;
-        Tensor out;
+        Tensor W, X, out, dx, dw;
         bool init = false;
         
         // initilize weights
@@ -90,24 +82,21 @@ class Conv2D : public Layer {
             : g(rand), w_height(w_h), w_width(w_w), units(u) {}
         
         Tensor forward_pass(const Tensor& px, matrixOperations& wf) override;
+        Tensor forward_pass_multi(const Tensor& px, matrixOperations& wf);
         Tensor backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) override;
+        Tensor backward_pass_multi(const Tensor& dy, const double lr, matrixOperations& wf);
     };
 
 class MaxPool2D : public Layer {
     
     public:
         
-        int k_height;
-        int k_width;
-        
-        int height;
-        int width;
-        int ch;
+        int k_height, k_width;
+        int height, width, ch;
 
         std::unique_ptr<size_t[]> argmax;
         
-        Tensor X;
-        Tensor out;
+        Tensor X, out, dx;
         bool init = false;
         
         // initilize weights
@@ -120,11 +109,11 @@ class MaxPool2D : public Layer {
 
 class ReduceSum : public Layer {
     public:
-        Tensor X;
-        int ax;
+        Tensor X, out_keepdims, out, dx;
+        int ax, keepdims_rank;
         bool keepdims = false;
         bool init = false;
-        int keepdims_rank;
+
         std::unique_ptr<int[]> keepdims_shape;
         std::unique_ptr<int[]> reshape_shape;
 
@@ -133,5 +122,58 @@ class ReduceSum : public Layer {
         Tensor forward_pass(const Tensor& px, matrixOperations& wf) override;
         Tensor backward_pass(const Tensor& dy, double, matrixOperations& wf)  override;
     };
+
+
+class LayerNorm : public Layer {
+    
+    public:
+
+        Tensor X;
+        bool init = false;
+
+        int axis;
+        double ax_val;
+        double eps = 0.01;
+        Tensor beta, gamma, mu, x_mu, var, inv_std, x_i_hat, y_i, d_gamma, d_beta, dx;
+
+        // initilize weights
+        LayerNorm(const int ax, const double ep=0.01) : axis(ax), eps(ep) {}
+        
+        Tensor forward_pass(const Tensor& px, matrixOperations& wf) override;
+        Tensor backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) override;
+};
+
+
+class Flatten : public Layer {
+    
+public:
+    Tensor X, out, dx;
+    bool init = false;
+
+    Tensor forward_pass(const Tensor& px, matrixOperations&) override 
+    {
+        X = Tensor(px);
+        int flat = 1;
+        for (int i = 1; i < px.rank; i++) flat *= px.shape[i];
+
+        int out_shape[2] = {px.shape[0], flat};
+        out = Tensor::create(out_shape, 2);
+        double* out_ptr = out.tensor.get();
+        double* px_ptr = px.tensor.get();
+        for (size_t i = 0; i < out.tot_size; i++) out_ptr[i] = px_ptr[i];
+
+        return out;
+    }
+    Tensor backward_pass(const Tensor& dy, double, matrixOperations&) override 
+    {
+        dx = Tensor::create(X.shape.get(), X.rank);
+        double* dx_ptr = dx.tensor.get();
+        double* dy_ptr = dy.tensor.get();
+        for (size_t i = 0; i < dx.tot_size; i++) dx_ptr[i] = dy_ptr[i];
+
+        return dx;
+    }
+};
+
 
 #endif

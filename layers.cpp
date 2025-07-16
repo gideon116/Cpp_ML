@@ -8,7 +8,14 @@ Tensor Linear::forward_pass(const Tensor& px, matrixOperations& wf)
     {
         if (!init) 
         {   
-            W = Tensor::create({px.col, units});
+            int w_shape[2] = {px.col, units};
+            int b_shape[2] = {1, units};
+            W = Tensor::create(w_shape, 2);
+            B = Tensor::create(b_shape, 2);
+
+            double* B_ptr = B.tensor.get();
+            std::memset(B_ptr, 0, (B.tot_size) * sizeof(double)); // zero fill
+
             double* pm = W.tensor.get();
             for (size_t i = 0; i < size_t(px.col) * units; i++) pm[i] = dist(g);
             init = true;
@@ -19,23 +26,27 @@ Tensor Linear::forward_pass(const Tensor& px, matrixOperations& wf)
             if (W.row != px.col) throw std::invalid_argument("cannot reuse layer");
         }
         X = Tensor(px);
-        return wf.matmul(px, W, true);
+        return wf.matmul(px, W, true) + B;
     }
 
 Tensor Linear::backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) 
     {
         // gradient wrt the layer below
-        Tensor dx = wf.matmul(dy, wf.transpose(W), true);
+        dx = wf.matmul(dy, wf.transpose(W), true);
 
         // gradient wrt weights
-        Tensor dw = wf.batchsum(wf.matmul(wf.transpose(X), dy, true));
+        dw = wf.batchsum(wf.matmul(wf.transpose(X), dy, /*threads=*/true));
 
-        W = W - dw * lr;
+        // gradient wrt bias
+        db = wf.reducesum(wf.batchsum((dy)), /*axis=*/0);
+
+        W = W - dw * lr / dy.shape[0];
+        B = B - db * lr / dy.shape[0];
 
         return dx;
     }
 
-Tensor Conv2D::forward_pass(const Tensor& px, matrixOperations& wf) 
+Tensor Conv2D::forward_pass_multi(const Tensor& px, matrixOperations& wf) 
     {
     if (!init) 
     {   
@@ -43,9 +54,20 @@ Tensor Conv2D::forward_pass(const Tensor& px, matrixOperations& wf)
         height = px.shape[1]; width = px.shape[2]; ch = px.shape[3];
         dist = std::normal_distribution<double>(0.0, 1.0/std::sqrt(w_height * w_width * ch));
         
-        W = Tensor::create({w_height, w_width, ch, units});
+        int w_shape[4] = {w_height, w_width, ch, units};
+        W = Tensor::create(w_shape, 4);
         double* pm = W.tensor.get();
         for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
+
+        int out_shape[4] = {px.shape[0], height - w_height + 1, width - w_width + 1, units};
+        out = Tensor::create(out_shape, 4);
+
+        // gradient wrt the layer below
+        dx = Tensor(px);
+        
+        // gradient wrt weights
+        dw = Tensor(W);
+
         init = true;
     }
     else
@@ -57,7 +79,6 @@ Tensor Conv2D::forward_pass(const Tensor& px, matrixOperations& wf)
     }
 
     X = Tensor(px);
-    out = Tensor::create({px.shape[0], height - w_height + 1, width - w_width + 1, units});
 
     size_t ind = 0;
     size_t i1[4];
@@ -95,16 +116,150 @@ Tensor Conv2D::forward_pass(const Tensor& px, matrixOperations& wf)
     return out;
     }
 
-Tensor Conv2D::backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) 
+Tensor Conv2D::forward_pass/*_multi*/(const Tensor& px, matrixOperations& wf) 
     {
-        // gradient wrt the layer below
-        Tensor dx = Tensor::create({X.shape[0], X.shape[1], X.shape[2], X.shape[3]});
-        std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(double)); // zero fill
-        
-        // gradient wrt weights
-        Tensor dw = Tensor::create({W.shape[0], W.shape[1], W.shape[2], W.shape[3]});
-        std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(double)); // zero fill
+    if (!init) 
+    {   
+        // h, w, c, units
+        height = px.shape[1]; width = px.shape[2]; ch = px.shape[3];
+        dist = std::normal_distribution<double>(0.0, 1.0/std::sqrt(w_height * w_width * ch));
 
+        int w_shape[4] = {w_height, w_width, ch, units};
+        W = Tensor::create(w_shape, 4);
+
+        double* pm = W.tensor.get();
+        for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
+
+        int out_shape[4] = {px.shape[0], height - w_height + 1, width - w_width + 1, units};
+        out = Tensor::create(out_shape, 4);
+
+        // gradient wrt the layer below
+        dx = Tensor(px);
+
+        // gradient wrt weights
+        dw = Tensor(W);
+        
+        init = true;
+    }
+    else
+    {
+        // if trying to use (reuse) the layer on a different tensor
+        if (px.shape[1] != height || 
+            px.shape[2] != width ||
+            px.shape[3] != ch) throw std::invalid_argument("cannot reuse layer");
+    }
+
+    X = Tensor(px);
+    
+    double* out_ptr = out.tensor.get();
+    double* px_ptr = px.tensor.get();
+    double* W_ptr = W.tensor.get();
+
+    std::memset(out_ptr, 0, (out.tot_size) * sizeof(double));
+
+    /*
+    There is a lot of math below but the idea is to do the cov kernel math (W * Input) and expand 
+    this to the units dimension by repeating the index of Input as before.
+
+    Here what I do is index out out and W in contigous manner to make it faster and for Input
+    I jump everytime we hit the width of the weight to the second row and use some math to do that.
+    */
+
+    int out_wo_units = out.tot_size / units;
+    int skip_w_help = ch * (w_width - 1);
+    int bi_help = out_wo_units / out.shape[0];
+    int skip_h_help = (w_height - 1) * px.row*px.col;
+    int offset = width - w_width;
+    int id_help = w_width * ch;
+
+    for (int out_i = 0; out_i < out_wo_units; out_i++)
+    {
+        int skip_w = skip_w_help * (out_i / out.row);
+        int bi = out_i / bi_help;
+        int skip_h = bi * skip_h_help;
+
+        for (int w_i = 0; w_i < W.tot_size / units; w_i++)
+        {
+            double temp_px = px_ptr[
+                ch * out_i + skip_w + skip_h
+                + 
+                w_i + ch*offset * (w_i / id_help)
+            ];
+
+            for (int u_i = 0; u_i < units; u_i++)
+                out_ptr[out_i * units + u_i] += temp_px * W_ptr[w_i * units + u_i];
+        }
+    }
+        
+
+    /*
+    
+    // multi thread additions
+    int avaliable_threads = std::thread::hardware_concurrency(); // may be 0
+    int n_threads = std::min<int>( out.tot_size,  avaliable_threads > 0 ? avaliable_threads : 1 );
+    
+    const int stride = out.tot_size / n_threads;
+    const int rem = out.tot_size % n_threads;
+
+    // spin up
+    std::thread* threads = new std::thread[n_threads];
+    */
+
+    return out;
+    }
+
+Tensor Conv2D::backward_pass/*_multi*/(const Tensor& dy, const double lr, matrixOperations& wf) 
+    {   
+        double* dx_ptr = dx.tensor.get();
+        double* dw_ptr = dw.tensor.get();
+
+        std::memset(dx_ptr, 0, (dx.tot_size) * sizeof(double)); // zero fill
+        std::memset(dw_ptr, 0, (dw.tot_size) * sizeof(double)); // zero fill
+
+        double* dy_ptr = dy.tensor.get();
+        double* W_ptr = W.tensor.get();
+        double* X_ptr = X.tensor.get();
+
+        int out_wo_units = dy.tot_size / units;
+        int skip_w_help = ch * (w_width - 1);
+        int bi_help = out_wo_units / out.shape[0];
+        int skip_h_help = (w_height - 1) * X.row*X.col;
+        int offset = width - w_width;
+        int id_help = w_width * ch;
+
+
+        for (int dy_i = 0; dy_i < out_wo_units; dy_i++)
+        {
+            int skip_w = skip_w_help * (dy_i / dy.row);
+            int bi = dy_i / bi_help;
+            int skip_h = bi * skip_h_help;
+
+            for (int w_i = 0; w_i < W.tot_size / units; w_i++)
+            {
+                int id1 = 
+                    ch * dy_i + skip_w + skip_h
+                    + 
+                    w_i + ch*offset * (w_i / id_help);
+
+                for (int u_i = 0; u_i < units; u_i++)
+                {
+                    double grad = dy_ptr[dy_i * units + u_i];
+                    dx_ptr[id1] += grad * W_ptr[w_i * units + u_i];
+                    dw_ptr[w_i * units + u_i] += grad * X_ptr[id1];
+                }
+            }
+        }
+
+        // divide lr by batch size
+        for (size_t i = 0; i < W.tot_size; i++) W_ptr[i] = W_ptr[i] - (dw_ptr[i] * lr /dy.shape[0]);
+
+        return dx;
+    }
+
+Tensor Conv2D::backward_pass_multi(const Tensor& dy, const double lr, matrixOperations& wf) 
+    {
+        std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(double)); // zero fill
+        std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(double)); // zero fill
 
         size_t ind = 0;
         size_t i1[4];
@@ -139,7 +294,7 @@ Tensor Conv2D::backward_pass(const Tensor& dy, const double lr, matrixOperations
             }
         }
         // divide lr by batch size
-        for (size_t i = 0; i < W.tot_size; i++) W.tensor[i] = W.tensor[i] - (lr * dw.tensor[i]/dy.shape[0]);
+        for (size_t i = 0; i < W.tot_size; i++) W.tensor[i] = W.tensor[i] - (dw.tensor[i] * lr / dy.shape[0]);
 
         return dx;
     }
@@ -156,6 +311,13 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, matrixOperations& wf)
             
             // this get the argmax in a nested for loop (2D) I made it flat for speed
             argmax = std::make_unique<size_t[]>(o_size * 4);
+
+            int out_shape[4] = {px.shape[0], (height + (height%k_height)) / k_height, (width + (width%k_width)) / k_width, ch};
+            out = Tensor::create(out_shape, 4);
+            
+            // dx is gradient wrt the layer below
+            dx = Tensor(px);
+
             init = true;
         }
         else
@@ -167,7 +329,6 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, matrixOperations& wf)
         }
 
         X = Tensor(px);
-        out = Tensor::create({px.shape[0], (height + (height%k_height)) / k_height, (width + (width%k_width)) / k_width, ch});
 
         size_t ind = 0;
         size_t i1[4];
@@ -213,12 +374,7 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, matrixOperations& wf)
 
 Tensor MaxPool2D::backward_pass(const Tensor& dy, const double lr, matrixOperations& wf) 
     {
-
-        // gradient wrt the layer below
-        Tensor dx = Tensor::create({X.shape[0], X.shape[1], X.shape[2], X.shape[3]});
         std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(double));  // zero fill
-
-
         size_t ind = 0;
         size_t i1[4];
         for (size_t b1 = 0; b1 < dy.shape[0]; b1++)
@@ -259,19 +415,28 @@ Tensor ReduceSum::forward_pass(const Tensor& px, matrixOperations& wf)
                 if (i != ax) { reshape_shape[j++] = shape[i]; keepdims_shape[i - 1] = shape[i]; }
                 else keepdims_shape[i - 1] = 1;
             }
+
+            // the whole point of curr_shape is to be flexable with the batch but strict with the other dims
+            int curr_shape_kd[keepdims_rank];
+            curr_shape_kd[0] = px.shape[0];
+            for (int i = 1; i < px.rank; i++) curr_shape_kd[i] = keepdims_shape.get()[i - 1];
+
+            out_keepdims = Tensor::create(curr_shape_kd, keepdims_rank);
+
+            if (!keepdims)
+            {
+                int curr_shape[keepdims_rank - 1];
+                curr_shape[0] = px.shape[0];
+                for (int i = 1; i < px.rank - 1; i++) curr_shape[i] = reshape_shape.get()[i - 1];
+                out = Tensor::create(curr_shape, keepdims_rank - 1);
+            }
+            
+            dx = Tensor(px);
             
             init = true;
         }
 
         X = Tensor(px);
-
-        // the whole point of curr_shape is to be flexable with the batch but strict with the other dims
-        int curr_shape_kd[keepdims_rank];
-        curr_shape_kd[0] = px.shape[0];
-        for (int i = 1; i < px.rank; i++) curr_shape_kd[i] = keepdims_shape.get()[i - 1];
-
-        Tensor out_keepdims = Tensor::create(curr_shape_kd, keepdims_rank);
-        for (size_t i = 0; i < out_keepdims.tot_size; i++) out_keepdims.tensor[i] = 0;
 
         const double* pm = px.tensor.get();
         double* pm_okd = out_keepdims.tensor.get();
@@ -290,15 +455,9 @@ Tensor ReduceSum::forward_pass(const Tensor& px, matrixOperations& wf)
             pm_okd[i] = temp;
         }
 
-        if (!keepdims) 
+        if (!keepdims)
         {
-            int curr_shape[keepdims_rank - 1];
-            curr_shape[0] = px.shape[0];
-            for (int i = 1; i < px.rank - 1; i++) curr_shape[i] = reshape_shape.get()[i - 1];
-
-            Tensor out = Tensor::create(curr_shape, keepdims_rank - 1);
             double* p_out = out.tensor.get();
-
             for (size_t i = 0; i < out_keepdims.tot_size; i++) p_out[i] = pm_okd[i];
             return out;
         }
@@ -309,9 +468,6 @@ Tensor ReduceSum::forward_pass(const Tensor& px, matrixOperations& wf)
 Tensor ReduceSum::backward_pass(const Tensor& dy, double, matrixOperations& wf) 
     {
         if (!init) throw std::invalid_argument("layer not initilized");
-
-        Tensor dx = Tensor(X);
-        std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(double)); // zero fill
 
         const double* pdy = dy.tensor.get();
         double* pdx = dx.tensor.get();
@@ -329,3 +485,70 @@ Tensor ReduceSum::backward_pass(const Tensor& dy, double, matrixOperations& wf)
         }
         return dx;
     }
+
+Tensor LayerNorm::forward_pass(const Tensor& px, matrixOperations& wf)
+{
+    if (!init) 
+        {
+            ax_val = px.shape[axis];
+            std::unique_ptr<int[]> beta_shape = std::make_unique<int[]>(px.rank);
+            std::unique_ptr<int[]> gamma_shape = std::make_unique<int[]>(px.rank);
+
+            // fill with 1s
+            std::fill_n(beta_shape.get(), px.rank, 1);
+            std::fill_n(gamma_shape.get(), px.rank, 1);
+
+            beta_shape[axis] = px.shape[axis];
+            gamma_shape[axis] = px.shape[axis];
+
+            beta = Tensor::create(beta_shape.get(), px.rank);
+            gamma = Tensor::create(gamma_shape.get(), px.rank);
+
+            // initilize beta and gamma
+            std::fill_n(beta.tensor.get(), ax_val, 0.01);
+            std::fill_n(gamma.tensor.get(), ax_val, 0.99);
+            
+            init = true;
+        }
+        if (px.shape[axis] != ax_val) throw std::invalid_argument("cannot reuse layer [LayerNorm]");
+
+        X = Tensor(px);
+
+        // follwoing Ba et al. 2016
+        mu = wf.reducesum(px, /*axis=*/axis) / ax_val;
+        x_mu = px - mu;
+        var = wf.reducesum(x_mu * x_mu, /*axis=*/axis) / ax_val;
+        inv_std = wf.constPower(var + eps, -0.5);
+        x_i_hat = x_mu * inv_std;
+        y_i = x_i_hat * gamma + beta;
+
+        return y_i;
+}
+
+Tensor LayerNorm::backward_pass(const Tensor& dy, const double lr, matrixOperations& wf)
+{
+    if (!init) throw std::invalid_argument("layer not initilized");
+
+    d_gamma = dy * x_i_hat;
+    d_beta = dy;
+    for (int i = 0; i < dy.rank; i++)
+    {
+        if (i != axis)
+        {
+            d_gamma = wf.reducesum(d_gamma, i);
+            d_beta = wf.reducesum(d_beta, i);
+        }
+    }
+
+    dx = inv_std * (1.0 / ax_val) * 
+    (
+        gamma * dy * ax_val 
+        - wf.reducesum(gamma * dy, axis)
+        - x_i_hat * (wf.reducesum(gamma * dy * x_i_hat, axis))
+    );
+
+    gamma = gamma - d_gamma * lr / dy.shape[0];
+    beta = beta - d_beta * lr / dy.shape[0];
+
+    return dx;
+}

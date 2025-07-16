@@ -37,7 +37,7 @@ void Model::fit(const Tensor& real, const Tensor& input, const int& epochs, cons
         // loss calc
         Tensor dy(y);
         loss = wf.categoricalcrossentropy(real, y, dy);
-        std::cout << "epoch: " << epoch << " loss = " << loss << std::endl;
+        std::cout << "epoch: " << epoch + 1 << " loss = " << loss << std::endl;
 
         // backprop
         for (int i = (int)network.size() - 1; i >= 0; i--) {

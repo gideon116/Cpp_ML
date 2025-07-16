@@ -109,12 +109,97 @@ void Tensor::printShape()
 }
 
 Tensor Tensor::ops(const Tensor& other, double (*f)(double, double)) const
-{   
-    if (rank != other.rank) throw std::invalid_argument("matrix size mismatch");
-    for (int i = 0; i < rank; i++) 
+{
+    int out_rank = std::max(rank, other.rank);
+    std::unique_ptr<int[]> out = std::make_unique<int[]>(out_rank);
+
+    // making new a and b shapes because we might need to pad the lower sized tensor
+    std::unique_ptr<int[]> shape_a = std::make_unique<int[]>(out_rank);
+    std::unique_ptr<int[]> shape_b = std::make_unique<int[]>(out_rank);
+    std::unique_ptr<int[]> stride_a = std::make_unique<int[]>(out_rank);
+    std::unique_ptr<int[]> stride_b = std::make_unique<int[]>(out_rank);
+    std::unique_ptr<int[]> pitch = std::make_unique<int[]>(out_rank);
+
+    // 1 fill
+    for (int i = 0; i < out_rank; i++) 
     {
-        if (shape[i] != other.shape[i]) throw std::invalid_argument("matrix size mismatch");
+        shape_a[i] = 1; shape_b[i] = 1; stride_a[i] = 1; stride_b[i] = 1; pitch[i] = 1;
     }
+
+    // if we need to pad other e.g. [2, 3, 4] and [3, 4] -> [2, 3, 4] and [1, 3, 4]
+    if (rank > other.rank)
+        for (int i = 0; i < out_rank; i++)
+        {
+            shape_a[i] = shape[i];
+            if (i >= (rank - other.rank)) shape_b[i] = other.shape[i - (rank - other.rank)];
+        }
+    else if (rank < other.rank)
+        for (int i = 0; i < out_rank; i++)
+        {
+            shape_b[i] = other.shape[i];
+            if (i >= (other.rank - rank)) shape_a[i] = shape[i - (other.rank - rank)];
+        }
+    // if no need to pad
+    else
+        for (int i = 0; i < out_rank; i++)
+        {
+            shape_a[i] = shape[i];
+            shape_b[i] = other.shape[i];
+        }
+
+    // ensure shapes match
+    for (int i = 0; i < out_rank; i++) {
+        if (!(shape_a[i] == shape_b[i] || shape_a[i] == 1 || shape_b[i] == 1))
+            throw std::invalid_argument("matrix size mismatch [T2]");
+        out[i] = std::max(shape_a[i], shape_b[i]);
+    }
+
+    // our out tensor
+    Tensor c = Tensor::create(out.get(), out_rank);
+
+    for (int i = out_rank-2; i >= 0; i--)
+    {
+        stride_a[i] = stride_a[i + 1] * shape_a[i + 1];
+        stride_b[i] = stride_b[i + 1] * shape_b[i + 1];
+        pitch[i] = pitch[i + 1] * out[i + 1];
+    }
+
+    // broadcasting: if size==1 on an axis that stride must be 0
+    for (int i = 0; i < out_rank; i++)
+        {
+            if (shape_a[i] == 1) stride_a[i] = 0;
+            if (shape_b[i] == 1) stride_b[i] = 0;
+        }
+
+    double* p_a = tensor.get();
+    double* p_b = other.tensor.get();
+    double* p_c = c.tensor.get();
+
+    size_t total = 1;
+    for (int i = 0; i < out_rank; ++i) total *= out[i];
+
+    for (size_t lin = 0; lin < total; lin++)
+    {
+        size_t offA = 0, offB = 0, rem = lin;
+        for (int ax = 0; ax < out_rank; ax++) {
+            const size_t idx = rem / pitch[ax];
+            rem %= pitch[ax];
+            offA += idx * stride_a[ax];
+            offB += idx * stride_b[ax];
+        }
+        p_c[lin] = f(p_a[offA], p_b[offB]);
+    }
+    return c;
+}
+
+/*
+Tensor Tensor::ops(const Tensor& other, double (*f)(double, double)) const
+{   
+    // below is a way to check if we should broadcast one of the tensors because its like [a, b, c] and [1, 1, c]
+    if (rank != other.rank) throw std::invalid_argument("matrix size mismatch [T1]: different ranks");
+
+    for (int i = 0; i < rank; i++)
+        if (shape[i] != other.shape[i]) throw std::invalid_argument("matrix size mismatch [T2]");
 
     Tensor t = Tensor(*this);
     double* a = (this->tensor).get();
@@ -127,6 +212,7 @@ Tensor Tensor::ops(const Tensor& other, double (*f)(double, double)) const
     }
     return t;
 }
+*/
 
 Tensor Tensor::ops(const double scalar, double (*f)(double, double)) const
 {   
