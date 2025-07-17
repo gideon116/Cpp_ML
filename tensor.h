@@ -2,6 +2,9 @@
 #define TENSOR_H
 
 #include <iostream>
+#include <cstring>
+#include <memory>
+#include <vector>
 
 class Tensor 
 {
