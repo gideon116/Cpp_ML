@@ -17,7 +17,7 @@ A custom machine learning micro-framework written entirely in C++ with no third 
 
 ### Prerequisites
 
-* C++14 or higher compiler (g++ 10+, clang 12+, or MSVC ≥19.29).  
+* C++14 or higher compiler (g++, clang++, or MSVC).  
 * OpenMP (optional but recommended for speed).  
 
 ### Build and Run

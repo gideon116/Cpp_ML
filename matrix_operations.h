@@ -20,7 +20,6 @@ namespace wef {
         Tensor argmax(const Tensor& m1);
         Tensor activation(const Tensor& m1, const char ops);
         Tensor softmax(const Tensor& m1);
-        Tensor batchsum(const Tensor& m1);
         Tensor reducesum(const Tensor& m1, const int ax);
         double l2(const Tensor& m1, const Tensor& m2);
         double binarycrossentropy(const Tensor& m1, const Tensor& m2);

@@ -3,9 +3,9 @@
 
 Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
 {
-    if (m1.col != m2.row) {throw std::invalid_argument("matrix size mismatch [3]");}
-    const bool bcast = (m2.batch == 1);
-    if (!bcast && (m1.batch != m2.batch)) {throw std::invalid_argument("matrix size mismatch [4]");}
+    if (m1.col != m2.row) throw std::invalid_argument("matrix size mismatch [3]");
+    const bool not_bcast = (m2.batch != 1);
+    if (not_bcast && (m1.batch != m2.batch)) throw std::invalid_argument("matrix size mismatch [4]");
     
     std::unique_ptr<int[]> temp_shape = std::make_unique<int[]>(m1.rank);
 
@@ -19,17 +19,20 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
     const double* pm2 = m2.tensor.get();
     double* pm = m.tensor.get();
 
-    const size_t m1size = m1.row * m1.col;
-    const size_t m2size = m2.row * m2.col;
+    const size_t m1size = m1.row * m1.col; // to shift pm1 by one batch worth
+    const size_t m2size = m2.row * m2.col * not_bcast; // only shift if m2 is 3D
     const size_t msize = m1.row * m2.col;
-    
-    #pragma omp parallel for collapse(3) schedule(static)
+    const double* pm1temp;
+    const double* pm2temp;
+    double* pmtemp;
+
     for (int b = 0; b < m1.batch; b++){
         
-        const double* pm1temp = pm1 + b * m1size; // shift pm1 by one batch worth
-        const double* pm2temp = !bcast ? pm2 + b * m2size : pm2; // only shift if m2 is 3D
-        double* pmtemp = pm + b * msize;
+        pm1temp = pm1 + b * m1size; // shift pm1 by one batch worth
+        pm2temp = pm2 + b * m2size; // only shift if m2 is 3D
+        pmtemp = pm + b * msize;
 
+        #pragma omp parallel for collapse(2) schedule(static)
         for (size_t i = 0; i < m1.row; i++) {
             for (size_t k = 0; k < m2.col; k++) {
 
@@ -46,9 +49,9 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
 
 Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads)
 {
-    if (m1.col != m2.row) {throw std::invalid_argument("matrix size mismatch [5]");}
-    const bool bcast = (m2.batch == 1);
-    if (!bcast && (m1.batch != m2.batch)) {throw std::invalid_argument("matrix size mismatch [6]");}
+    if (m1.col != m2.row) throw std::invalid_argument("matrix size mismatch [3]");
+    const bool not_bcast = (m2.batch != 1);
+    if (not_bcast && (m1.batch != m2.batch)) throw std::invalid_argument("matrix size mismatch [4]");
     
     std::unique_ptr<int[]> temp_shape = std::make_unique<int[]>(m1.rank);
 
@@ -62,9 +65,12 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads)
     const double* pm2 = m2.tensor.get();
     double* pm = m.tensor.get();
 
-    const size_t m1size = m1.row * m1.col;
-    const size_t m2size = m2.row * m2.col;
+    const size_t m1size = m1.row * m1.col; // to shift pm1 by one batch worth
+    const size_t m2size = m2.row * m2.col * not_bcast; // only shift if m2 is 3D
     const size_t msize = m1.row * m2.col;
+    const double* pm1temp;
+    const double* pm2temp;
+    double* pmtemp;
 
     // multi thread additions
     if (n_threads == 0)
@@ -80,9 +86,9 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads)
 
     for (int b = 0; b < m1.batch; b++){
         
-        const double* pm1temp = pm1 + b * m1size; // shift pm1 by one batch worth
-        const double* pm2temp = !bcast ? pm2 + b * m2size : pm2; // only shift if m2 is 3D
-        double* pmtemp = pm + b * msize;
+        pm1temp = pm1 + b * m1size; // shift pm1 by one batch worth
+        pm2temp = pm2 + b * m2size; // only shift if m2 is 3D
+        pmtemp = pm + b * msize;
 
         for (int th = 0; th < n_threads; th++)
         {
@@ -92,6 +98,7 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads)
                 // we dont want to capture everything in scope !
                 [th, stride, temp, pm1temp, pm2temp, pmtemp](size_t m1col, size_t m2col)
                 {
+                    #pragma omp parallel for collapse(2) schedule(static)
                     for (size_t i = th * stride; i < (th * stride) + temp; i++) {
                         for (size_t k = 0; k < m2col; k++) {
 
@@ -125,7 +132,7 @@ Tensor wef::cops(const Tensor& m1, const double con, double (*f)(double, double)
     double* pm = m.tensor.get();
 
     #pragma omp parallel for
-    for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) pm[i] = f(pm1[i], con);
+    for (size_t i = 0; i < m1.tot_size; i++) pm[i] = f(pm1[i], con);
 
     return m;
 
@@ -173,7 +180,7 @@ Tensor wef::argmax(const Tensor& m1)
     double* pm = m.tensor.get();
 
     #pragma omp parallel for
-    for (size_t i = 0; i < m1.batch * m1.row; i++)
+    for (size_t i = 0; i < m1.tot_size / m1.col; i++)
     {
         double temp_val = -1e19;
         for (size_t j = 0; j < m1.col; j++) 
@@ -192,7 +199,7 @@ Tensor wef::softmax(const Tensor& m1)
     double* pm = m.tensor.get();
 
     #pragma omp parallel for
-    for (size_t i = 0; i < m1.batch * m1.row; i++)
+    for (size_t i = 0; i < m1.tot_size / m1.col; i++)
     {
         double sum = 1e-19;
         for (size_t j = 0; j < m1.col; j++) sum += std::exp(pm1[i * m1.col + j]);
@@ -209,7 +216,7 @@ Tensor wef::activation(const Tensor& m1, const char ops)
     double* pm = m.tensor.get();
 
     #pragma omp parallel for
-    for (size_t i = 0; i < m1.batch * m1.row * m1.col; i++) 
+    for (size_t i = 0; i < m1.tot_size; i++) 
     {
         switch (ops) {
             // relu
@@ -265,63 +272,21 @@ Tensor wef::reducesum(const Tensor& m1, const int ax)
     return m;
 }
 
-Tensor wef::batchsum(const Tensor& m1)
-{   
-    // TO DO: CONFRIM THIS IS ON (just using row and col for batch sum. Usually for weights)
-    Tensor m = Tensor::create({m1.row, m1.col}); 
-    const double* pm1 = m1.tensor.get();
-    double* pm = m.tensor.get();
-
-    const size_t m1size = m1.row * m1.col;
-    std::memset(pm, 0, (m.tot_size) * sizeof(double));
-
-    #pragma omp parallel for collapse(3) schedule(static)
-    for (int b = 0; b < m1.batch; b++){
-        
-        const double* pm1temp = pm1 + b * m1size;
-        
-        for (size_t i = 0; i < m1.row; i++) {
-            for (size_t j = 0; j < m1.col; j++) {
-                #pragma omp atomic
-                pm[i * m1.col + j] += pm1temp[i * m1.col + j];
-            }
-        }
-    }
-    return m;
-}
-
 double wef::l2(const Tensor& m1, const Tensor& m2)
 {
-    if (m1.row != m2.row || m1.col != m2.col) {throw std::invalid_argument("matrix size mismatch [6]");}
-
-    // either its 2d or batchs match
-    if (!(m2.batch == 1 || m2.batch == m1.batch)) {throw std::invalid_argument("matrix size mismatch [7]");}
-
-    bool bcast = (m2.batch == 1);
-    const size_t m1size = m1.row * m1.col;
+    if (m1.rank != m2.rank) throw std::invalid_argument("matrix rank mismatch [6]");
+    for (int i = 0; i < m1.rank; i++) if (m1.shape[i] != m2.shape[i]) throw std::invalid_argument("matrix size mismatch [7]");
 
     const double* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
     const double* pm2 = m2.tensor.get();
     double loss = 0.0;
 
-    if (!bcast) 
+    #pragma omp parallel for reduction(+:loss)
+    for (size_t i = 0; i < m1.tot_size; i++) 
     {
-        #pragma omp parallel for reduction(+:loss)
-        for (size_t i = 0; i < m1.tot_size; i++) 
-        {
-            double diff = pm1[i] - pm2[i];
-            loss += diff * diff;
-        }
-    } else
-    {
-        #pragma omp parallel for reduction(+:loss)
-        for (size_t i = 0; i < m1.tot_size; i++) 
-        {
-            // if second one need be repeated then just mod
-            double diff = pm1[i] - pm2[i % m1size];
-            loss += diff * diff;
-        }
+        loss += std::pow(pm1[i] - pm2[i], 2);
     }
+
     return loss / (m1.tot_size);
 }
 
