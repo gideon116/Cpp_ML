@@ -109,6 +109,26 @@ void Tensor::printShape()
 }
 
 Tensor Tensor::ops(const Tensor& other, double (*f)(double, double)) const
+{   
+    // if we should broadcast one of the tensors because its like [a, b, c] and [1, 1, c] then run ops_bcast
+    if (rank != other.rank) return ops_bcast(other, f);
+    for (int i = 0; i < rank; i++)
+        if (shape[i] != other.shape[i]) return ops_bcast(other, f);
+
+    // no need to broadcast...
+    Tensor t = Tensor(*this);
+    double* a = (this->tensor).get();
+    double* b = (other.tensor).get();
+    double* c = (t.tensor).get();
+
+    for (size_t i = 0; i < batch * row * col; i++) 
+    {   
+        c[i] = f(a[i], b[i]);
+    }
+    return t;
+}
+
+Tensor Tensor::ops_bcast(const Tensor& other, double (*f)(double, double)) const
 {
     int out_rank = std::max(rank, other.rank);
     std::unique_ptr<int[]> out = std::make_unique<int[]>(out_rank);
@@ -139,6 +159,7 @@ Tensor Tensor::ops(const Tensor& other, double (*f)(double, double)) const
             shape_b[i] = other.shape[i];
             if (i >= (other.rank - rank)) shape_a[i] = shape[i - (other.rank - rank)];
         }
+
     // if no need to pad
     else
         for (int i = 0; i < out_rank; i++)
@@ -191,28 +212,6 @@ Tensor Tensor::ops(const Tensor& other, double (*f)(double, double)) const
     }
     return c;
 }
-
-/*
-Tensor Tensor::ops(const Tensor& other, double (*f)(double, double)) const
-{   
-    // below is a way to check if we should broadcast one of the tensors because its like [a, b, c] and [1, 1, c]
-    if (rank != other.rank) throw std::invalid_argument("matrix size mismatch [T1]: different ranks");
-
-    for (int i = 0; i < rank; i++)
-        if (shape[i] != other.shape[i]) throw std::invalid_argument("matrix size mismatch [T2]");
-
-    Tensor t = Tensor(*this);
-    double* a = (this->tensor).get();
-    double* b = (other.tensor).get();
-    double* c = (t.tensor).get();
-
-    for (size_t i = 0; i < batch * row * col; i++) 
-    {   
-        c[i] = f(a[i], b[i]);
-    }
-    return t;
-}
-*/
 
 Tensor Tensor::ops(const double scalar, double (*f)(double, double)) const
 {   

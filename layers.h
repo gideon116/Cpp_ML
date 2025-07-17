@@ -7,14 +7,15 @@
 #include "matrix_operations.h"
 
 class Layer {
+
     public:
+        int num_param = 0;
         virtual Tensor forward_pass(const Tensor& px) = 0;
         virtual Tensor backward_pass(const Tensor& dy, const double lr) = 0;
         virtual ~Layer() = default;
 };
 
 class Linear : public Layer {
-    
 
     public:
         int units;
@@ -22,15 +23,17 @@ class Linear : public Layer {
         std::mt19937 g;
         Tensor W, B, X, dx, dw, db;
         bool init = false;
+        bool usebias = false;
         
         // initilize weights
-        Linear(int unit, int rand=3) : units(unit), dist(0.0, 1.0/std::sqrt(units)), g(rand) {}
+        Linear(int unit, bool use_bias=false, int rand=3) : units(unit), usebias(use_bias), dist(0.0, 1.0/std::sqrt(units)), g(rand) {}
         
         Tensor forward_pass(const Tensor& px) override;
         Tensor backward_pass(const Tensor& dy, const double lr) override;
 };
 
 class ReLU : public Layer {
+
     public:
         Tensor X;
 
@@ -47,6 +50,7 @@ class ReLU : public Layer {
 };
 
 class sigmoid : public Layer {
+
     public:
         Tensor X;
 
@@ -62,9 +66,8 @@ class sigmoid : public Layer {
         }
 };
 
-
 class Conv2D : public Layer {
-    
+
     public:
         
         std::mt19937 g;
@@ -74,17 +77,18 @@ class Conv2D : public Layer {
 
         std::normal_distribution<double> dist;
         
-        Tensor W, X, out, dx, dw;
+        Tensor W, X, out, dx, dw, B, db;
         bool init = false;
+        bool usebias = false;
         
         // initilize weights
-        Conv2D(int w_h, int w_w, int u, int rand=3)
-            : g(rand), w_height(w_h), w_width(w_w), units(u) {}
+        Conv2D(int w_h, int w_w, int u, bool use_bias=false, int rand=3)
+            : g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias) {}
         
         Tensor forward_pass(const Tensor& px) override;
-        Tensor forward_pass_multi(const Tensor& px);
+        Tensor forward_pass_legacy(const Tensor& px);
         Tensor backward_pass(const Tensor& dy, const double lr) override;
-        Tensor backward_pass_multi(const Tensor& dy, const double lr);
+        Tensor backward_pass_legacy(const Tensor& dy, const double lr);
     };
 
 class MaxPool2D : public Layer {
@@ -123,7 +127,6 @@ class ReduceSum : public Layer {
         Tensor backward_pass(const Tensor& dy, double)  override;
     };
 
-
 class LayerNorm : public Layer {
     
     public:
@@ -142,7 +145,6 @@ class LayerNorm : public Layer {
         Tensor forward_pass(const Tensor& px) override;
         Tensor backward_pass(const Tensor& dy, const double lr) override;
 };
-
 
 class Flatten : public Layer {
     
@@ -173,6 +175,48 @@ public:
 
         return dx;
     }
+};
+
+class Linear_Fast : public Layer {
+
+    public:
+        int units;
+        std::normal_distribution<double> dist;
+        std::mt19937 g;
+        Tensor W, B, X, dx, dw, db;
+        bool init = false;
+        bool usebias = false;
+        
+        // initilize weights
+        Linear_Fast(int unit, bool use_bias=false, int rand=3) : units(unit), usebias(use_bias), dist(0.0, 1.0/std::sqrt(units)), g(rand) {}
+        
+        Tensor forward_pass(const Tensor& px) override;
+        Tensor backward_pass(const Tensor& dy, const double lr) override;
+};
+
+class Conv2D_Fast : public Layer {
+
+    public:
+        
+        std::mt19937 g;
+        
+        int w_height, w_width, units;
+        int height, width, ch;
+
+        std::normal_distribution<double> dist;
+        
+        Tensor W, X, out, dx, dw, B, db;
+        bool init = false;
+        bool usebias = false;
+        
+        // initilize weights
+        Conv2D_Fast(int w_h, int w_w, int u, bool use_bias=false, int rand=3)
+            : g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias) {}
+        
+        Tensor forward_pass(const Tensor& px) override;
+        Tensor forward_pass_legacy(const Tensor& px);
+        Tensor backward_pass(const Tensor& dy, const double lr) override;
+        Tensor backward_pass_legacy(const Tensor& dy, const double lr);
 };
 
 

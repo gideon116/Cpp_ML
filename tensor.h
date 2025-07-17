@@ -134,9 +134,7 @@ class Tensor
         // change for vector based indexing
         double& index(const std::vector<size_t>& params);
         double index(const std::vector<size_t>& params) const;
-
         
-
         void printShape();
 
         // bc unique ptr forbids copying and rule of 5
@@ -148,6 +146,7 @@ class Tensor
         // operator overloads
         // Tensor operator overload helper
         Tensor ops(const Tensor& other, double (*f)(double, double)) const;
+        Tensor ops_bcast(const Tensor& other, double (*f)(double, double)) const;
 
         // Tensor overload operators
         Tensor operator+(const Tensor& other) const { return ops(other, [](double a, double b){ return a + b; }); }

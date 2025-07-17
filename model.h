@@ -13,6 +13,7 @@ class Model
         Model(std::vector<Layer*> inputNetwork) : network(inputNetwork) {}
         void add(Layer* i) { network.push_back(i); }
         void fit(const Tensor& real, const Tensor& input, const int& epochs, const double& lr);
+        void summary();
         Tensor predict(Tensor& input)
         { 
             input.printShape();
@@ -43,5 +44,16 @@ void Model::fit(const Tensor& real, const Tensor& input, const int& epochs, cons
             dy = (*network[i]).backward_pass(dy, lr);
         }
     }
+}
+
+void Model::summary()
+{
+    size_t nP = 0;
+    for (Layer* l : network)
+    {
+        nP += l->num_param;
+    }
+
+    std::cout << "Number of parameters: " << nP << std::endl;
 }
 #endif
