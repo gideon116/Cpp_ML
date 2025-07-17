@@ -2,17 +2,20 @@
 #include <random>
 #include "layers.h"
 
-Tensor Linear::forward_pass(const Tensor& px) 
+Tensor Linear::forward_pass(const Tensor& px, const bool training) 
     {
         if (!init) 
         {   
+            // initially initilize the shape of X later just copy the tensors
+            X = Tensor(px);
+
             int w_shape[2] = {px.col, units};
             int b_shape[2] = {1, units};
             W = Tensor::create(w_shape, 2);
             B = Tensor::create(b_shape, 2);
 
             double* B_ptr = B.tensor.get();
-            std::memset(B_ptr, 0, (B.tot_size) * sizeof(double)); // zero fill
+            std::fill_n(B.tensor.get(), B.tot_size, 0.01); // zero fill
 
             double* pm = W.tensor.get();
             for (size_t i = 0; i < size_t(px.col) * units; i++) pm[i] = dist(g);
@@ -25,7 +28,10 @@ Tensor Linear::forward_pass(const Tensor& px)
             // if trying to use (reuse) the layer on a different tensor
             if (W.row != px.col) throw std::invalid_argument("cannot reuse layer");
         }
-        X = Tensor(px);
+
+        // copy px into X
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
+
         if (usebias) return wef::matmul(px, W) + B;
         return wef::matmul(px, W);
     }
@@ -52,20 +58,24 @@ Tensor Linear::backward_pass(const Tensor& dy, const double lr)
         return dx;
     }
 
-Tensor Conv2D::forward_pass(const Tensor& px) 
+Tensor Conv2D::forward_pass(const Tensor& px, const bool training) 
     {
     if (!init) 
     {   
+        // initially initilize the shape of X later just copy the tensors
+        X = Tensor(px);
+        
         // h, w, c, units
         height = px.shape[1]; width = px.shape[2]; ch = px.shape[3];
-        dist = std::normal_distribution<double>(0.0, 1.0/std::sqrt(w_height * w_width * ch));
+        dist = std::normal_distribution<double>(0.0, std::sqrt( 2.0 / (w_height * w_width * ch)));
+        // for above now we have (2/fan_in = hwc)^0.5 good for relu we can use fan_out for tanh... which is hwu
 
         int w_shape[4] = {w_height, w_width, ch, units};
         W = Tensor::create(w_shape, 4);
 
         int B_shape[4] = {1, 1, 1, units};
         B = Tensor::create(B_shape, 4);
-        std::fill_n(B.tensor.get(), B.tot_size, 0);
+        std::fill_n(B.tensor.get(), B.tot_size, 0.01);
 
         double* pm = W.tensor.get();
         for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
@@ -92,7 +102,8 @@ Tensor Conv2D::forward_pass(const Tensor& px)
             px.shape[3] != ch) throw std::invalid_argument("cannot reuse layer");
     }
 
-    X = Tensor(px);
+    // copy px into X
+    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
     
     double* out_ptr = out.tensor.get();
     double* px_ptr = px.tensor.get();
@@ -208,13 +219,16 @@ Tensor Conv2D::backward_pass(const Tensor& dy, const double lr)
         return dx;
     }
 
-Tensor Conv2D::forward_pass_legacy(const Tensor& px) 
+Tensor Conv2D::forward_pass_legacy(const Tensor& px, const bool training) 
     {
     if (!init) 
     {   
+        // initially initilize the shape of X later just copy the tensors
+        X = Tensor(px);
         // h, w, c, units
         height = px.shape[1]; width = px.shape[2]; ch = px.shape[3];
-        dist = std::normal_distribution<double>(0.0, 1.0/std::sqrt(w_height * w_width * ch));
+        dist = std::normal_distribution<double>(0.0, std::sqrt( 2.0 / (w_height * w_width * ch) ));
+        // for above now we have (2/fan_in = hwc)^0.5 good for relu we can use fan_out for tanh... which is hwu
         
         int w_shape[4] = {w_height, w_width, ch, units};
         W = Tensor::create(w_shape, 4);
@@ -242,7 +256,8 @@ Tensor Conv2D::forward_pass_legacy(const Tensor& px)
             px.shape[3] != ch) throw std::invalid_argument("cannot reuse layer");
     }
 
-    X = Tensor(px);
+    // copy px into X
+    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
 
     size_t ind = 0;
     size_t i1[4];
@@ -323,10 +338,12 @@ Tensor Conv2D::backward_pass_legacy(const Tensor& dy, const double lr)
         return dx;
     }
 
-Tensor MaxPool2D::forward_pass(const Tensor& px) 
+Tensor MaxPool2D::forward_pass(const Tensor& px, const bool training) 
     {
         if (!init)
         {   
+            // initially initilize the shape of X later just copy the tensors
+            X = Tensor(px);
             // h, w, c, units
             height = px.shape[1]; width = px.shape[2]; ch = px.shape[3];
 
@@ -351,7 +368,8 @@ Tensor MaxPool2D::forward_pass(const Tensor& px)
                 px.shape[3] != ch) throw std::invalid_argument("cannot reuse layer");
         }
 
-        X = Tensor(px);
+        // copy px into X
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
 
         size_t ind = 0;
         size_t i1[4];
@@ -419,11 +437,14 @@ Tensor MaxPool2D::backward_pass(const Tensor& dy, const double lr)
         return dx;
     }
 
-Tensor ReduceSum::forward_pass(const Tensor& px) 
+Tensor ReduceSum::forward_pass(const Tensor& px, const bool training) 
     { 
 
         if (!init) 
         {
+            // initially initilize the shape of X later just copy the tensors
+            X = Tensor(px);
+
             if (ax >= px.rank) throw std::invalid_argument("axis outside shape");
             const int* shape = px.shape.get(); // [b, h, w, c]
             reshape_shape = std::make_unique<int[]>(px.rank-2); // [h, w]
@@ -458,7 +479,8 @@ Tensor ReduceSum::forward_pass(const Tensor& px)
             init = true;
         }
 
-        X = Tensor(px);
+        // copy px into X
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
 
         const double* pm = px.tensor.get();
         double* pm_okd = out_keepdims.tensor.get();
@@ -508,10 +530,13 @@ Tensor ReduceSum::backward_pass(const Tensor& dy, double)
         return dx;
     }
 
-Tensor LayerNorm::forward_pass(const Tensor& px)
+Tensor LayerNorm::forward_pass(const Tensor& px, const bool training)
 {
     if (!init) 
         {
+            // initially initilize the shape of X later just copy the tensors
+            X = Tensor(px);
+
             ax_val = px.shape[axis];
             std::unique_ptr<int[]> beta_shape = std::make_unique<int[]>(px.rank);
             std::unique_ptr<int[]> gamma_shape = std::make_unique<int[]>(px.rank);
@@ -536,7 +561,8 @@ Tensor LayerNorm::forward_pass(const Tensor& px)
         }
         if (px.shape[axis] != ax_val) throw std::invalid_argument("cannot reuse layer [LayerNorm]");
 
-        X = Tensor(px);
+        // copy px into X
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
 
         // follwoing Ba et al. 2016
         mu = wef::reducesum(px, /*axis=*/axis) / ax_val;

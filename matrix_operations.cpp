@@ -364,6 +364,7 @@ double wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& 
     for (size_t i = 0; i < m1.tot_size; i++) 
     {   
         size_t tempid = i * num_classes;
+        size_t base = i * m.shape[m.rank - 1];
 
         // find max per class and subtract to make stable
         double cur_max = pm2[tempid];
@@ -378,9 +379,9 @@ double wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& 
             if (j == (size_t)pm1[i])
             {
                 loss -= std::log(p + eps);
-                pm[i * m.shape[m.rank - 1] + j] = p - 1; // gradient
+                pm[base + j] = p - 1; // gradient
             }
-            else pm[i * m.shape[m.rank - 1] + j] = p;
+            else pm[base + j] = p;
         }
         
     }
