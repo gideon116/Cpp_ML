@@ -152,13 +152,15 @@ Tensor wef::transpose(const Tensor& m1)
     double* pm = m.tensor.get();
 
     const size_t msize = m1.row * m1.col;
+    const double* pm1temp;
+    double* pmtemp;
 
-    #pragma omp parallel for collapse(3) schedule(static)
     for (int b = 0; b < m1.batch; b++){
 
-        const double* pm1temp = pm1 + b * msize;
-        double* pmtemp = pm + b * msize;
+        pm1temp = pm1 + b * msize;
+        pmtemp = pm + b * msize;
 
+        #pragma omp parallel for collapse(2) schedule(static)
         for (size_t i = 0; i < m1.row; i++) {
             for (size_t j = 0; j < m1.col; j++) {
                 pmtemp[j * m1.row + i] = pm1temp[i * m1.col + j];
