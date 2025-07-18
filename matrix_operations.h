@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include <cmath>
-#include <vector>
 #include <initializer_list>
 #include <stdexcept>
 #include <thread>
@@ -25,7 +24,7 @@ namespace wef {
         double binarycrossentropy(const Tensor& m1, const Tensor& m2);
         double categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m);
         double categoricalcrossentropy(const Tensor& m1, const Tensor& m2);
-        void print(const Tensor& m1, std::vector<size_t> v={});
+        void print(const Tensor& m1, size_t arr[]=nullptr, size_t num=0);
         
         // wrappers
         Tensor pow(const Tensor& m1, const double con);

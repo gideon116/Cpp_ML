@@ -392,37 +392,41 @@ double wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2) // m1 is
     return loss / m1.tot_size;
 }
 
-void wef::print(const Tensor& m1, std::vector<size_t> v)
+void wef::print(const Tensor& m1, size_t arr[], size_t num)
 {   
-    int n = static_cast<int>(v.size());
-    
-    if (n < m1.rank - 1)
+    size_t* narr = new size_t[num + 1];
+    for (size_t i = 0; i < num; i++) narr[i] = arr[i];
+
+    if (num < m1.rank - 1)
     {   
         std::cout << "{ ";
-        
-        for (int i = 0; i < m1.shape[n]; i++)
+
+        for (size_t i = 0; i < m1.shape[num]; i++)
         {
-            v.push_back(i);
-            n == 0 ? std::cout << "\n" : std::cout << "";
-            print(m1, v);
-            v.pop_back();
+            narr[num] = i;
+            
+            num == 0 ? std::cout << "\n" : std::cout << "";
+
+            print(m1, narr, num + 1);
             
         }
-        n == 0 ? std::cout << "\n" : std::cout << "";
+        num == 0 ? std::cout << "\n" : std::cout << "";
         std::cout << "} ";
         
     }
     else
     {
         std::cout << "{ ";
-        for (int i = 0; i < m1.shape[n]; i++) 
+        for (size_t i = 0; i < m1.shape[num]; i++) 
         {
-            v.push_back(i);
-            std::cout << m1.index(v) << " ";
-            v.pop_back();
+            narr[num] = i;
+            std::cout << m1.index(narr) << " ";
+            
         }
         std::cout << "} ";
     }
+
+    delete[] narr;
 
 }
 

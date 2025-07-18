@@ -4,7 +4,6 @@
 #include <iostream>
 #include <cstring>
 #include <memory>
-#include <vector>
 
 class Tensor 
 {
@@ -22,10 +21,9 @@ class Tensor
         Tensor(std::initializer_list<double> ds);
         Tensor(const std::initializer_list<Tensor>& vs);
         
-        // create from scratch based on shape (init list or vector)
+        // create from scratch based on shape (init list or arr)
         static Tensor create(std::initializer_list<int> shape) { return Tensor(shape, 'C'); }
-        static Tensor create(std::vector<int> shape) { return Tensor(shape, 'C'); }
-        static Tensor create(int shape[], int a_len) { return Tensor(shape, 'C', true, a_len); }
+        static Tensor create(int shape[], int a_len) { return Tensor(shape, 'C', a_len); }
 
         // create from nested vector
         template<typename TENSOR>
@@ -92,12 +90,11 @@ class Tensor
 
         // this is soooo repetetive, MAKE SURE to COMBINE it with the last method somehow
         template<typename T>
-        Tensor(T in_shape, char, bool is_carray, int carray_len)
+        Tensor(T in_shape, char, int carray_len)
         {   
             // this is added in cases where c-array is provided
             rank = carray_len;
         
-
             if (rank <= 0) throw std::invalid_argument("need at least one dimension");
 
             shape = std::make_unique<int[]>(rank);
@@ -133,11 +130,7 @@ class Tensor
         double& index(const size_t params[]);
         // overload for read only access
         double index(const size_t params[]) const;
-     
-        // change for vector based indexing
-        double& index(const std::vector<size_t>& params);
-        double index(const std::vector<size_t>& params) const;
-        
+
         void printShape();
 
         // bc unique ptr forbids copying and rule of 5

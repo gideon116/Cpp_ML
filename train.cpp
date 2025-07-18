@@ -32,13 +32,12 @@ int main() {
     LayerNorm norm(1);
     MaxPool2D mp(2, 2), mp2(2, 2);
 
-    // std::vector<Layer*> network = {&cov1, &relu1, &mp, &cov2, &relu3, &mp2, &cov3, &relu2, &flat, &ffn1, &out};
-    std::vector<Layer*> network = {&flat, &ffn1, &ffn2, &out};
+    std::vector<Layer*> network = {&cov1, &relu1, &mp, &cov2, &relu3, &mp2, &cov3, &relu2, &flat, &ffn1, &out};
     
     Model model(network);
     // model.add(&cov1); model.add(&relu1); model.add(&cov2); model.add(&r1); model.add(&r2); model.add(&layer);
 
-    model.fit(train_l, train_im, test_l, test_im, 3, lr);
+    model.fit(train_l, train_im, test_l, test_im, 10, lr);
 
     Tensor pred = model.predict(test_im);
 
