@@ -1,3 +1,4 @@
+
 #if 1
 #include "layers.h"
 #include "tensor.h"
@@ -25,7 +26,7 @@ int main() {
     int units5 = 10;
     
     Conv2D_Fast cov1(3, 3, units1, true, 3), cov2(3, 3, units2, true, 4), cov3(3, 3, units2, true, 5);
-    Linear out(units5, true, 7), ffn1(512, true, 8), ffn2(512, true, 8);
+    Linear_Fast out(units5, true, 7), ffn1(16, true, 8), ffn2(512, true, 8);
     ReLU relu1, relu2, relu3;
     ReduceSum r1(1), r2(1);
     Flatten flat;
@@ -33,6 +34,7 @@ int main() {
     MaxPool2D mp(2, 2), mp2(2, 2);
 
     std::vector<Layer*> network = {&cov1, &relu1, &mp, &cov2, &relu3, &mp2, &cov3, &relu2, &flat, &ffn1, &out};
+    // std::vector<Layer*> network = {&flat, &ffn1, &ffn2, &out};
     
     Model model(network);
     // model.add(&cov1); model.add(&relu1); model.add(&cov2); model.add(&r1); model.add(&r2); model.add(&layer);

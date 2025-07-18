@@ -26,6 +26,23 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
     const double* pm2temp;
     double* pmtemp;
 
+    /*
+    // second option for matmul, maybe slower but its a flat loop
+    for (size_t elem = 0; elem < m.tot_size; elem++)
+    {
+        size_t b = elem / (m.row * m.col);
+        size_t c = b * m2size + elem % m.col;
+
+        size_t r = b * m1size + ((elem / m.col) % m.row) * m1.col;
+
+        double sum = 0;
+        for (size_t i = 0; i < m1.col; i++)
+                sum += pm1[i + r] * pm2[i * m2.col + c];
+                
+        pm[elem] = sum;
+    }
+    */
+
     for (int b = 0; b < m1.batch; b++){
         
         pm1temp = pm1 + b * m1size; // shift pm1 by one batch worth
@@ -98,7 +115,7 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads)
                 // we dont want to capture everything in scope !
                 [th, stride, temp, pm1temp, pm2temp, pmtemp](size_t m1col, size_t m2col)
                 {
-                    #pragma omp parallel for collapse(2) schedule(static)
+                    // #pragma omp parallel for collapse(2) schedule(static) <--------- remove?
                     for (size_t i = th * stride; i < (th * stride) + temp; i++) {
                         for (size_t k = 0; k < m2col; k++) {
 
