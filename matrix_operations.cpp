@@ -21,13 +21,10 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
 
     const size_t m1size = m1.row * m1.col; // to shift pm1 by one batch worth
     const size_t m2size = m2.row * m2.col * not_bcast; // only shift if m2 is 3D
-    const size_t msize = m1.row * m2.col;
-    const double* pm1temp;
-    const double* pm2temp;
-    double* pmtemp;
 
     /*
     // second option for matmul, maybe slower but its a flat loop
+    #pragma omp parallel for schedule(static)
     for (size_t elem = 0; elem < m.tot_size; elem++)
     {
         size_t b = elem / (m.row * m.col);
@@ -43,6 +40,10 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
     }
     */
 
+    const size_t msize = m1.row * m2.col;
+    const double* pm1temp;
+    const double* pm2temp;
+    double* pmtemp;
     for (int b = 0; b < m1.batch; b++){
         
         pm1temp = pm1 + b * m1size; // shift pm1 by one batch worth
@@ -409,41 +410,39 @@ double wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2) // m1 is
     return loss / m1.tot_size;
 }
 
-void wef::print(const Tensor& m1, size_t arr[], size_t num)
+void wef::print(const Tensor& m1, size_t* arr, size_t num, bool allc)
 {   
-    size_t* narr = new size_t[num + 1];
-    for (size_t i = 0; i < num; i++) narr[i] = arr[i];
-
+    if (!allc) arr = new size_t[m1.rank];
+    
     if (num < m1.rank - 1)
     {   
         std::cout << "{ ";
 
         for (size_t i = 0; i < m1.shape[num]; i++)
         {
-            narr[num] = i;
+            arr[num] = i;
             
             num == 0 ? std::cout << "\n" : std::cout << "";
 
-            print(m1, narr, num + 1);
+            print(m1, arr, num + 1, true);
             
         }
         num == 0 ? std::cout << "\n" : std::cout << "";
         std::cout << "} ";
-        
     }
     else
     {
         std::cout << "{ ";
         for (size_t i = 0; i < m1.shape[num]; i++) 
         {
-            narr[num] = i;
-            std::cout << m1.index(narr) << " ";
+            arr[num] = i;
+            std::cout << m1.index(arr) << " ";
             
         }
         std::cout << "} ";
     }
 
-    delete[] narr;
+    if (!allc) delete[] arr;
 
 }
 
