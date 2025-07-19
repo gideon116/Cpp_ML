@@ -5,6 +5,11 @@
 #include "model.h"
 #include "mnist.h"
 
+
+
+// TO DO: MULTITHREAD TENSOR OPS
+
+
 int main() {
 
     int n_test = 100;

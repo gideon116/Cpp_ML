@@ -101,6 +101,7 @@ Tensor Tensor::ops(const Tensor& other, double (*f)(double, double)) const
     double* b = (other.tensor).get();
     double* c = (t.tensor).get();
 
+    #pragma omp parallel for schedule(static)
     for (size_t i = 0; i < batch * row * col; i++) 
     {   
         c[i] = f(a[i], b[i]);
@@ -179,6 +180,7 @@ Tensor Tensor::ops_bcast(const Tensor& other, double (*f)(double, double)) const
     size_t total = 1;
     for (int i = 0; i < out_rank; ++i) total *= out[i];
 
+    #pragma omp parallel for schedule(static)
     for (size_t lin = 0; lin < total; lin++)
     {
         size_t offA = 0, offB = 0, rem = lin;

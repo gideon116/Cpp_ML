@@ -149,7 +149,7 @@ Tensor wef::cops(const Tensor& m1, const double con, double (*f)(double, double)
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
 
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(static)
     for (size_t i = 0; i < m1.tot_size; i++) pm[i] = f(pm1[i], con);
 
     return m;
@@ -199,7 +199,7 @@ Tensor wef::argmax(const Tensor& m1)
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
 
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(static)
     for (size_t i = 0; i < m1.tot_size / m1.col; i++)
     {
         double temp_val = -1e19;
@@ -218,7 +218,7 @@ Tensor wef::softmax(const Tensor& m1)
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
 
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(static)
     for (size_t i = 0; i < m1.tot_size / m1.col; i++)
     {
         double sum = 1e-19;
@@ -235,7 +235,7 @@ Tensor wef::activation(const Tensor& m1, const char ops)
     const double* pm1 = m1.tensor.get();
     double* pm = m.tensor.get();
 
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(static)
     for (size_t i = 0; i < m1.tot_size; i++) 
     {
         switch (ops) {
@@ -287,6 +287,7 @@ Tensor wef::reducesum(const Tensor& m1, const int ax)
     for (int i = ax + 1; i < m1.rank; i++) eaa *= m1.shape[i];
     int ax_help = m1.shape[ax]*eaa;
 
+    #pragma omp parallel for schedule(static)
     for (int i = 0; i < m1.tot_size; i++) pm[ (i % eaa) + eaa * (i / ax_help) ] += pm1[i];
     
     return m;
@@ -301,7 +302,7 @@ double wef::l2(const Tensor& m1, const Tensor& m2)
     const double* pm2 = m2.tensor.get();
     double loss = 0.0;
 
-    #pragma omp parallel for reduction(+:loss)
+    #pragma omp parallel for reduction(+:loss) schedule(static) 
     for (size_t i = 0; i < m1.tot_size; i++) 
     {
         loss += std::pow(pm1[i] - pm2[i], 2);
@@ -319,7 +320,7 @@ double wef::binarycrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real
     double loss = 0.0;
     const double eps = 1e-19;
     
-    #pragma omp parallel for reduction(+:loss)
+    #pragma omp parallel for reduction(+:loss) schedule(static) 
     for (size_t i = 0; i < m1.tot_size; i++)
     {   
         int temp_real = pm1[i] > 0.5;
@@ -345,7 +346,7 @@ double wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& 
     
     const size_t num_classes = m2.shape[m2.rank - 1];
 
-    #pragma omp parallel for reduction(+:loss)
+    #pragma omp parallel for reduction(+:loss) schedule(static)
     for (size_t i = 0; i < m1.tot_size; i++) 
     {   
         size_t tempid = i * num_classes;
@@ -388,7 +389,7 @@ double wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2) // m1 is
     
     const size_t num_classes = m2.shape[m2.rank - 1];
 
-    #pragma omp parallel for reduction(+:loss)
+    #pragma omp parallel for reduction(+:loss) schedule(static) 
     for (size_t i = 0; i < m1.tot_size; i++) 
     {   
         size_t tempid = i * num_classes;
