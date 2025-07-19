@@ -127,6 +127,7 @@ Tensor Conv2D::forward_pass(const Tensor& px, const bool training)
     int offset = width - w_width;
     int id_help = w_width * ch;
 
+    #pragma omp parallel for schedule(static)
     for (int out_i = 0; out_i < out_wo_units; out_i++)
     {
         int skip_w = skip_w_help * (out_i / out.row);
@@ -148,19 +149,6 @@ Tensor Conv2D::forward_pass(const Tensor& px, const bool training)
             for (int u_i = 0; u_i < units; u_i++)
                 out_ptr[out_i * units + u_i] += B_ptr[u_i];
     }
-
-    /*
-    
-    // multi thread additions
-    int avaliable_threads = std::thread::hardware_concurrency(); // may be 0
-    int n_threads = std::min<int>( out.tot_size,  avaliable_threads > 0 ? avaliable_threads : 1 );
-    
-    const int stride = out.tot_size / n_threads;
-    const int rem = out.tot_size % n_threads;
-
-    // spin up
-    std::thread* threads = new std::thread[n_threads];
-    */
 
     return out;
     }
@@ -184,6 +172,7 @@ Tensor Conv2D::backward_pass(const Tensor& dy, const double lr)
         int offset = width - w_width;
         int id_help = w_width * ch;
 
+        #pragma omp parallel for schedule(static)
         for (int dy_i = 0; dy_i < out_wo_units; dy_i++)
         {
             int skip_w = skip_w_help * (dy_i / dy.row);

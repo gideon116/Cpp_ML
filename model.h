@@ -19,7 +19,7 @@ class Timer
             auto end = std::chrono::time_point_cast<std::chrono::milliseconds>(m_end_point);
             auto duration = end - start;
             double sec = duration.count() * 0.001;
-            std::cout << sec << " seconds" << std::endl;
+            std::cout << sec << " sec" << std::endl;
         }
         
     private:
@@ -78,6 +78,9 @@ void Model::fit(const Tensor& real, const Tensor& input,
             const int epochs, const double lr)
 {
     Timer timer;
+    std::cout << "\n____________________________________________";
+    std::cout << "\nBeginning training\n\n";
+
     double loss, val_loss;
     Tensor y, dy, val_pred;
     for (int epoch = 0; epoch < epochs; epoch++) 
