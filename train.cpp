@@ -1,9 +1,33 @@
-
 #if 1
 #include "layers.h"
 #include "tensor.h"
 #include "model.h"
 #include "mnist.h"
+
+
+#include <chrono>
+
+class Timer
+{
+    public:
+        Timer() { m_start_point = std::chrono::high_resolution_clock::now(); }
+        ~Timer()
+        {
+            m_end_point = std::chrono::high_resolution_clock::now();
+
+            auto start = std::chrono::time_point_cast<std::chrono::milliseconds>(m_start_point);
+            auto end = std::chrono::time_point_cast<std::chrono::milliseconds>(m_end_point);
+            auto duration = end - start;
+            double sec = duration.count() * 0.001;
+            std::cout << sec << " seconds" << std::endl;
+        }
+        
+
+    private:
+        std::chrono::time_point<std::chrono::high_resolution_clock> m_start_point;
+        std::chrono::time_point<std::chrono::high_resolution_clock> m_end_point;
+
+};
 
 int main() {
 
@@ -26,20 +50,21 @@ int main() {
     int units5 = 10;
     
     Conv2D_Fast cov1(3, 3, units1, true, 3), cov2(3, 3, units2, true, 4), cov3(3, 3, units2, true, 5);
-    Linear_Fast out(units5, true, 7), ffn1(16, true, 8), ffn2(512, true, 8);
+    Linear_Fast out(units5, true, 7), ffn1(16, true, 8), ffn2(512, true, 8), ffn3(512, true, 8);
     ReLU relu1, relu2, relu3;
     ReduceSum r1(1), r2(1);
     Flatten flat;
     LayerNorm norm(1);
     MaxPool2D mp(2, 2), mp2(2, 2);
 
-    std::vector<Layer*> network = {&cov1, &relu1, &mp, &cov2, &relu3, &mp2, &cov3, &relu2, &flat, &ffn1, &out};
-    // std::vector<Layer*> network = {&flat, &ffn1, &ffn2, &out};
-    
-    Model model(network);
+    // std::vector<Layer*> network = {&cov1, &relu1, &mp, &cov2, &relu3, &mp2, &cov3, &relu2, &flat, &ffn1, &out};
+    // Model model(network);
     // model.add(&cov1); model.add(&relu1); model.add(&cov2); model.add(&r1); model.add(&r2); model.add(&layer);
+    // model.fit(train_l, train_im, test_l, test_im, 3, lr);
 
-    model.fit(train_l, train_im, test_l, test_im, 10, lr);
+    std::vector<Layer*> network = {&flat, &ffn3, &ffn2, &out};
+    Model model(network);
+    {Timer timer; model.fit(train_l, train_im, test_l, test_im, 3, lr);}
 
     Tensor pred = model.predict(test_im);
 
