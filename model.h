@@ -120,9 +120,14 @@ void Model::summary()
     size_t nP = 0;
     for (Layer* l : network)
     {
-        nP += l->num_param;
+        std::cout << l->m_name << "\t\tparameters: " << l->m_num_param;
+        nP += l->m_num_param;
+
+        std::cout << "\t\tshape: [ ";
+        for (int i = 0; i < l->m_out_rank; i++) std::cout << (l->m_out_shape)[i] << " ";
+        std::cout << "]\n";
     }
 
-    std::cout << "Number of parameters: " << nP << std::endl;
+    std::cout << "\nTotal number of parameters: " << nP << std::endl;
 }
 #endif

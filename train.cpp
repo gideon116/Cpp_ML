@@ -1,4 +1,3 @@
-
 #if 1
 #include "layers.h"
 #include "tensor.h"
@@ -47,7 +46,7 @@ int main() {
     model.add(&cov1); model.add(&relu1); model.add(&cov2); model.add(&r1); model.add(&r2); model.add(&layer);
     */
     
-    model.fit(train_l, train_im, test_l, test_im, 3, lr);
+    model.fit(train_l, train_im, test_l, test_im, 1, lr);
 
     Tensor pred = model.predict(test_im);
 
@@ -57,6 +56,7 @@ int main() {
     for (int i = 0; i < 10; i++) std::cout << test_l.tensor[i] << " ";
     std::cout << "} \n\n";
 
+    model.summary();
     std::cout << "\n";
 
     return 0;

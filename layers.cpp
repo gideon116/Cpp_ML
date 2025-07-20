@@ -20,7 +20,7 @@ Tensor Linear::forward_pass(const Tensor& px, const bool training)
             double* pm = W.tensor.get();
             for (size_t i = 0; i < size_t(px.col) * units; i++) pm[i] = dist(g);
 
-            num_param = W.tot_size + (usebias ? B.tot_size : 0);
+            m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
             init = true;
         }
         else
@@ -90,7 +90,7 @@ Tensor Conv2D::forward_pass(const Tensor& px, const bool training)
         dw = Tensor(W);
 
         db = Tensor(B);
-        num_param = W.tot_size + (usebias ? B.tot_size : 0);
+        m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
         
         init = true;
     }
@@ -233,7 +233,7 @@ Tensor Conv2D::forward_pass_legacy(const Tensor& px, const bool training)
         // gradient wrt weights
         dw = Tensor(W);
 
-        num_param = W.tot_size;
+        m_num_param = W.tot_size;
 
         init = true;
     }
@@ -544,7 +544,7 @@ Tensor LayerNorm::forward_pass(const Tensor& px, const bool training)
             std::fill_n(beta.tensor.get(), ax_val, 0.01);
             std::fill_n(gamma.tensor.get(), ax_val, 0.99);
 
-            num_param = beta.tot_size + gamma.tot_size;
+            m_num_param = beta.tot_size + gamma.tot_size;
             
             init = true;
         }

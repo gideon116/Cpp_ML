@@ -35,8 +35,10 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
         dw = Tensor(W);
 
         db = Tensor(B);
-        num_param = W.tot_size + (usebias ? B.tot_size : 0);
-        
+        m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
+        // for (int i=0; i < 4; i++) m_out_shape[i] = 0;
+        std::memcpy(m_out_shape, out_shape, 4 * sizeof(int));
+        m_out_rank = 4;
         init = true;
     }
     else
@@ -247,8 +249,10 @@ Tensor Linear_Fast::forward_pass(const Tensor& px, const bool training)
             double* pm = W.tensor.get();
             for (size_t i = 0; i < size_t(px.col) * units; i++) pm[i] = dist(g);
 
-            
-            num_param = W.tot_size + (usebias ? B.tot_size : 0);
+            m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
+            //////// REMOVE
+            std::memcpy(m_out_shape,  wef::matmul(px, W).shape.get(), wef::matmul(px, W).rank * sizeof(int));
+            m_out_rank = wef::matmul(px, W).rank;
             init = true;
         }
         else
