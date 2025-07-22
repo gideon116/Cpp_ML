@@ -12,7 +12,7 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
 
         // h, w, c, units
         height = px.shape[1]; width = px.shape[2]; ch = px.shape[3];
-        dist = std::normal_distribution<double>(0.0, std::sqrt( 2.0 / (w_height * w_width * ch))); 
+        dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / (w_height * w_width * ch))); 
         // for above now we have (2/fan_in = hwc)^0.5 good for relu we can use fan_out for tanh... which is hwu
 
         int w_shape[4] = {w_height, w_width, ch, units};
@@ -20,9 +20,9 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
 
         int B_shape[4] = {1, 1, 1, units};
         B = Tensor::create(B_shape, 4);
-        std::fill_n(B.tensor.get(), B.tot_size, 0.01);
+        std::fill_n(B.tensor.get(), B.tot_size, 0.01f);
 
-        double* pm = W.tensor.get();
+        float* pm = W.tensor.get();
         for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
 
         int out_shape[4] = {px.shape[0], height - w_height + 1, width - w_width + 1, units};
@@ -37,7 +37,8 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
         db = Tensor(B);
         m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
         // for (int i=0; i < 4; i++) m_out_shape[i] = 0;
-        std::memcpy(m_out_shape, out_shape, 4 * sizeof(int));
+        m_out_shape = std::make_unique<int[]>(px.rank);
+        std::memcpy(m_out_shape.get(), out_shape, 4 * sizeof(int));
         m_out_rank = 4;
         init = true;
     }
@@ -50,14 +51,14 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
     }
 
     // copy px into X
-    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
+    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
     
-    double* out_ptr = out.tensor.get();
-    double* px_ptr = px.tensor.get();
-    double* W_ptr = W.tensor.get();
-    double* B_ptr = B.tensor.get();
+    float* out_ptr = out.tensor.get();
+    float* px_ptr = px.tensor.get();
+    float* W_ptr = W.tensor.get();
+    float* B_ptr = B.tensor.get();
 
-    std::memset(out_ptr, 0, (out.tot_size) * sizeof(double));
+    std::memset(out_ptr, 0, (out.tot_size) * sizeof(float));
 
     /*
     There is a lot of math below but the idea is to do the cov kernel math (W * Input) and expand 
@@ -103,7 +104,7 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
 
                     for (int w_i = 0; w_i < Wtot_size / units; w_i++)
                     {
-                        double temp_px = px_ptr[
+                        float temp_px = px_ptr[
                             ch * out_i + skip_w + skip_h
                             + 
                             w_i + ch*offset * (w_i / id_help)
@@ -132,17 +133,17 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
     return out;
 }
 
-Tensor Conv2D_Fast::backward_pass(const Tensor& dy, const double lr) 
+Tensor Conv2D_Fast::backward_pass(const Tensor& dy, const float lr) 
 {   
-    double* dx_ptr = dx.tensor.get();
-    double* dw_ptr = dw.tensor.get();
+    float* dx_ptr = dx.tensor.get();
+    float* dw_ptr = dw.tensor.get();
 
-    std::memset(dx_ptr, 0, (dx.tot_size) * sizeof(double)); // zero fill
-    std::memset(dw_ptr, 0, (dw.tot_size) * sizeof(double)); // zero fill
+    std::memset(dx_ptr, 0, (dx.tot_size) * sizeof(float)); // zero fill
+    std::memset(dw_ptr, 0, (dw.tot_size) * sizeof(float)); // zero fill
 
-    double* dy_ptr = dy.tensor.get();
-    double* W_ptr = W.tensor.get();
-    double* X_ptr = X.tensor.get();
+    float* dy_ptr = dy.tensor.get();
+    float* W_ptr = W.tensor.get();
+    float* X_ptr = X.tensor.get();
 
     int out_wo_units = dy.tot_size / units;
     int skip_w_help = ch * (w_width - 1);
@@ -177,7 +178,7 @@ Tensor Conv2D_Fast::backward_pass(const Tensor& dy, const double lr)
                 th, stride, temp, skip_w_help, bi_help, skip_h_help, id_help, offset, 
                 dy_ptr, X_ptr, W_ptr
             ]
-            (size_t Wtot_size, size_t dyrow, int units, int ch, double* dx_i, double* dw_i)
+            (size_t Wtot_size, size_t dyrow, int units, int ch, float* dx_i, float* dw_i)
             {
                 for (int dy_i = th * stride; dy_i < (th * stride) + temp; dy_i++)
                 {
@@ -194,7 +195,7 @@ Tensor Conv2D_Fast::backward_pass(const Tensor& dy, const double lr)
 
                         for (int u_i = 0; u_i < units; u_i++)
                         {
-                            double grad = dy_ptr[dy_i * units + u_i];
+                            float grad = dy_ptr[dy_i * units + u_i];
                             dx_i[id1] += grad * W_ptr[w_i * units + u_i];
                             dw_i[w_i * units + u_i] += grad * X_ptr[id1];
                         }
@@ -243,15 +244,19 @@ Tensor Linear_Fast::forward_pass(const Tensor& px, const bool training)
             W = Tensor::create(w_shape, 2);
             B = Tensor::create(b_shape, 2);
 
-            double* B_ptr = B.tensor.get();
-            std::fill_n(B.tensor.get(), B.tot_size, 0.01); // zero fill
+            float* B_ptr = B.tensor.get();
+            std::fill_n(B.tensor.get(), B.tot_size, 0.01f); // zero fill
 
-            double* pm = W.tensor.get();
+            float* pm = W.tensor.get();
             for (size_t i = 0; i < size_t(px.col) * units; i++) pm[i] = dist(g);
 
             m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
-            //////// REMOVE
-            std::memcpy(m_out_shape,  wef::matmul(px, W).shape.get(), wef::matmul(px, W).rank * sizeof(int));
+
+            // TO DO: CATCH < 1 RANK
+            m_out_shape = std::make_unique<int[]>(px.rank);
+            for (int i = 0; i < px.rank - 1; i ++) m_out_shape[i] = px.shape[i];
+            m_out_shape[px.rank - 1] = units;
+
             m_out_rank = wef::matmul(px, W).rank;
             init = true;
         }
@@ -262,13 +267,13 @@ Tensor Linear_Fast::forward_pass(const Tensor& px, const bool training)
         }
         
         // copy px into X
-        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
 
         if (usebias) return wef::matmul(px, W, true);
         return wef::matmul(px, W, true);
     }
 
-Tensor Linear_Fast::backward_pass(const Tensor& dy, const double lr) 
+Tensor Linear_Fast::backward_pass(const Tensor& dy, const float lr) 
     {
         // gradient wrt the layer below
         dx = wef::matmul(dy, wef::transpose(W), true);

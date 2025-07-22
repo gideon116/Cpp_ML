@@ -14,10 +14,10 @@ Tensor Linear::forward_pass(const Tensor& px, const bool training)
             W = Tensor::create(w_shape, 2);
             B = Tensor::create(b_shape, 2);
 
-            double* B_ptr = B.tensor.get();
-            std::fill_n(B.tensor.get(), B.tot_size, 0.01); // zero fill
+            float* B_ptr = B.tensor.get();
+            std::fill_n(B.tensor.get(), B.tot_size, 0.01f); // zero fill
 
-            double* pm = W.tensor.get();
+            float* pm = W.tensor.get();
             for (size_t i = 0; i < size_t(px.col) * units; i++) pm[i] = dist(g);
 
             m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
@@ -30,13 +30,13 @@ Tensor Linear::forward_pass(const Tensor& px, const bool training)
         }
 
         // copy px into X
-        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
 
         if (usebias) return wef::matmul(px, W) + B;
         return wef::matmul(px, W);
     }
 
-Tensor Linear::backward_pass(const Tensor& dy, const double lr) 
+Tensor Linear::backward_pass(const Tensor& dy, const float lr) 
     {
         // gradient wrt the layer below
         dx = wef::matmul(dy, wef::transpose(W));
@@ -67,7 +67,7 @@ Tensor Conv2D::forward_pass(const Tensor& px, const bool training)
         
         // h, w, c, units
         height = px.shape[1]; width = px.shape[2]; ch = px.shape[3];
-        dist = std::normal_distribution<double>(0.0, std::sqrt( 2.0 / (w_height * w_width * ch)));
+        dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0 / (w_height * w_width * ch)));
         // for above now we have (2/fan_in = hwc)^0.5 good for relu we can use fan_out for tanh... which is hwu
 
         int w_shape[4] = {w_height, w_width, ch, units};
@@ -75,9 +75,9 @@ Tensor Conv2D::forward_pass(const Tensor& px, const bool training)
 
         int B_shape[4] = {1, 1, 1, units};
         B = Tensor::create(B_shape, 4);
-        std::fill_n(B.tensor.get(), B.tot_size, 0.01);
+        std::fill_n(B.tensor.get(), B.tot_size, 0.01f);
 
-        double* pm = W.tensor.get();
+        float* pm = W.tensor.get();
         for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
 
         int out_shape[4] = {px.shape[0], height - w_height + 1, width - w_width + 1, units};
@@ -103,14 +103,14 @@ Tensor Conv2D::forward_pass(const Tensor& px, const bool training)
     }
 
     // copy px into X
-    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
+    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
     
-    double* out_ptr = out.tensor.get();
-    double* px_ptr = px.tensor.get();
-    double* W_ptr = W.tensor.get();
-    double* B_ptr = B.tensor.get();
+    float* out_ptr = out.tensor.get();
+    float* px_ptr = px.tensor.get();
+    float* W_ptr = W.tensor.get();
+    float* B_ptr = B.tensor.get();
 
-    std::memset(out_ptr, 0, (out.tot_size) * sizeof(double));
+    std::memset(out_ptr, 0, (out.tot_size) * sizeof(float));
 
     /*
     There is a lot of math below but the idea is to do the cov kernel math (W * Input) and expand 
@@ -136,7 +136,7 @@ Tensor Conv2D::forward_pass(const Tensor& px, const bool training)
 
         for (int w_i = 0; w_i < W.tot_size / units; w_i++)
         {
-            double temp_px = px_ptr[
+            float temp_px = px_ptr[
                 ch * out_i + skip_w + skip_h
                 + 
                 w_i + ch*offset * (w_i / id_help)
@@ -153,17 +153,17 @@ Tensor Conv2D::forward_pass(const Tensor& px, const bool training)
     return out;
     }
 
-Tensor Conv2D::backward_pass(const Tensor& dy, const double lr) 
+Tensor Conv2D::backward_pass(const Tensor& dy, const float lr) 
     {   
-        double* dx_ptr = dx.tensor.get();
-        double* dw_ptr = dw.tensor.get();
+        float* dx_ptr = dx.tensor.get();
+        float* dw_ptr = dw.tensor.get();
 
-        std::memset(dx_ptr, 0, (dx.tot_size) * sizeof(double)); // zero fill
-        std::memset(dw_ptr, 0, (dw.tot_size) * sizeof(double)); // zero fill
+        std::memset(dx_ptr, 0, (dx.tot_size) * sizeof(float)); // zero fill
+        std::memset(dw_ptr, 0, (dw.tot_size) * sizeof(float)); // zero fill
 
-        double* dy_ptr = dy.tensor.get();
-        double* W_ptr = W.tensor.get();
-        double* X_ptr = X.tensor.get();
+        float* dy_ptr = dy.tensor.get();
+        float* W_ptr = W.tensor.get();
+        float* X_ptr = X.tensor.get();
 
         int out_wo_units = dy.tot_size / units;
         int skip_w_help = ch * (w_width - 1);
@@ -188,7 +188,7 @@ Tensor Conv2D::backward_pass(const Tensor& dy, const double lr)
 
                 for (int u_i = 0; u_i < units; u_i++)
                 {
-                    double grad = dy_ptr[dy_i * units + u_i];
+                    float grad = dy_ptr[dy_i * units + u_i];
                     dx_ptr[id1] += grad * W_ptr[w_i * units + u_i];
                     dw_ptr[w_i * units + u_i] += grad * X_ptr[id1];
                 }
@@ -216,12 +216,12 @@ Tensor Conv2D::forward_pass_legacy(const Tensor& px, const bool training)
         X = Tensor(px);
         // h, w, c, units
         height = px.shape[1]; width = px.shape[2]; ch = px.shape[3];
-        dist = std::normal_distribution<double>(0.0, std::sqrt( 2.0 / (w_height * w_width * ch) ));
+        dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / (w_height * w_width * ch) ));
         // for above now we have (2/fan_in = hwc)^0.5 good for relu we can use fan_out for tanh... which is hwu
         
         int w_shape[4] = {w_height, w_width, ch, units};
         W = Tensor::create(w_shape, 4);
-        double* pm = W.tensor.get();
+        float* pm = W.tensor.get();
         for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
 
         int out_shape[4] = {px.shape[0], height - w_height + 1, width - w_width + 1, units};
@@ -246,7 +246,7 @@ Tensor Conv2D::forward_pass_legacy(const Tensor& px, const bool training)
     }
 
     // copy px into X
-    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
+    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
 
     size_t ind = 0;
     size_t i1[4];
@@ -259,7 +259,7 @@ Tensor Conv2D::forward_pass_legacy(const Tensor& px, const bool training)
             {
                 for (size_t oc = 0; oc < out.shape[3]; oc++)    
                 {
-                    double temp = 0;
+                    float temp = 0.0f;
                     for (size_t h2 = 0; h2 < w_height; h2++)
                     {
                         for (size_t w2 = 0; w2 < w_width; w2++)
@@ -284,10 +284,10 @@ Tensor Conv2D::forward_pass_legacy(const Tensor& px, const bool training)
     return out;
     }
 
-Tensor Conv2D::backward_pass_legacy(const Tensor& dy, const double lr) 
+Tensor Conv2D::backward_pass_legacy(const Tensor& dy, const float lr) 
     {
-        std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(double)); // zero fill
-        std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(double)); // zero fill
+        std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float)); // zero fill
+        std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(float)); // zero fill
 
         size_t ind = 0;
         size_t i1[4];
@@ -300,7 +300,7 @@ Tensor Conv2D::backward_pass_legacy(const Tensor& dy, const double lr)
                 {
                     for (size_t oc = 0; oc < dy.shape[3]; oc++)
                     {
-                        double grad = dy.tensor[ind++];
+                        float grad = dy.tensor[ind++];
                         for (size_t h2 = 0; h2 < w_height; h2++)
                         {
                             for (size_t w2 = 0; w2 < w_width; w2++)
@@ -358,7 +358,7 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, const bool training)
         }
 
         // copy px into X
-        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
 
         size_t ind = 0;
         size_t i1[4];
@@ -370,7 +370,7 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, const bool training)
                 {
                     for (size_t c = 0; c < out.shape[3]; c++)    
                     {
-                        double temp_val = -1e19;
+                        float temp_val = -1e19f;
                         size_t temp_ind[4];
                         for (size_t h2 = h1 * k_height; h2 < h1 * k_height + k_height; h2++)
                         {
@@ -380,7 +380,7 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, const bool training)
                                 if (w2 >= width) break;
 
                                 i1[0] = b1; i1[1] = h2; i1[2] = w2; i1[3] = c;
-                                double val = px.index(i1);
+                                float val = px.index(i1);
 
                                 if (val > temp_val)
                                 {
@@ -402,9 +402,9 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, const bool training)
         return out;
     }
 
-Tensor MaxPool2D::backward_pass(const Tensor& dy, const double lr) 
+Tensor MaxPool2D::backward_pass(const Tensor& dy, const float lr) 
     {
-        std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(double));  // zero fill
+        std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float));  // zero fill
         size_t ind = 0;
         size_t i1[4];
         for (size_t b1 = 0; b1 < dy.shape[0]; b1++)
@@ -469,17 +469,17 @@ Tensor ReduceSum::forward_pass(const Tensor& px, const bool training)
         }
 
         // copy px into X
-        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
 
-        const double* pm = px.tensor.get();
-        double* pm_okd = out_keepdims.tensor.get();
+        const float* pm = px.tensor.get();
+        float* pm_okd = out_keepdims.tensor.get();
 
         int eaa = 1; // everything after axis i.e. b, h w, axis, x1, x2 -> eaa = x1 * x2
         for (int i = ax + 1; i < px.rank; i++) eaa *= px.shape[i];
 
         for (size_t i = 0; i < out_keepdims.tot_size; i++)
         {
-            double temp = 0;
+            float temp = 0.0f;
             int mult = (i/eaa) * (1 - px.shape[ax]) ;
             for (int j = 0; j < px.shape[ax]; j++)
             {
@@ -490,7 +490,7 @@ Tensor ReduceSum::forward_pass(const Tensor& px, const bool training)
 
         if (!keepdims)
         {
-            double* p_out = out.tensor.get();
+            float* p_out = out.tensor.get();
             for (size_t i = 0; i < out_keepdims.tot_size; i++) p_out[i] = pm_okd[i];
             return out;
         }
@@ -498,12 +498,12 @@ Tensor ReduceSum::forward_pass(const Tensor& px, const bool training)
         return out_keepdims;
     }
 
-Tensor ReduceSum::backward_pass(const Tensor& dy, double) 
+Tensor ReduceSum::backward_pass(const Tensor& dy, float) 
     {
         if (!init) throw std::invalid_argument("layer not initilized");
 
-        const double* pdy = dy.tensor.get();
-        double* pdx = dx.tensor.get();
+        const float* pdy = dy.tensor.get();
+        float* pdx = dx.tensor.get();
 
         int eaa = 1;
         for (int i = ax + 1; i < dx.rank; i++) eaa *= dx.shape[i];
@@ -541,8 +541,8 @@ Tensor LayerNorm::forward_pass(const Tensor& px, const bool training)
             gamma = Tensor::create(gamma_shape.get(), px.rank);
 
             // initilize beta and gamma
-            std::fill_n(beta.tensor.get(), ax_val, 0.01);
-            std::fill_n(gamma.tensor.get(), ax_val, 0.99);
+            std::fill_n(beta.tensor.get(), ax_val, 0.01f);
+            std::fill_n(gamma.tensor.get(), ax_val, 0.99f);
 
             m_num_param = beta.tot_size + gamma.tot_size;
             
@@ -551,20 +551,20 @@ Tensor LayerNorm::forward_pass(const Tensor& px, const bool training)
         if (px.shape[axis] != ax_val) throw std::invalid_argument("cannot reuse layer [LayerNorm]");
 
         // copy px into X
-        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(double));
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
 
         // follwoing Ba et al. 2016
         mu = wef::reducesum(px, /*axis=*/axis) / ax_val;
         x_mu = px - mu;
         var = wef::reducesum(x_mu * x_mu, /*axis=*/axis) / ax_val;
-        inv_std = wef::pow(var + eps, -0.5);
+        inv_std = wef::pow(var + eps, -0.5f);
         x_i_hat = x_mu * inv_std;
         y_i = x_i_hat * gamma + beta;
 
         return y_i;
 }
 
-Tensor LayerNorm::backward_pass(const Tensor& dy, const double lr)
+Tensor LayerNorm::backward_pass(const Tensor& dy, const float lr)
 {
     if (!init) throw std::invalid_argument("layer not initilized");
 

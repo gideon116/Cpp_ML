@@ -23,7 +23,7 @@ int main() {
     std::cout << "train image shape is: "; train_im.printShape();
     std::cout << "train label shape is: "; train_l.printShape();
 
-    double lr = 0.01;
+    float lr = 0.01f;
 
     int units1 = 16;
     int units2 = 16;
@@ -46,7 +46,7 @@ int main() {
     model.add(&cov1); model.add(&relu1); model.add(&cov2); model.add(&r1); model.add(&r2); model.add(&layer);
     */
     
-    model.fit(train_l, train_im, test_l, test_im, 1, lr);
+    model.fit(train_l, train_im, test_l, test_im, 10, lr);
 
     Tensor pred = model.predict(test_im);
 

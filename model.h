@@ -18,7 +18,7 @@ class Timer
             auto start = std::chrono::time_point_cast<std::chrono::milliseconds>(m_start_point);
             auto end = std::chrono::time_point_cast<std::chrono::milliseconds>(m_end_point);
             auto duration = end - start;
-            double sec = duration.count() * 0.001;
+            float sec = duration.count() * 0.001f;
             std::cout << sec << " sec" << std::endl;
         }
         
@@ -34,10 +34,10 @@ class Model
         Model() {}
         Model(std::vector<Layer*> inputNetwork) : network(inputNetwork) {}
         void add(Layer* i) { network.push_back(i); }
-        void fit(const Tensor& real, const Tensor& input, const int epochs=10, const double lr=0.01);
+        void fit(const Tensor& real, const Tensor& input, const int epochs=10, const float lr=0.01f);
         void fit(const Tensor& real, const Tensor& input, 
             const Tensor& valid_real, const Tensor& valid_input, 
-            const int epochs=10, const double lr=0.01);
+            const int epochs=10, const float lr=0.01f);
         void summary();
         Tensor predict(const Tensor& input)
         { 
@@ -50,10 +50,10 @@ class Model
         std::vector<Layer*> network;
 };
 
-void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const double lr)
+void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const float lr)
 {
     Timer timer;
-    double loss;
+    float loss;
     Tensor y, dy;
     for (int epoch = 0; epoch < epochs; epoch++) 
     {
@@ -75,13 +75,13 @@ void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const
 
 void Model::fit(const Tensor& real, const Tensor& input, 
             const Tensor& valid_real, const Tensor& valid_input, 
-            const int epochs, const double lr)
+            const int epochs, const float lr)
 {
     Timer timer;
     std::cout << "\n____________________________________________";
     std::cout << "\nBeginning training\n\n";
 
-    double loss, val_loss;
+    float loss, val_loss;
     Tensor y, dy, val_pred;
     for (int epoch = 0; epoch < epochs; epoch++) 
     {

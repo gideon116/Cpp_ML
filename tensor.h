@@ -12,13 +12,13 @@ class Tensor
         int batch = 1; int row = 0; int col = 0; int rank = 0; int tot_size = 0;
         std::unique_ptr<int[]> shape;
         std::unique_ptr<int[]> index_helper;
-        std::unique_ptr<double[]> tensor;
+        std::unique_ptr<float[]> tensor;
 
         // default 
         Tensor() : batch(1), row(0), col(0), rank(0), tot_size(0), shape(nullptr), index_helper(nullptr), tensor(nullptr) {}
 
         // create from init list
-        Tensor(std::initializer_list<double> ds);
+        Tensor(std::initializer_list<float> ds);
         Tensor(const std::initializer_list<Tensor>& vs);
         
         // create from scratch based on shape (init list or arr)
@@ -39,7 +39,7 @@ class Tensor
             level = 0;
             tot_size = 1;
             for (int i = 0; i < rank; i++) tot_size *= shape[i];
-            tensor = std::make_unique<double[]>(tot_size);
+            tensor = std::make_unique<float[]>(tot_size);
             getArr(input, level);
 
             index_helper = std::make_unique<int[]>(rank - 1);
@@ -67,7 +67,7 @@ class Tensor
 
             tot_size = 1;
             for (int i = 0; i < rank; i++) tot_size *= shape[i];
-            tensor = std::make_unique<double[]>(tot_size);
+            tensor = std::make_unique<float[]>(tot_size);
 
             if (rank >= 2)
             {
@@ -105,7 +105,7 @@ class Tensor
 
             tot_size = 1;
             for (int i = 0; i < rank; i++) tot_size *= shape[i];
-            tensor = std::make_unique<double[]>(tot_size);
+            tensor = std::make_unique<float[]>(tot_size);
 
             if (rank >= 2)
             {
@@ -127,9 +127,9 @@ class Tensor
         }
      
         // change by index
-        double& index(const size_t params[]);
+        float& index(const size_t params[]);
         // overload for read only access
-        double index(const size_t params[]) const;
+        float index(const size_t params[]) const;
 
         void printShape();
 
@@ -141,29 +141,29 @@ class Tensor
         
         // operator overloads
         // Tensor operator overload helper
-        Tensor ops(const Tensor& other, double (*f)(double, double)) const;
-        Tensor ops_bcast(const Tensor& other, double (*f)(double, double)) const;
+        Tensor ops(const Tensor& other, float (*f)(float, float)) const;
+        Tensor ops_bcast(const Tensor& other, float (*f)(float, float)) const;
 
         // Tensor overload operators
-        Tensor operator+(const Tensor& other) const { return ops(other, [](double a, double b){ return a + b; }); }
-        Tensor operator-(const Tensor& other) const { return ops(other, [](double a, double b){ return a - b; }); }
-        Tensor operator*(const Tensor& other) const { return ops(other, [](double a, double b){ return a * b; }); }
-        Tensor operator/(const Tensor& other) const { return ops(other, [](double a, double b){ return a / b; }); }
+        Tensor operator+(const Tensor& other) const { return ops(other, [](float a, float b){ return a + b; }); }
+        Tensor operator-(const Tensor& other) const { return ops(other, [](float a, float b){ return a - b; }); }
+        Tensor operator*(const Tensor& other) const { return ops(other, [](float a, float b){ return a * b; }); }
+        Tensor operator/(const Tensor& other) const { return ops(other, [](float a, float b){ return a / b; }); }
 
         // scalar operator overload helper
-        Tensor ops(const double scalar, double (*f)(double, double)) const;
+        Tensor ops(const float scalar, float (*f)(float, float)) const;
 
         // overload operators
-        Tensor operator+(const double scalar) const { return ops(scalar, [](double a, double b){ return a + b; }); }
-        Tensor operator-(const double scalar) const { return ops(scalar, [](double a, double b){ return a - b; }); }
-        Tensor operator*(const double scalar) const { return ops(scalar, [](double a, double b){ return a * b; }); }
-        Tensor operator/(const double scalar) const { return ops(scalar, [](double a, double b){ return a / b; }); }
+        Tensor operator+(const float scalar) const { return ops(scalar, [](float a, float b){ return a + b; }); }
+        Tensor operator-(const float scalar) const { return ops(scalar, [](float a, float b){ return a - b; }); }
+        Tensor operator*(const float scalar) const { return ops(scalar, [](float a, float b){ return a * b; }); }
+        Tensor operator/(const float scalar) const { return ops(scalar, [](float a, float b){ return a / b; }); }
 
         // += is special
-        Tensor& operator+=(const double scalar);
+        Tensor& operator+=(const float scalar);
 
         // init helpers
-        void getArr(const double& d, int& l) { tensor[l] = d; l++; }
+        void getArr(const float& d, int& l) { tensor[l] = d; l++; }
         template<typename T>
         void getArr(const T& vec, int& l)
         {   
@@ -171,7 +171,7 @@ class Tensor
             for (int i = 0; i < vs; i++) getArr(vec[i], l);
         }
 
-        void getShape(const double& d, int& level){}
+        void getShape(const float& d, int& level){}
         template<typename T>
         void getShape(const T& vec, int& level)
         {   
@@ -180,15 +180,15 @@ class Tensor
             getShape(vec[0], level);
         }
 
-        void getRank(const double& d){}
+        void getRank(const float& d){}
         template<typename T>
         void getRank(const T& vec) { rank++; getRank(vec[0]); }
     };
 
 // when the scalar is in front
-Tensor operator+(double s, const Tensor& t);
-Tensor operator-(double s, const Tensor& t);
-Tensor operator*(double s, const Tensor& t);
-Tensor operator/(double s, const Tensor& t);
+Tensor operator+(float s, const Tensor& t);
+Tensor operator-(float s, const Tensor& t);
+Tensor operator*(float s, const Tensor& t);
+Tensor operator/(float s, const Tensor& t);
 
 #endif

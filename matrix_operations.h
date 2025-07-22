@@ -12,7 +12,7 @@
 namespace wef {
 
         // base ops
-        Tensor cops(const Tensor& m1, const double con, double (*f)(double, double));
+        Tensor cops(const Tensor& m1, const float con, float (*f)(float, float));
         Tensor matmul(const Tensor& m1, const Tensor& m2);
         Tensor matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads=0);
         Tensor transpose(const Tensor& m1);
@@ -20,14 +20,14 @@ namespace wef {
         Tensor activation(const Tensor& m1, const char ops);
         Tensor softmax(const Tensor& m1);
         Tensor reducesum(const Tensor& m1, const int ax);
-        double l2(const Tensor& m1, const Tensor& m2);
-        double binarycrossentropy(const Tensor& m1, const Tensor& m2);
-        double categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m);
-        double categoricalcrossentropy(const Tensor& m1, const Tensor& m2);
+        float l2(const Tensor& m1, const Tensor& m2);
+        float binarycrossentropy(const Tensor& m1, const Tensor& m2);
+        float categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m);
+        float categoricalcrossentropy(const Tensor& m1, const Tensor& m2);
         void print(const Tensor& m1, size_t* arr=nullptr, size_t num=0, bool allc=false);
         
         // wrappers
-        Tensor pow(const Tensor& m1, const double con);
+        Tensor pow(const Tensor& m1, const float con);
         Tensor relu(const Tensor& m1);
         Tensor d_relu(const Tensor& m1);
         Tensor sigmoid(const Tensor& m1);
