@@ -9,9 +9,9 @@ class Tensor
 {
     public:
 
-        int batch = 1; int row = 0; int col = 0; int rank = 0; int tot_size = 0;
-        std::unique_ptr<int[]> shape;
-        std::unique_ptr<int[]> index_helper;
+        size_t batch = 1; size_t row = 0; size_t col = 0; size_t rank = 0; size_t tot_size = 0;
+        std::unique_ptr<size_t[]> shape;
+        std::unique_ptr<size_t[]> index_helper;
         std::unique_ptr<float[]> tensor;
 
         // default 
@@ -23,9 +23,9 @@ class Tensor
         
         // create from scratch based on shape (init list or arr)
         static Tensor create(std::initializer_list<int> shape) { return Tensor(shape, 'C'); }
-        static Tensor create(int shape[], int a_len) { return Tensor(shape, 'C', a_len); }
+        static Tensor create(size_t shape[], size_t a_len) { return Tensor(shape, 'C', a_len); }
 
-        // create from nested vector
+        // create from nested init list
         template<typename TENSOR>
         Tensor(const TENSOR& input) 
         {   
@@ -33,16 +33,16 @@ class Tensor
             getRank(input);
             if (rank == 0) throw std::invalid_argument("need at least one dim");
 
-            shape = std::make_unique<int[]>(rank);
+            shape = std::make_unique<size_t[]>(rank);
             getShape(input, level);
 
             level = 0;
             tot_size = 1;
-            for (int i = 0; i < rank; i++) tot_size *= shape[i];
+            for (size_t i = 0; i < rank; i++) tot_size *= shape[i];
             tensor = std::make_unique<float[]>(tot_size);
             getArr(input, level);
 
-            index_helper = std::make_unique<int[]>(rank - 1);
+            index_helper = std::make_unique<size_t[]>(rank - 1);
             index_helper[rank - 2] = shape[rank - 1];
             for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
 
@@ -57,26 +57,26 @@ class Tensor
         template<typename T>
         Tensor(T in_shape, char)
         {   
-            rank = static_cast<int>(in_shape.size());
+            rank = static_cast<size_t>(in_shape.size());
             if (rank <= 0) throw std::invalid_argument("need at least one dimension");
 
-            shape = std::make_unique<int[]>(rank);
+            shape = std::make_unique<size_t[]>(rank);
             {
-                int i = 0; for (int s : in_shape) shape[i++] = s;
+                size_t i = 0; for (int s : in_shape) shape[i++] = s;
             }
 
             tot_size = 1;
-            for (int i = 0; i < rank; i++) tot_size *= shape[i];
+            for (size_t i = 0; i < rank; i++) tot_size *= shape[i];
             tensor = std::make_unique<float[]>(tot_size);
 
             if (rank >= 2)
             {
                 batch = 1;
-                for (int i = 0; i < rank - 2; i++) batch *= shape[i];
+                for (size_t i = 0; i < rank - 2; i++) batch *= shape[i];
                 row = shape[rank - 2];
                 col = shape[rank - 1];
 
-                index_helper = std::make_unique<int[]>(rank - 1);
+                index_helper = std::make_unique<size_t[]>(rank - 1);
                 index_helper[rank - 2] = shape[rank - 1];
                 for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
             }
@@ -97,24 +97,24 @@ class Tensor
         
             if (rank <= 0) throw std::invalid_argument("need at least one dimension");
 
-            shape = std::make_unique<int[]>(rank);
+            shape = std::make_unique<size_t[]>(rank);
             {
                 // b/c init list does not allow indexing
-                for (int s = 0; s < rank; s++) shape[s] = in_shape[s];
+                for (size_t s = 0; s < rank; s++) shape[s] = in_shape[s];
             }
 
             tot_size = 1;
-            for (int i = 0; i < rank; i++) tot_size *= shape[i];
+            for (size_t i = 0; i < rank; i++) tot_size *= shape[i];
             tensor = std::make_unique<float[]>(tot_size);
 
             if (rank >= 2)
             {
                 batch = 1;
-                for (int i = 0; i < rank - 2; i++) batch *= shape[i];
+                for (size_t i = 0; i < rank - 2; i++) batch *= shape[i];
                 row = shape[rank - 2];
                 col = shape[rank - 1];
 
-                index_helper = std::make_unique<int[]>(rank - 1);
+                index_helper = std::make_unique<size_t[]>(rank - 1);
                 index_helper[rank - 2] = shape[rank - 1];
                 for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
             }

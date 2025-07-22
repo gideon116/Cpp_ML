@@ -14,12 +14,12 @@ namespace wef {
         // base ops
         Tensor cops(const Tensor& m1, const float con, float (*f)(float, float));
         Tensor matmul(const Tensor& m1, const Tensor& m2);
-        Tensor matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads=0);
+        Tensor matmul(const Tensor& m1, const Tensor& m2, bool, size_t n_threads=0);
         Tensor transpose(const Tensor& m1);
         Tensor argmax(const Tensor& m1);
         Tensor activation(const Tensor& m1, const char ops);
         Tensor softmax(const Tensor& m1);
-        Tensor reducesum(const Tensor& m1, const int ax);
+        Tensor reducesum(const Tensor& m1, const size_t ax);
         float l2(const Tensor& m1, const Tensor& m2);
         float binarycrossentropy(const Tensor& m1, const Tensor& m2);
         float categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m);

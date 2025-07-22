@@ -117,13 +117,13 @@ void Model::fit(const Tensor& real, const Tensor& input,
 
 void Model::summary()
 {
-    size_t nP = 0;
+    int nP = 0;
     for (Layer* l : network)
     {
-        std::cout << l->m_name << "\t\tparameters: " << l->m_num_param;
+        std::cout << "____________________________________________\n" << l->m_name << "\n\tparameters: " << l->m_num_param;
         nP += l->m_num_param;
 
-        std::cout << "\t\tshape: [ ";
+        std::cout << "\n\toutput shape: [ ";
         for (int i = 0; i < l->m_out_rank; i++) std::cout << (l->m_out_shape)[i] << " ";
         std::cout << "]\n";
     }

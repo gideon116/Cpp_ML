@@ -9,10 +9,10 @@
 class Layer {
 
     public:
-        int m_num_param = 0;
+        size_t m_num_param = 0;
         const char* m_name;
-        std::unique_ptr<int[]> m_out_shape;
-        int m_out_rank=0;
+        std::unique_ptr<size_t[]> m_out_shape;
+        size_t m_out_rank=0;
 
         virtual Tensor forward_pass(const Tensor& px, const bool training=true) = 0;
         virtual Tensor backward_pass(const Tensor& dy, const float lr) = 0;
@@ -22,7 +22,7 @@ class Layer {
 class Linear : public Layer {
 
     public:
-        int units;
+        size_t units;
         std::normal_distribution<float> dist;
         std::mt19937 g;
         Tensor W, B, X, dx, dw, db;
@@ -31,7 +31,7 @@ class Linear : public Layer {
 
         
         // initilize weights
-        Linear(int unit, bool use_bias=false, int rand=3) 
+        Linear(size_t unit, bool use_bias=false, size_t rand=3) 
             : units(unit), usebias(use_bias), dist(0.0f, std::sqrt(2.0f/units)), g(rand)
             { m_name = "linear"; }
         
@@ -83,8 +83,8 @@ class Conv2D : public Layer {
         
         std::mt19937 g;
         
-        int w_height, w_width, units;
-        int height, width, ch;
+        size_t w_height, w_width, units;
+        size_t height, width, ch;
 
         std::normal_distribution<float> dist;
         
@@ -93,7 +93,7 @@ class Conv2D : public Layer {
         bool usebias = false;
         
         // initilize weights
-        Conv2D(int w_h, int w_w, int u, bool use_bias=false, int rand=3)
+        Conv2D(size_t w_h, size_t w_w, size_t u, bool use_bias=false, size_t rand=3)
             : g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias)
             { m_name = "Conv2D"; }
         
@@ -107,8 +107,8 @@ class MaxPool2D : public Layer {
     
     public:
         
-        int k_height, k_width;
-        int height, width, ch;
+        size_t k_height, k_width;
+        size_t height, width, ch;
 
         std::unique_ptr<size_t[]> argmax;
         
@@ -116,7 +116,7 @@ class MaxPool2D : public Layer {
         bool init = false;
         
         // initilize weights
-        MaxPool2D(int k_h, int k_w)
+        MaxPool2D(size_t k_h, size_t k_w)
             : k_height(k_h), k_width(k_w) 
             { 
                 if (k_h < 1 || k_w < 1) throw std::invalid_argument("kernel must be greater than 0");
@@ -130,14 +130,14 @@ class MaxPool2D : public Layer {
 class ReduceSum : public Layer {
     public:
         Tensor X, out_keepdims, out, dx;
-        int ax, keepdims_rank;
+        size_t ax, keepdims_rank;
         bool keepdims = false;
         bool init = false;
 
-        std::unique_ptr<int[]> keepdims_shape;
-        std::unique_ptr<int[]> reshape_shape;
+        std::unique_ptr<size_t[]> keepdims_shape;
+        std::unique_ptr<size_t[]> reshape_shape;
 
-        ReduceSum(int a, bool kd=false) 
+        ReduceSum(size_t a, bool kd=false) 
             : ax(a), keepdims(kd)
             {
                 if (ax < 0) throw std::invalid_argument("axis connot be negative");
@@ -155,13 +155,13 @@ class LayerNorm : public Layer {
         Tensor X;
         bool init = false;
 
-        int axis;
+        size_t axis;
         float ax_val;
         float eps = 0.01f;
         Tensor beta, gamma, mu, x_mu, var, inv_std, x_i_hat, y_i, d_gamma, d_beta, dx;
 
         // initilize weights
-        LayerNorm(const int ax, const float ep=0.01f) 
+        LayerNorm(const size_t ax, const float ep=0.01f) 
             : axis(ax), eps(ep)
             {
                 m_name = "LayerNorm";
@@ -182,10 +182,10 @@ class Flatten : public Layer {
         Tensor forward_pass(const Tensor& px, const bool training) override 
         {
             X = Tensor(px);
-            int flat = 1;
-            for (int i = 1; i < px.rank; i++) flat *= px.shape[i];
+            size_t flat = 1;
+            for (size_t i = 1; i < px.rank; i++) flat *= px.shape[i];
 
-            int out_shape[2] = {px.shape[0], flat};
+            size_t out_shape[2] = {px.shape[0], flat};
             out = Tensor::create(out_shape, 2);
             float* out_ptr = out.tensor.get();
             float* px_ptr = px.tensor.get();
@@ -207,7 +207,7 @@ class Flatten : public Layer {
 class Linear_Fast : public Layer {
 
     public:
-        int units;
+        size_t units;
         std::normal_distribution<float> dist;
         std::mt19937 g;
         Tensor W, B, X, dx, dw, db;
@@ -215,11 +215,9 @@ class Linear_Fast : public Layer {
         bool usebias = false;
         
         // initilize weights
-        Linear_Fast(int unit, bool use_bias=false, int rand=3) 
+        Linear_Fast(size_t unit, bool use_bias=false, size_t rand=3) 
             : units(unit), usebias(use_bias), dist(0.0f, std::sqrt(2.0f/units)), g(rand)
-            {
-                m_name = "Linear_Fast";
-            }
+            { m_name = "Linear_Fast"; }
         
         Tensor forward_pass(const Tensor& px, const bool training) override;
         Tensor backward_pass(const Tensor& dy, const float lr) override;
@@ -231,8 +229,8 @@ class Conv2D_Fast : public Layer {
         
         std::mt19937 g;
         
-        int w_height, w_width, units;
-        int height, width, ch;
+        size_t w_height, w_width, units;
+        size_t height, width, ch;
 
         std::normal_distribution<float> dist;
         
@@ -241,7 +239,7 @@ class Conv2D_Fast : public Layer {
         bool usebias = false;
         
         // initilize weights
-        Conv2D_Fast(int w_h, int w_w, int u, bool use_bias=false, int rand=3)
+        Conv2D_Fast(size_t w_h, size_t w_w, size_t u, bool use_bias=false, size_t rand=3)
             : g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias)
             {
                 m_name = "Conv2D_Fast";

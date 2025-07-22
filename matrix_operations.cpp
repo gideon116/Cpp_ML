@@ -7,10 +7,10 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
     const bool not_bcast = (m2.batch != 1);
     if (not_bcast && (m1.batch != m2.batch)) throw std::invalid_argument("matrix size mismatch [4]");
     
-    std::unique_ptr<int[]> temp_shape = std::make_unique<int[]>(m1.rank);
+    std::unique_ptr<size_t[]> temp_shape = std::make_unique<size_t[]>(m1.rank);
 
     // TO DO: CATCH < 1 RANK
-    for (int i = 0; i < m1.rank - 1; i ++) temp_shape[i] = m1.shape[i];
+    for (size_t i = 0; i < m1.rank - 1; i ++) temp_shape[i] = m1.shape[i];
     temp_shape[m1.rank - 1] = m2.col;
 
     Tensor m = Tensor::create(temp_shape.get(), m1.rank);
@@ -44,7 +44,7 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
     const float* pm1temp;
     const float* pm2temp;
     float* pmtemp;
-    for (int b = 0; b < m1.batch; b++){
+    for (size_t b = 0; b < m1.batch; b++){
         
         pm1temp = pm1 + b * m1size; // shift pm1 by one batch worth
         pm2temp = pm2 + b * m2size; // only shift if m2 is 3D
@@ -65,16 +65,16 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
     return m;
 }
 
-Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads)
+Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, size_t n_threads)
 {
     if (m1.col != m2.row) throw std::invalid_argument("matrix size mismatch [3]");
     const bool not_bcast = (m2.batch != 1);
     if (not_bcast && (m1.batch != m2.batch)) throw std::invalid_argument("matrix size mismatch [4]");
     
-    std::unique_ptr<int[]> temp_shape = std::make_unique<int[]>(m1.rank);
+    std::unique_ptr<size_t[]> temp_shape = std::make_unique<size_t[]>(m1.rank);
 
     // TO DO: CATCH < 1 RANK
-    for (int i = 0; i < m1.rank - 1; i ++) temp_shape[i] = m1.shape[i];
+    for (size_t i = 0; i < m1.rank - 1; i ++) temp_shape[i] = m1.shape[i];
     temp_shape[m1.rank - 1] = m2.col;
 
     Tensor m = Tensor::create(temp_shape.get(), m1.rank);
@@ -93,24 +93,24 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads)
     // multi thread additions
     if (n_threads == 0)
     {
-        int avaliable_threads = std::thread::hardware_concurrency(); // may be 0
-        n_threads = std::min<int>( m1.row,  avaliable_threads > 0 ? avaliable_threads : 1 );
+        size_t avaliable_threads = std::thread::hardware_concurrency(); // may be 0
+        n_threads = std::min<size_t>( m1.row,  avaliable_threads > 0 ? avaliable_threads : 1 );
     }
-    const int stride = m1.row / n_threads;
-    const int rem = m1.row % n_threads;
+    const size_t stride = m1.row / n_threads;
+    const size_t rem = m1.row % n_threads;
 
     // spin up
     std::thread* threads = new std::thread[n_threads];
 
-    for (int b = 0; b < m1.batch; b++){
+    for (size_t b = 0; b < m1.batch; b++){
         
         pm1temp = pm1 + b * m1size; // shift pm1 by one batch worth
         pm2temp = pm2 + b * m2size; // only shift if m2 is 3D
         pmtemp = pm + b * msize;
 
-        for (int th = 0; th < n_threads; th++)
+        for (size_t th = 0; th < n_threads; th++)
         {
-            int temp = (th < n_threads - 1) ? stride : stride + rem;
+            size_t temp = (th < n_threads - 1) ? stride : stride + rem;
             threads[th] = std::thread(
 
                 // we dont want to capture everything in scope !
@@ -134,7 +134,7 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, int n_threads)
         }
 
         // free
-        for (int i = 0; i < n_threads; i++) threads[i].join();
+        for (size_t i = 0; i < n_threads; i++) threads[i].join();
     }
 
     // clean up
@@ -158,13 +158,12 @@ Tensor wef::cops(const Tensor& m1, const float con, float (*f)(float, float))
 
 Tensor wef::transpose(const Tensor& m1)
 {
-    std::unique_ptr<int[]> temp_shape = std::make_unique<int[]>(m1.rank);
+    std::unique_ptr<size_t[]> temp_shape = std::make_unique<size_t[]>(m1.rank);
     // TO DO: CATCH < 2 RANK
-    for (int i = 0; i < m1.rank - 2; i ++) temp_shape[i] = m1.shape[i];
+    for (size_t i = 0; i < m1.rank - 2; i ++) temp_shape[i] = m1.shape[i];
     temp_shape[m1.rank - 1] = m1.row;
     temp_shape[m1.rank - 2] = m1.col;
     Tensor m = Tensor::create(temp_shape.get(), m1.rank);
-
 
     const float* pm1 = m1.tensor.get();
     float* pm = m.tensor.get();
@@ -173,7 +172,7 @@ Tensor wef::transpose(const Tensor& m1)
     const float* pm1temp;
     float* pmtemp;
 
-    for (int b = 0; b < m1.batch; b++){
+    for (size_t b = 0; b < m1.batch; b++){
 
         pm1temp = pm1 + b * msize;
         pmtemp = pm + b * msize;
@@ -191,9 +190,9 @@ Tensor wef::transpose(const Tensor& m1)
 Tensor wef::argmax(const Tensor& m1)
 {
     // ENSURE RANK > 0 and make it work with other axis not just -1
-    std::unique_ptr<int[]> temp_shape = std::make_unique<int[]>(m1.rank - 1);
+    std::unique_ptr<size_t[]> temp_shape = std::make_unique<size_t[]>(m1.rank - 1);
 
-    for (int i = 0; i < m1.rank - 1; i ++) temp_shape[i] = m1.shape[i];
+    for (size_t i = 0; i < m1.rank - 1; i ++) temp_shape[i] = m1.shape[i];
     Tensor m = Tensor::create(temp_shape.get(), m1.rank - 1);
 
     const float* pm1 = m1.tensor.get();
@@ -264,13 +263,13 @@ Tensor wef::activation(const Tensor& m1, const char ops)
 
 }
 
-Tensor wef::reducesum(const Tensor& m1, const int ax)
+Tensor wef::reducesum(const Tensor& m1, const size_t ax)
 {   
     if (ax >= m1.rank) throw std::invalid_argument("axis outside shape");
 
-    std::unique_ptr<int[]> out_shape = std::make_unique<int[]>(m1.rank); // [b, 1, w, c]
+    std::unique_ptr<size_t[]> out_shape = std::make_unique<size_t[]>(m1.rank); // [b, 1, w, c]
     
-    for (int i = 0; i < m1.rank; i++)
+    for (size_t i = 0; i < m1.rank; i++)
     {
         if (i != ax) out_shape[i] = m1.shape[i];
         else out_shape[i] = 1;
@@ -283,12 +282,12 @@ Tensor wef::reducesum(const Tensor& m1, const int ax)
     const size_t m1size = m1.row * m1.col;
     std::memset(pm, 0, (m.tot_size) * sizeof(float));
 
-    int eaa = 1; // everything after axis i.e. b, h w, axis, x1, x2 -> eaa = x1 * x2
-    for (int i = ax + 1; i < m1.rank; i++) eaa *= m1.shape[i];
-    int ax_help = m1.shape[ax]*eaa;
+    size_t eaa = 1; // everything after axis i.e. b, h w, axis, x1, x2 -> eaa = x1 * x2
+    for (size_t i = ax + 1; i < m1.rank; i++) eaa *= m1.shape[i];
+    size_t ax_help = m1.shape[ax]*eaa;
 
     #pragma omp parallel for schedule(static)
-    for (int i = 0; i < m1.tot_size; i++) pm[ (i % eaa) + eaa * (i / ax_help) ] += pm1[i];
+    for (size_t i = 0; i < m1.tot_size; i++) pm[ (i % eaa) + eaa * (i / ax_help) ] += pm1[i];
     
     return m;
 }
@@ -296,7 +295,7 @@ Tensor wef::reducesum(const Tensor& m1, const int ax)
 float wef::l2(const Tensor& m1, const Tensor& m2)
 {
     if (m1.rank != m2.rank) throw std::invalid_argument("matrix rank mismatch [6]");
-    for (int i = 0; i < m1.rank; i++) if (m1.shape[i] != m2.shape[i]) throw std::invalid_argument("matrix size mismatch [7]");
+    for (size_t i = 0; i < m1.rank; i++) if (m1.shape[i] != m2.shape[i]) throw std::invalid_argument("matrix size mismatch [7]");
 
     const float* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
     const float* pm2 = m2.tensor.get();
@@ -323,7 +322,7 @@ float wef::binarycrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real 
     #pragma omp parallel for reduction(+:loss) schedule(static) 
     for (size_t i = 0; i < m1.tot_size; i++)
     {   
-        int temp_real = pm1[i] > 0.5;
+        size_t temp_real = pm1[i] > 0.5;
         
         loss += -(temp_real * std::log(pm2[i] + eps) + (1 - temp_real) * std::log(1 - pm2[i] + eps));
     }

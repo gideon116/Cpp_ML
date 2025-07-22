@@ -15,17 +15,17 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
         dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / (w_height * w_width * ch))); 
         // for above now we have (2/fan_in = hwc)^0.5 good for relu we can use fan_out for tanh... which is hwu
 
-        int w_shape[4] = {w_height, w_width, ch, units};
+        size_t w_shape[4] = {w_height, w_width, ch, units};
         W = Tensor::create(w_shape, 4);
 
-        int B_shape[4] = {1, 1, 1, units};
+        size_t B_shape[4] = {1, 1, 1, units};
         B = Tensor::create(B_shape, 4);
         std::fill_n(B.tensor.get(), B.tot_size, 0.01f);
 
         float* pm = W.tensor.get();
         for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
 
-        int out_shape[4] = {px.shape[0], height - w_height + 1, width - w_width + 1, units};
+        size_t out_shape[4] = {px.shape[0], height - w_height + 1, width - w_width + 1, units};
         out = Tensor::create(out_shape, 4);
 
         // gradient wrt the layer below
@@ -36,9 +36,9 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
 
         db = Tensor(B);
         m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
-        // for (int i=0; i < 4; i++) m_out_shape[i] = 0;
-        m_out_shape = std::make_unique<int[]>(px.rank);
-        std::memcpy(m_out_shape.get(), out_shape, 4 * sizeof(int));
+        // for (size_t i=0; i < 4; i++) m_out_shape[i] = 0;
+        m_out_shape = std::make_unique<size_t[]>(px.rank);
+        std::memcpy(m_out_shape.get(), out_shape, 4 * sizeof(size_t));
         m_out_rank = 4;
         init = true;
     }
@@ -68,25 +68,25 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
     I jump everytime we hit the width of the weight to the second row and use some math to do that.
     */
 
-    int out_wo_units = out.tot_size / units;
-    int skip_w_help = ch * (w_width - 1);
-    int bi_help = out_wo_units / out.shape[0];
-    int skip_h_help = (w_height - 1) * px.row*px.col;
-    int offset = width - w_width;
-    int id_help = w_width * ch;
+    size_t out_wo_units = out.tot_size / units;
+    size_t skip_w_help = ch * (w_width - 1);
+    size_t bi_help = out_wo_units / out.shape[0];
+    size_t skip_h_help = (w_height - 1) * px.row*px.col;
+    size_t offset = width - w_width;
+    size_t id_help = w_width * ch;
 
     // multi thread additions
-    int avaliable_threads = std::thread::hardware_concurrency(); // may be 0
-    int n_threads = std::min<int>( out_wo_units,  avaliable_threads > 0 ? avaliable_threads : 1 );
+    size_t avaliable_threads = std::thread::hardware_concurrency(); // may be 0
+    size_t n_threads = std::min<size_t>( out_wo_units,  avaliable_threads > 0 ? avaliable_threads : 1 );
     
-    const int stride = out_wo_units / n_threads;
-    const int rem = out_wo_units % n_threads;
+    const size_t stride = out_wo_units / n_threads;
+    const size_t rem = out_wo_units % n_threads;
 
     // spin up
     std::thread* threads = new std::thread[n_threads];
-    for (int th = 0; th < n_threads; th++)
+    for (size_t th = 0; th < n_threads; th++)
     {
-        int temp = (th < n_threads - 1) ? stride : stride + rem;
+        size_t temp = (th < n_threads - 1) ? stride : stride + rem;
         threads[th] = std::thread(
 
             // we dont want to capture everything in scope !
@@ -94,15 +94,15 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
                 th, stride, temp, skip_w_help, bi_help, skip_h_help, px_ptr, offset, id_help,
                 out_ptr, W_ptr, B_ptr
             ]
-            (size_t Wtot_size, size_t outrow, int units, int ch, bool usebias)
+            (size_t Wtot_size, size_t outrow, size_t units, size_t ch, bool usebias)
             {
-                for (int out_i = th * stride; out_i < (th * stride) + temp; out_i++)
+                for (size_t out_i = th * stride; out_i < (th * stride) + temp; out_i++)
                 {
-                    int skip_w = skip_w_help * (out_i / outrow);
-                    int bi = out_i / bi_help;
-                    int skip_h = bi * skip_h_help;
+                    size_t skip_w = skip_w_help * (out_i / outrow);
+                    size_t bi = out_i / bi_help;
+                    size_t skip_h = bi * skip_h_help;
 
-                    for (int w_i = 0; w_i < Wtot_size / units; w_i++)
+                    for (size_t w_i = 0; w_i < Wtot_size / units; w_i++)
                     {
                         float temp_px = px_ptr[
                             ch * out_i + skip_w + skip_h
@@ -110,11 +110,11 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
                             w_i + ch*offset * (w_i / id_help)
                         ];
 
-                        for (int u_i = 0; u_i < units; u_i++)
+                        for (size_t u_i = 0; u_i < units; u_i++)
                             out_ptr[out_i * units + u_i] += temp_px * W_ptr[w_i * units + u_i];
                     }
                     if (usebias)
-                        for (int u_i = 0; u_i < units; u_i++)
+                        for (size_t u_i = 0; u_i < units; u_i++)
                             out_ptr[out_i * units + u_i] += B_ptr[u_i];
                 }
             },
@@ -124,7 +124,7 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
     }
 
     // free
-    for (int i = 0; i < n_threads; i++) threads[i].join();
+    for (size_t i = 0; i < n_threads; i++) threads[i].join();
     
 
     // clean up
@@ -145,55 +145,55 @@ Tensor Conv2D_Fast::backward_pass(const Tensor& dy, const float lr)
     float* W_ptr = W.tensor.get();
     float* X_ptr = X.tensor.get();
 
-    int out_wo_units = dy.tot_size / units;
-    int skip_w_help = ch * (w_width - 1);
-    int bi_help = out_wo_units / dy.shape[0];
-    int skip_h_help = (w_height - 1) * X.row*X.col;
-    int offset = width - w_width;
-    int id_help = w_width * ch;
+    size_t out_wo_units = dy.tot_size / units;
+    size_t skip_w_help = ch * (w_width - 1);
+    size_t bi_help = out_wo_units / dy.shape[0];
+    size_t skip_h_help = (w_height - 1) * X.row*X.col;
+    size_t offset = width - w_width;
+    size_t id_help = w_width * ch;
 
     // multi thread additions
-    int avaliable_threads = std::thread::hardware_concurrency(); // may be 0
-    int n_threads = std::min<int>( out_wo_units,  avaliable_threads > 0 ? avaliable_threads : 1 );
+    size_t avaliable_threads = std::thread::hardware_concurrency(); // may be 0
+    size_t n_threads = std::min<size_t>( out_wo_units,  avaliable_threads > 0 ? avaliable_threads : 1 );
 
     // make temp variables for each thread cause we should not do += at the same index in different threads
     std::unique_ptr<Tensor[]> dx_accum_pre_thread = std::make_unique<Tensor[]>(n_threads);
     std::unique_ptr<Tensor[]> dw_accum_pre_thread = std::make_unique<Tensor[]>(n_threads);
-    for (int i = 0; i < n_threads; i++)
+    for (size_t i = 0; i < n_threads; i++)
     {
         dx_accum_pre_thread[i] = dx; dw_accum_pre_thread[i] = dw;
     }
     
-    const int stride = out_wo_units / n_threads;
-    const int rem = out_wo_units % n_threads;
+    const size_t stride = out_wo_units / n_threads;
+    const size_t rem = out_wo_units % n_threads;
 
     // spin up
     std::thread* threads = new std::thread[n_threads];
-    for (int th = 0; th < n_threads; th++)
+    for (size_t th = 0; th < n_threads; th++)
     {
-        int temp = (th < n_threads - 1) ? stride : stride + rem;
+        size_t temp = (th < n_threads - 1) ? stride : stride + rem;
         threads[th] = std::thread(
             // we dont want to capture everything in scope !
             [
                 th, stride, temp, skip_w_help, bi_help, skip_h_help, id_help, offset, 
                 dy_ptr, X_ptr, W_ptr
             ]
-            (size_t Wtot_size, size_t dyrow, int units, int ch, float* dx_i, float* dw_i)
+            (size_t Wtot_size, size_t dyrow, size_t units, size_t ch, float* dx_i, float* dw_i)
             {
-                for (int dy_i = th * stride; dy_i < (th * stride) + temp; dy_i++)
+                for (size_t dy_i = th * stride; dy_i < (th * stride) + temp; dy_i++)
                 {
-                    int skip_w = skip_w_help * (dy_i / dyrow);
-                    int bi = dy_i / bi_help;
-                    int skip_h = bi * skip_h_help;
+                    size_t skip_w = skip_w_help * (dy_i / dyrow);
+                    size_t bi = dy_i / bi_help;
+                    size_t skip_h = bi * skip_h_help;
 
-                    for (int w_i = 0; w_i < Wtot_size / units; w_i++)
+                    for (size_t w_i = 0; w_i < Wtot_size / units; w_i++)
                     {
-                        int id1 = 
+                        size_t id1 = 
                             ch * dy_i + skip_w + skip_h
                             + 
                             w_i + ch*offset * (w_i / id_help);
 
-                        for (int u_i = 0; u_i < units; u_i++)
+                        for (size_t u_i = 0; u_i < units; u_i++)
                         {
                             float grad = dy_ptr[dy_i * units + u_i];
                             dx_i[id1] += grad * W_ptr[w_i * units + u_i];
@@ -207,13 +207,13 @@ Tensor Conv2D_Fast::backward_pass(const Tensor& dy, const float lr)
     }
 
     // free
-    for (int i = 0; i < n_threads; i++) threads[i].join();
+    for (size_t i = 0; i < n_threads; i++) threads[i].join();
 
     // clean up
     delete[] threads;
 
     // aggrigate the temp variables from each thread
-    for (int i = 0; i < n_threads; i++)
+    for (size_t i = 0; i < n_threads; i++)
     {
         for (size_t v = 0; v < dw.tot_size; v++) dw_ptr[v] += dw_accum_pre_thread[i].tensor.get()[v];
         for (size_t v = 0; v < dx.tot_size; v++) dx_ptr[v] += dx_accum_pre_thread[i].tensor.get()[v];
@@ -225,7 +225,7 @@ Tensor Conv2D_Fast::backward_pass(const Tensor& dy, const float lr)
     if (usebias)
     {
         db = dy;
-        for (int i = 0; i < db.rank - 1; i++) db = wef::reducesum(db, i);
+        for (size_t i = 0; i < db.rank - 1; i++) db = wef::reducesum(db, i);
         B = B - db * lr / dy.shape[0];
     }
 
@@ -239,8 +239,8 @@ Tensor Linear_Fast::forward_pass(const Tensor& px, const bool training)
             // initially initilize the shape of X later just copy the tensors
             X = Tensor(px);
 
-            int w_shape[2] = {px.col, units};
-            int b_shape[2] = {1, units};
+            size_t w_shape[2] = {px.col, units};
+            size_t b_shape[2] = {1, units};
             W = Tensor::create(w_shape, 2);
             B = Tensor::create(b_shape, 2);
 
@@ -253,11 +253,11 @@ Tensor Linear_Fast::forward_pass(const Tensor& px, const bool training)
             m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
 
             // TO DO: CATCH < 1 RANK
-            m_out_shape = std::make_unique<int[]>(px.rank);
-            for (int i = 0; i < px.rank - 1; i ++) m_out_shape[i] = px.shape[i];
+            m_out_shape = std::make_unique<size_t[]>(px.rank);
+            for (size_t i = 0; i < px.rank - 1; i ++) m_out_shape[i] = px.shape[i];
             m_out_shape[px.rank - 1] = units;
+            m_out_rank = px.rank;
 
-            m_out_rank = wef::matmul(px, W).rank;
             init = true;
         }
         else
@@ -269,7 +269,7 @@ Tensor Linear_Fast::forward_pass(const Tensor& px, const bool training)
         // copy px into X
         if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
 
-        if (usebias) return wef::matmul(px, W, true);
+        if (usebias) return wef::matmul(px, W, true) + B;
         return wef::matmul(px, W, true);
     }
 
@@ -281,7 +281,7 @@ Tensor Linear_Fast::backward_pass(const Tensor& dy, const float lr)
         // gradient wrt weights sum everything aside from the last two axes. 
         // CATCH rank < 2?????
         dw = wef::matmul(wef::transpose(X), dy, /*threads=*/true);
-        for (int i = 0; i < dw.rank - 2; i++) dw = wef::reducesum(dw, i);
+        for (size_t i = 0; i < dw.rank - 2; i++) dw = wef::reducesum(dw, i);
 
         W = W - dw * lr / dy.shape[0];
 
@@ -289,9 +289,10 @@ Tensor Linear_Fast::backward_pass(const Tensor& dy, const float lr)
         {
             // gradient wrt bias sum everything aside from the last axis
             db = dy;
-            for (int i = 0; i < db.rank - 1; i++) db = wef::reducesum(db, i);
+            for (size_t i = 0; i < db.rank - 1; i++) db = wef::reducesum(db, i);
             B = B - db * lr / dy.shape[0];
         }
+        
         return dx;
     }
 
