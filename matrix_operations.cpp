@@ -280,7 +280,6 @@ Tensor wef::reducesum(const Tensor& m1, const int ax)
     const float* pm1 = m1.tensor.get();
     float* pm = m.tensor.get();
     
-    const size_t m1size = m1.row * m1.col;
     std::memset(pm, 0, (m.tot_size) * sizeof(float));
 
     size_t eaa = 1; // everything after axis i.e. b, h w, axis, x1, x2 -> eaa = x1 * x2

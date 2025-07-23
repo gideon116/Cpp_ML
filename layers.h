@@ -146,10 +146,10 @@ class ReduceSum : public Layer {
         int ax;
         bool keepdims = false;
 
-        ReduceSum(size_t a, bool kd=false) 
+        ReduceSum(int a, bool kd=false) 
             : ax(a), keepdims(kd)
             {
-                if (ax < 0) throw std::invalid_argument("axis connot be negative");
+                if (a < 0) throw std::invalid_argument("axis connot be negative");
                 m_name = "ReduceSum";
             }
 
@@ -168,10 +168,10 @@ class LayerNorm : public Layer {
         Tensor beta, gamma, mu, x_mu, var, inv_std, x_i_hat, y_i, d_gamma, d_beta, dx;
 
         // initilize weights
-        LayerNorm(const size_t ax, const float ep=0.01f) 
+        LayerNorm(const int ax, const float ep=0.01f) 
             : axis(ax), eps(ep)
             {
-                if (ax < 0) throw std::invalid_argument("axis connot be negative");
+                if (axis < 0) throw std::invalid_argument("axis connot be negative");
                 m_name = "LayerNorm";
             }
         
