@@ -1,9 +1,8 @@
-
 #if 1
-#include "layers.h"
-#include "tensor.h"
-#include "model.h"
-#include "mnist.h"
+#include "include/layers.h"
+#include "include/tensor.h"
+#include "include/model.h"
+#include "include/mnist.h"
 
 // TO DO: MULTITHREAD TENSOR OPS & MAXPOOL
 

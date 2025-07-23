@@ -1,5 +1,5 @@
 #include <iostream>
-#include "matrix_operations.h"
+#include "../include/matrix_operations.h"
 
 Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
 {

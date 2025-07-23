@@ -27,9 +27,7 @@ git clone https://github.com/gideon116/Cpp_ML.git
 cd Cpp_ML
 
 # simple build and run
-g++ train.cpp tensor.cpp matrix_operations.cpp layers.cp -pthread && ./a.out
+g++ train.cpp src/*.cpp -pthread && ./a.out && rm a.out
 
 # parallel build
-g++ -O3 -fopenmp -pthread \
-    train.cpp tensor.cpp matrix_operations.cpp layers.cpp \
-    -o mnist_demo
+g++ train.cpp src/*.cpp -pthread -O3 -fopenmp  && ./a.out && rm a.out

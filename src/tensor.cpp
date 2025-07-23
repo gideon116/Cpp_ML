@@ -1,5 +1,5 @@
 #include <iostream>
-#include "tensor.h"
+#include "../include/tensor.h"
 
 Tensor::Tensor(std::initializer_list<float> ds)
 {
