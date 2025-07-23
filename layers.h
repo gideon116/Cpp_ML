@@ -143,7 +143,7 @@ class MaxPool2D : public Layer {
 class ReduceSum : public Layer {
     public:
         Tensor X, out, dx;
-        size_t ax;
+        int ax;
         bool keepdims = false;
 
         ReduceSum(size_t a, bool kd=false) 
@@ -162,7 +162,7 @@ class LayerNorm : public Layer {
     public:
 
         Tensor X;
-        size_t axis;
+        int axis;
         float ax_val;
         float eps = 0.01f;
         Tensor beta, gamma, mu, x_mu, var, inv_std, x_i_hat, y_i, d_gamma, d_beta, dx;
@@ -171,6 +171,7 @@ class LayerNorm : public Layer {
         LayerNorm(const size_t ax, const float ep=0.01f) 
             : axis(ax), eps(ep)
             {
+                if (ax < 0) throw std::invalid_argument("axis connot be negative");
                 m_name = "LayerNorm";
             }
         

@@ -263,9 +263,10 @@ Tensor wef::activation(const Tensor& m1, const char ops)
 
 }
 
-Tensor wef::reducesum(const Tensor& m1, const size_t ax)
+Tensor wef::reducesum(const Tensor& m1, const int ax)
 {   
     if (ax >= m1.rank) throw std::invalid_argument("axis outside shape");
+    if (ax < 0) throw std::invalid_argument("axis connot be negative");
 
     std::unique_ptr<size_t[]> out_shape = std::make_unique<size_t[]>(m1.rank); // [b, 1, w, c]
     
