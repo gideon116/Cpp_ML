@@ -14,6 +14,8 @@ class Layer {
         std::unique_ptr<size_t[]> m_out_shape;
         size_t m_out_rank=0;
 
+        bool init = false;
+
         virtual Tensor forward_pass(const Tensor& px, const bool training=true) = 0;
         virtual Tensor backward_pass(const Tensor& dy, const float lr) = 0;
         virtual ~Layer() = default;
@@ -26,7 +28,6 @@ class Linear : public Layer {
         std::normal_distribution<float> dist;
         std::mt19937 g;
         Tensor W, B, X, dx, dw, db;
-        bool init = false;
         bool usebias = false;
 
         
@@ -43,11 +44,18 @@ class ReLU : public Layer {
 
     public:
         Tensor X;
-
         ReLU() { m_name = "RelU"; }
 
         Tensor forward_pass(const Tensor& px, const bool training)
         override {
+
+            if (!init)
+            {
+                m_out_rank = px.rank;
+                m_out_shape = std::make_unique<size_t[]>(m_out_rank);
+                std::memcpy(m_out_shape.get(), px.shape.get(), m_out_rank * sizeof(size_t));
+            }
+
             if (training) X = wef::relu(px);
             return X;
         }
@@ -67,6 +75,13 @@ class sigmoid : public Layer {
 
         Tensor forward_pass(const Tensor& px, const bool training) 
         override { 
+            if (!init)
+            {
+                m_out_rank = px.rank;
+                m_out_shape = std::make_unique<size_t[]>(m_out_rank);
+                std::memcpy(m_out_shape.get(), px.shape.get(), m_out_rank * sizeof(size_t));
+            }
+
             if (training) X = wef::sigmoid(px);
             return X;
         }
@@ -89,7 +104,6 @@ class Conv2D : public Layer {
         std::normal_distribution<float> dist;
         
         Tensor W, X, out, dx, dw, B, db;
-        bool init = false;
         bool usebias = false;
         
         // initilize weights
@@ -113,7 +127,6 @@ class MaxPool2D : public Layer {
         std::unique_ptr<size_t[]> argmax;
         
         Tensor X, out, dx;
-        bool init = false;
         
         // initilize weights
         MaxPool2D(size_t k_h, size_t k_w)
@@ -129,13 +142,9 @@ class MaxPool2D : public Layer {
 
 class ReduceSum : public Layer {
     public:
-        Tensor X, out_keepdims, out, dx;
-        size_t ax, keepdims_rank;
+        Tensor X, out, dx;
+        size_t ax;
         bool keepdims = false;
-        bool init = false;
-
-        std::unique_ptr<size_t[]> keepdims_shape;
-        std::unique_ptr<size_t[]> reshape_shape;
 
         ReduceSum(size_t a, bool kd=false) 
             : ax(a), keepdims(kd)
@@ -153,8 +162,6 @@ class LayerNorm : public Layer {
     public:
 
         Tensor X;
-        bool init = false;
-
         size_t axis;
         float ax_val;
         float eps = 0.01f;
@@ -175,18 +182,30 @@ class Flatten : public Layer {
     
     public:
         Tensor X, out, dx;
-        bool init = false;
 
         Flatten() { m_name = "Flatten"; }
 
         Tensor forward_pass(const Tensor& px, const bool training) override 
         {
-            X = Tensor(px);
-            size_t flat = 1;
-            for (size_t i = 1; i < px.rank; i++) flat *= px.shape[i];
+            if (!init)
+            {
+                size_t flat = 1;
+                for (size_t i = 1; i < px.rank; i++) flat *= px.shape[i];
+                
 
-            size_t out_shape[2] = {px.shape[0], flat};
-            out = Tensor::create(out_shape, 2);
+                m_out_rank = 2; // hard code??
+                m_out_shape = std::make_unique<size_t[]>(m_out_rank);
+                m_out_shape[1] = flat;
+
+            }
+
+            // TO DO : add init check
+            
+            X = Tensor(px);
+
+            m_out_shape[0] = px.shape[0];
+            out = Tensor::create(m_out_shape.get(), 2);
+
             float* out_ptr = out.tensor.get();
             float* px_ptr = px.tensor.get();
             for (size_t i = 0; i < out.tot_size; i++) out_ptr[i] = px_ptr[i];
@@ -211,7 +230,6 @@ class Linear_Fast : public Layer {
         std::normal_distribution<float> dist;
         std::mt19937 g;
         Tensor W, B, X, dx, dw, db;
-        bool init = false;
         bool usebias = false;
         
         // initilize weights
@@ -235,7 +253,6 @@ class Conv2D_Fast : public Layer {
         std::normal_distribution<float> dist;
         
         Tensor W, X, out, dx, dw, B, db;
-        bool init = false;
         bool usebias = false;
         
         // initilize weights

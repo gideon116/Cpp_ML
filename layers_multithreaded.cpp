@@ -25,21 +25,21 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
         float* pm = W.tensor.get();
         for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
 
-        size_t out_shape[4] = {px.shape[0], height - w_height + 1, width - w_width + 1, units};
-        out = Tensor::create(out_shape, 4);
+        m_out_rank = px.rank; // this is 4, its always 4
+        m_out_shape = std::make_unique<size_t[]>(m_out_rank); // heap allocation is not the best but we only do this once pre layer so its whatever
+        m_out_shape[1] = height - w_height + 1;
+        m_out_shape[2] = width - w_width + 1;
+        m_out_shape[3] = units;
 
-        // gradient wrt the layer below
+        // gradients wrt weights and biases
         dx = Tensor(px);
 
         // gradient wrt weights
         dw = Tensor(W);
-
         db = Tensor(B);
+
         m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
-        // for (size_t i=0; i < 4; i++) m_out_shape[i] = 0;
-        m_out_shape = std::make_unique<size_t[]>(px.rank);
-        std::memcpy(m_out_shape.get(), out_shape, 4 * sizeof(size_t));
-        m_out_rank = 4;
+        
         init = true;
     }
     else
@@ -52,6 +52,9 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
 
     // copy px into X
     if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+
+    m_out_shape[0] = px.shape[0]; // flexable batch 
+    out = Tensor::create(m_out_shape.get(), 4);
     
     float* out_ptr = out.tensor.get();
     float* px_ptr = px.tensor.get();
@@ -126,7 +129,6 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
     // free
     for (size_t i = 0; i < n_threads; i++) threads[i].join();
     
-
     // clean up
     delete[] threads;
     
@@ -252,11 +254,11 @@ Tensor Linear_Fast::forward_pass(const Tensor& px, const bool training)
 
             m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
 
-            // TO DO: CATCH < 1 RANK
-            m_out_shape = std::make_unique<size_t[]>(px.rank);
-            for (size_t i = 0; i < px.rank - 1; i ++) m_out_shape[i] = px.shape[i];
-            m_out_shape[px.rank - 1] = units;
             m_out_rank = px.rank;
+            m_out_shape = std::make_unique<size_t[]>(m_out_rank);
+            std::memcpy(m_out_shape.get(), px.shape.get(), m_out_rank * sizeof(size_t));
+            // TO DO: CATCH < 1 RANK
+            m_out_shape[m_out_rank - 1] = units;
 
             init = true;
         }
@@ -292,7 +294,7 @@ Tensor Linear_Fast::backward_pass(const Tensor& dy, const float lr)
             for (size_t i = 0; i < db.rank - 1; i++) db = wef::reducesum(db, i);
             B = B - db * lr / dy.shape[0];
         }
-        
+
         return dx;
     }
 

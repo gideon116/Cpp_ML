@@ -4,10 +4,7 @@
 #include "model.h"
 #include "mnist.h"
 
-
-
-// TO DO: MULTITHREAD TENSOR OPS
-
+// TO DO: MULTITHREAD TENSOR OPS & MAXPOOL
 
 int main() {
 
@@ -46,7 +43,7 @@ int main() {
     model.add(&cov1); model.add(&relu1); model.add(&cov2); model.add(&r1); model.add(&r2); model.add(&layer);
     */
     
-    model.fit(train_l, train_im, test_l, test_im, 1, lr);
+    model.fit(train_l, train_im, test_l, test_im, 10, lr);
 
     Tensor pred = model.predict(test_im);
 
