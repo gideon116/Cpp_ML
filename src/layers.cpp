@@ -2,7 +2,7 @@
 #include <random>
 #include "../include/layers.h"
 
-Tensor Linear::forward_pass(const Tensor& px, const bool training) 
+Tensor*  Linear::forward_pass(const Tensor& px, const bool training) 
     {
         if (!init) 
         {   
@@ -39,11 +39,16 @@ Tensor Linear::forward_pass(const Tensor& px, const bool training)
         // copy px into X
         if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
 
-        if (usebias) return wef::matmul(px, W) + B;
-        return wef::matmul(px, W);
+
+        if (usebias) out = wef::matmul(px, W, true) + B;
+        else out = wef::matmul(px, W, true);
+        return &out;
+
+        // if (usebias) return &wef::matmul(px, W) + B;
+        // return &wef::matmul(px, W);
     }
 
-Tensor Linear::backward_pass(const Tensor& dy, const float lr) 
+Tensor*  Linear::backward_pass(const Tensor& dy, const float lr) 
     {
         // gradient wrt the layer below
         dx = wef::matmul(dy, wef::transpose(W));
@@ -63,10 +68,10 @@ Tensor Linear::backward_pass(const Tensor& dy, const float lr)
             B = B - db * lr / dy.shape[0];
         }
 
-        return dx;
+        return &dx;
     }
 
-Tensor Conv2D::forward_pass(const Tensor& px, const bool training) 
+Tensor*  Conv2D::forward_pass(const Tensor& px, const bool training) 
     {
     if (!init) 
     {   
@@ -164,10 +169,10 @@ Tensor Conv2D::forward_pass(const Tensor& px, const bool training)
                 out_ptr[out_i * units + u_i] += B_ptr[u_i];
     }
 
-    return out;
+    return &out;
     }
 
-Tensor Conv2D::backward_pass(const Tensor& dy, const float lr) 
+Tensor*  Conv2D::backward_pass(const Tensor& dy, const float lr) 
     {   
         float* dx_ptr = dx.tensor.get();
         float* dw_ptr = dw.tensor.get();
@@ -219,10 +224,10 @@ Tensor Conv2D::backward_pass(const Tensor& dy, const float lr)
             B = B - db * lr / dy.shape[0];
         }
 
-        return dx;
+        return &dx;
     }
 
-Tensor Conv2D::forward_pass_legacy(const Tensor& px, const bool training) 
+Tensor*  Conv2D::forward_pass_legacy(const Tensor& px, const bool training) 
     {
     if (!init) 
     {   
@@ -312,10 +317,10 @@ Tensor Conv2D::forward_pass_legacy(const Tensor& px, const bool training)
         }
     }
 
-    return out;
+    return &out;
     }
 
-Tensor Conv2D::backward_pass_legacy(const Tensor& dy, const float lr) 
+Tensor*  Conv2D::backward_pass_legacy(const Tensor& dy, const float lr) 
     {
         std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float)); // zero fill
         std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(float)); // zero fill
@@ -367,10 +372,10 @@ Tensor Conv2D::backward_pass_legacy(const Tensor& dy, const float lr)
             B = B - db * lr / dy.shape[0];
         }
 
-        return dx;
+        return &dx;
     }
 
-Tensor MaxPool2D::forward_pass(const Tensor& px, const bool training) 
+Tensor*  MaxPool2D::forward_pass(const Tensor& px, const bool training) 
     {
         if (!init)
         {   
@@ -456,10 +461,10 @@ Tensor MaxPool2D::forward_pass(const Tensor& px, const bool training)
                 }
             }
         }
-        return out;
+        return &out;
     }
 
-Tensor MaxPool2D::backward_pass(const Tensor& dy, const float lr) 
+Tensor*  MaxPool2D::backward_pass(const Tensor& dy, const float lr) 
     {
         std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float));  // zero fill
         size_t ind = 0;
@@ -482,10 +487,10 @@ Tensor MaxPool2D::backward_pass(const Tensor& dy, const float lr)
                 }
             }
         }
-        return dx;
+        return &dx;
     }
 
-Tensor ReduceSum::forward_pass(const Tensor& px, const bool training) 
+Tensor*  ReduceSum::forward_pass(const Tensor& px, const bool training) 
     { 
 
         if (!init) 
@@ -539,10 +544,10 @@ Tensor ReduceSum::forward_pass(const Tensor& px, const bool training)
             pm_out[i] = temp;
         }
 
-        return out;
+        return &out;
     }
 
-Tensor ReduceSum::backward_pass(const Tensor& dy, float) 
+Tensor*  ReduceSum::backward_pass(const Tensor& dy, float) 
     {
         if (!init) throw std::invalid_argument("layer not initilized");
 
@@ -561,10 +566,10 @@ Tensor ReduceSum::backward_pass(const Tensor& dy, float)
                 pdx[i  + eaa * (j - mult)] = pdy[i];
             }
         }
-        return dx;
+        return &dx;
     }
 
-Tensor LayerNorm::forward_pass(const Tensor& px, const bool training)
+Tensor*  LayerNorm::forward_pass(const Tensor& px, const bool training)
 {
     if (!init) 
         {
@@ -610,10 +615,10 @@ Tensor LayerNorm::forward_pass(const Tensor& px, const bool training)
         x_i_hat = x_mu * inv_std;
         y_i = x_i_hat * gamma + beta;
 
-        return y_i;
+        return &y_i;
 }
 
-Tensor LayerNorm::backward_pass(const Tensor& dy, const float lr)
+Tensor*  LayerNorm::backward_pass(const Tensor& dy, const float lr)
 {
     if (!init) throw std::invalid_argument("layer not initilized");
 
@@ -638,5 +643,5 @@ Tensor LayerNorm::backward_pass(const Tensor& dy, const float lr)
     gamma = gamma - d_gamma * lr / dy.shape[0];
     beta = beta - d_beta * lr / dy.shape[0];
 
-    return dx;
+    return &dx;
 }

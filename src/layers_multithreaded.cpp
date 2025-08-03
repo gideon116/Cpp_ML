@@ -3,7 +3,7 @@
 #include <random>
 #include "../include/layers.h"
 
-Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training) 
+Tensor*  Conv2D_Fast::forward_pass(const Tensor& px, const bool training) 
 {
     if (!init) 
     {   
@@ -132,10 +132,10 @@ Tensor Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
     // clean up
     delete[] threads;
     
-    return out;
+    return &out;
 }
 
-Tensor Conv2D_Fast::backward_pass(const Tensor& dy, const float lr) 
+Tensor*  Conv2D_Fast::backward_pass(const Tensor& dy, const float lr) 
 {   
     float* dx_ptr = dx.tensor.get();
     float* dw_ptr = dw.tensor.get();
@@ -231,10 +231,10 @@ Tensor Conv2D_Fast::backward_pass(const Tensor& dy, const float lr)
         B = B - db * lr / dy.shape[0];
     }
 
-    return dx;
+    return &dx;
 }
 
-Tensor Linear_Fast::forward_pass(const Tensor& px, const bool training) 
+Tensor*  Linear_Fast::forward_pass(const Tensor& px, const bool training) 
     {
         if (!init) 
         {   
@@ -270,12 +270,16 @@ Tensor Linear_Fast::forward_pass(const Tensor& px, const bool training)
         
         // copy px into X
         if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+        
 
-        if (usebias) return wef::matmul(px, W, true) + B;
-        return wef::matmul(px, W, true);
+
+        if (usebias) out = wef::matmul(px, W, true) + B;
+        else out = wef::matmul(px, W, true);
+        return &out;
+
     }
 
-Tensor Linear_Fast::backward_pass(const Tensor& dy, const float lr) 
+Tensor*  Linear_Fast::backward_pass(const Tensor& dy, const float lr) 
     {
         // gradient wrt the layer below
         dx = wef::matmul(dy, wef::transpose(W), true);
@@ -295,7 +299,7 @@ Tensor Linear_Fast::backward_pass(const Tensor& dy, const float lr)
             B = B - db * lr / dy.shape[0];
         }
 
-        return dx;
+        return &dx;
     }
 
 

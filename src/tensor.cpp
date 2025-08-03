@@ -220,6 +220,24 @@ Tensor& Tensor::operator=(const Tensor& other)
     return *this;
 }
 
+Tensor::Tensor(Tensor&& other) noexcept
+{
+    batch = other.batch; row = other.row; col = other.col; rank = other.rank; tot_size = other.tot_size;
+    shape = std::move(other.shape);
+    index_helper = std::move(other.index_helper);
+    tensor = std::move(other.tensor);
+}
+
+Tensor& Tensor::operator=(Tensor&& other)
+{
+    batch = other.batch; row = other.row; col = other.col; rank = other.rank; tot_size = other.tot_size;
+    shape = std::move(other.shape);
+    index_helper = std::move(other.index_helper);
+    tensor = std::move(other.tensor);
+    
+    return *this;
+}
+
 Tensor::Tensor(const Tensor& other) // copy constructor
     :
         batch(other.batch),

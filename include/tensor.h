@@ -134,9 +134,9 @@ class Tensor
         void printShape();
 
         // bc unique ptr forbids copying and rule of 5
-        Tensor(Tensor&&) = default; // move constructor
+        Tensor(Tensor&& other) noexcept; // move constructor
         Tensor(const Tensor& other); // copy constructor
-        Tensor& operator=(Tensor&&) = default; // move assignment
+        Tensor& operator=(Tensor&& other); // move assignment
         Tensor& operator=(const Tensor& other); // copy assignment
         
         // operator overloads

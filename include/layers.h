@@ -16,8 +16,8 @@ class Layer {
 
         bool init = false;
 
-        virtual Tensor forward_pass(const Tensor& px, const bool training=true) = 0;
-        virtual Tensor backward_pass(const Tensor& dy, const float lr) = 0;
+        virtual Tensor* forward_pass(const Tensor& px, const bool training=true) = 0;
+        virtual Tensor* backward_pass(const Tensor& dy, const float lr) = 0;
         virtual ~Layer() = default;
 };
 
@@ -27,7 +27,7 @@ class Linear : public Layer {
         size_t units;
         std::normal_distribution<float> dist;
         std::mt19937 g;
-        Tensor W, B, X, dx, dw, db;
+        Tensor out, W, B, X, dx, dw, db;
         bool usebias = false;
 
         
@@ -36,17 +36,17 @@ class Linear : public Layer {
             : units(unit), usebias(use_bias), dist(0.0f, std::sqrt(2.0f/units)), g(rand)
             { m_name = "linear"; }
         
-        Tensor forward_pass(const Tensor& px, const bool training) override;
-        Tensor backward_pass(const Tensor& dy, const float lr) override;
+        Tensor* forward_pass(const Tensor& px, const bool training) override;
+        Tensor* backward_pass(const Tensor& dy, const float lr) override;
 };
 
 class ReLU : public Layer {
 
     public:
-        Tensor X;
+        Tensor dx, X;
         ReLU() { m_name = "RelU"; }
 
-        Tensor forward_pass(const Tensor& px, const bool training)
+        Tensor* forward_pass(const Tensor& px, const bool training)
         override {
 
             if (!init)
@@ -57,23 +57,25 @@ class ReLU : public Layer {
             }
 
             if (training) X = wef::relu(px);
-            return X;
+            return &X;
         }
 
-        Tensor backward_pass(const Tensor& dy, float)
+        Tensor* backward_pass(const Tensor& dy, float)
         override {
-            return wef::d_relu(X) * dy;
+
+            dx = wef::d_relu(X) * dy;
+            return &dx;
         }
 };
 
 class sigmoid : public Layer {
 
     public:
-        Tensor X;
+        Tensor dx, X;
 
         sigmoid() { m_name = "sigmoid"; }
 
-        Tensor forward_pass(const Tensor& px, const bool training) 
+        Tensor* forward_pass(const Tensor& px, const bool training) 
         override { 
             if (!init)
             {
@@ -83,12 +85,16 @@ class sigmoid : public Layer {
             }
 
             if (training) X = wef::sigmoid(px);
-            return X;
+            return &X;
         }
 
-        Tensor backward_pass(const Tensor& dy, float) 
+        Tensor* backward_pass(const Tensor& dy, float) 
         override {
-            return wef::d_sigmoid(X) * dy;
+
+            dx = wef::d_sigmoid(X) * dy;
+            return &dx;
+
+            // return wef::d_sigmoid(X) * dy;
         }
 };
 
@@ -111,10 +117,10 @@ class Conv2D : public Layer {
             : g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias)
             { m_name = "Conv2D"; }
         
-        Tensor forward_pass(const Tensor& px, const bool training) override;
-        Tensor forward_pass_legacy(const Tensor& px, const bool training);
-        Tensor backward_pass(const Tensor& dy, const float lr) override;
-        Tensor backward_pass_legacy(const Tensor& dy, const float lr);
+        Tensor* forward_pass(const Tensor& px, const bool training) override;
+        Tensor* forward_pass_legacy(const Tensor& px, const bool training);
+        Tensor* backward_pass(const Tensor& dy, const float lr) override;
+        Tensor* backward_pass_legacy(const Tensor& dy, const float lr);
     };
 
 class MaxPool2D : public Layer {
@@ -136,8 +142,8 @@ class MaxPool2D : public Layer {
                 m_name = "MaxPool2D";
             }
         
-        Tensor forward_pass(const Tensor& px, const bool training) override;
-        Tensor backward_pass(const Tensor& dy, const float lr) override;
+        Tensor* forward_pass(const Tensor& px, const bool training) override;
+        Tensor* backward_pass(const Tensor& dy, const float lr) override;
     };
 
 class ReduceSum : public Layer {
@@ -153,8 +159,8 @@ class ReduceSum : public Layer {
                 m_name = "ReduceSum";
             }
 
-        Tensor forward_pass(const Tensor& px, const bool training) override;
-        Tensor backward_pass(const Tensor& dy, float)  override;
+        Tensor* forward_pass(const Tensor& px, const bool training) override;
+        Tensor* backward_pass(const Tensor& dy, float)  override;
     };
 
 class LayerNorm : public Layer {
@@ -175,8 +181,8 @@ class LayerNorm : public Layer {
                 m_name = "LayerNorm";
             }
         
-        Tensor forward_pass(const Tensor& px, const bool training) override;
-        Tensor backward_pass(const Tensor& dy, const float lr) override;
+        Tensor* forward_pass(const Tensor& px, const bool training) override;
+        Tensor* backward_pass(const Tensor& dy, const float lr) override;
 };
 
 class Flatten : public Layer {
@@ -186,7 +192,7 @@ class Flatten : public Layer {
 
         Flatten() { m_name = "Flatten"; }
 
-        Tensor forward_pass(const Tensor& px, const bool training) override 
+        Tensor* forward_pass(const Tensor& px, const bool training) override 
         {
             if (!init)
             {
@@ -211,16 +217,16 @@ class Flatten : public Layer {
             float* px_ptr = px.tensor.get();
             for (size_t i = 0; i < out.tot_size; i++) out_ptr[i] = px_ptr[i];
 
-            return out;
+            return &out;
         }
-        Tensor backward_pass(const Tensor& dy, float) override 
+        Tensor* backward_pass(const Tensor& dy, float) override 
         {
             dx = Tensor::create(X.shape.get(), X.rank);
             float* dx_ptr = dx.tensor.get();
             float* dy_ptr = dy.tensor.get();
             for (size_t i = 0; i < dx.tot_size; i++) dx_ptr[i] = dy_ptr[i];
 
-            return dx;
+            return &dx;
         }
 };
 
@@ -230,7 +236,7 @@ class Linear_Fast : public Layer {
         size_t units;
         std::normal_distribution<float> dist;
         std::mt19937 g;
-        Tensor W, B, X, dx, dw, db;
+        Tensor out, W, B, X, dx, dw, db;
         bool usebias = false;
         
         // initilize weights
@@ -238,8 +244,8 @@ class Linear_Fast : public Layer {
             : units(unit), usebias(use_bias), dist(0.0f, std::sqrt(2.0f/units)), g(rand)
             { m_name = "Linear_Fast"; }
         
-        Tensor forward_pass(const Tensor& px, const bool training) override;
-        Tensor backward_pass(const Tensor& dy, const float lr) override;
+        Tensor* forward_pass(const Tensor& px, const bool training) override;
+        Tensor* backward_pass(const Tensor& dy, const float lr) override;
 };
 
 class Conv2D_Fast : public Layer {
@@ -263,10 +269,10 @@ class Conv2D_Fast : public Layer {
                 m_name = "Conv2D_Fast";
             }
         
-        Tensor forward_pass(const Tensor& px, const bool training) override;
-        Tensor forward_pass_legacy(const Tensor& px, const bool training);
-        Tensor backward_pass(const Tensor& dy, const float lr) override;
-        Tensor backward_pass_legacy(const Tensor& dy, const float lr);
+        Tensor* forward_pass(const Tensor& px, const bool training) override;
+        Tensor* forward_pass_legacy(const Tensor& px, const bool training);
+        Tensor* backward_pass(const Tensor& dy, const float lr) override;
+        Tensor* backward_pass_legacy(const Tensor& dy, const float lr);
 };
 
 
