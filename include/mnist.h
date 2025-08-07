@@ -25,7 +25,7 @@ Tensor load_mnist_images(const std::string& path, size_t max_items=1e19)
 
     if (magic != 2051) throw std::runtime_error("bad magic in " + path);
 
-    Tensor img = Tensor::create({int(count), int(rows), int(cols), 1});
+    Tensor img = Tensor::create({count, rows, cols, 1});
 
     size_t need = size_t(count) * rows * cols;
     for (size_t i = 0; i < need; i++) {
@@ -51,7 +51,7 @@ Tensor load_mnist_labels(const std::string& path, size_t max_items=1e19)
 
     count = std::min<size_t>(count, max_items);
 
-    Tensor lab = Tensor::create({int(count), 1});
+    Tensor lab = Tensor::create({count, 1});
     size_t need = count; 
     for (size_t i = 0; i < need; i++) {
         uint8_t byte;

@@ -1,19 +1,6 @@
 #include <iostream>
 #include "../include/tensor.h"
 
-Tensor::Tensor(std::initializer_list<float> ds)
-{
-    rank = 1;
-    tot_size = static_cast<size_t>(ds.size());
-    index_helper = nullptr;
-    shape = std::make_unique<size_t[]>(rank);
-    batch = tot_size;
-    shape[0] = tot_size;
-    tensor = std::make_unique<float[]>(tot_size);
-
-    size_t indexer = 0;
-    for (float i : ds) tensor[indexer++] = i;
-}
 
 Tensor::Tensor(const std::initializer_list<Tensor>& vs)
 {   
@@ -54,6 +41,102 @@ Tensor::Tensor(const std::initializer_list<Tensor>& vs)
         else if (i == rank - 2) row = shape[i];
         else batch *= shape[i];
     }
+}
+
+Tensor::Tensor(const std::initializer_list<float>& input)
+{   
+    getRank(input);
+    if (rank == 0) throw std::invalid_argument("need at least one dim");
+    shape = std::make_unique<size_t[]>(rank);
+
+    size_t level = 0;
+    getShape(input, level);
+
+    level = 0;
+    tot_size = 1;
+    for (size_t i = 0; i < rank; i++) tot_size *= shape[i];
+    tensor = std::make_unique<float[]>(tot_size);
+    getArr(input, level);
+
+    index_helper = std::make_unique<size_t[]>(rank - 1);
+    index_helper[rank - 2] = shape[rank - 1];
+    for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
+
+    for (int i = rank - 1; i > -1; i--)
+    {
+        if (i == rank - 1) col = shape[i];
+        else if (i == rank - 2) row = shape[i];
+        else batch *= shape[i];  // all non col and row dims -> batch
+    }
+};
+
+Tensor::Tensor(const std::initializer_list<size_t>& in_shape, const char&)
+{   
+    rank = static_cast<size_t>(in_shape.size());
+    if (rank <= 0) throw std::invalid_argument("need at least one dimension");
+
+    shape = std::make_unique<size_t[]>(rank);
+    {
+        size_t i = 0; for (int s : in_shape) shape[i++] = s;
+    }
+
+    tot_size = 1;
+    for (size_t i = 0; i < rank; i++) tot_size *= shape[i];
+    tensor = std::make_unique<float[]>(tot_size);
+
+    if (rank >= 2)
+    {
+        batch = 1;
+        for (size_t i = 0; i < rank - 2; i++) batch *= shape[i];
+        row = shape[rank - 2];
+        col = shape[rank - 1];
+
+        index_helper = std::make_unique<size_t[]>(rank - 1);
+        index_helper[rank - 2] = shape[rank - 1];
+        for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
+    }
+    else
+    {
+        batch = tot_size;
+        row = col = 1;
+        index_helper = nullptr;
+    } 
+}
+
+Tensor::Tensor(const size_t in_shape[], const char&, const size_t& carray_len)
+{   
+    // this is added in cases where c-array is provided
+    rank = carray_len;
+
+    if (rank <= 0) throw std::invalid_argument("need at least one dimension");
+
+    shape = std::make_unique<size_t[]>(rank);
+    {
+        // b/c init list does not allow indexing
+        for (size_t s = 0; s < rank; s++) shape[s] = in_shape[s];
+    }
+
+    tot_size = 1;
+    for (size_t i = 0; i < rank; i++) tot_size *= shape[i];
+    tensor = std::make_unique<float[]>(tot_size);
+
+    if (rank >= 2)
+    {
+        batch = 1;
+        for (size_t i = 0; i < rank - 2; i++) batch *= shape[i];
+        row = shape[rank - 2];
+        col = shape[rank - 1];
+
+        index_helper = std::make_unique<size_t[]>(rank - 1);
+        index_helper[rank - 2] = shape[rank - 1];
+        for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
+    }
+    else
+    {
+        batch = tot_size;
+        row = col = 1;
+        index_helper = nullptr;
+    } 
 }
 
 float& Tensor::index(const size_t params[])
