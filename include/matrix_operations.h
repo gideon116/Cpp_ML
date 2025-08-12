@@ -33,5 +33,9 @@ namespace wef {
         Tensor sigmoid(const Tensor& m1);
         Tensor d_sigmoid(const Tensor& m1);
 
+        // GPU
+        Tensor matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2);
+        Tensor matmul_elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul*/);
+
 };
 #endif

@@ -1,10 +1,12 @@
+#if 0
+#endif
 #if 1
 #include "include/layers.h"
 #include "include/tensor.h"
 #include "include/model.h"
 #include "include/mnist.h"
 
-// TO DO: MULTITHREAD TENSOR OPS & MAXPOOL
+// TODO: MULTITHREAD TENSOR OPS & MAXPOOL
 
 int main() {
 

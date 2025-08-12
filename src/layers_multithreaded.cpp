@@ -3,7 +3,7 @@
 #include <random>
 #include "../include/layers.h"
 
-Tensor*  Conv2D_Fast::forward_pass(const Tensor& px, const bool training) 
+Tensor* Conv2D_Fast::forward_pass(const Tensor& px, const bool training) 
 {
     if (!init) 
     {   
@@ -110,10 +110,11 @@ Tensor*  Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
                         float temp_px = px_ptr[
                             ch * out_i + skip_w + skip_h
                             + 
-                            w_i + ch*offset * (w_i / id_help)
+                            w_i + ch * offset * (w_i / id_help)
                         ];
 
                         for (size_t u_i = 0; u_i < units; u_i++)
+                            // data races
                             out_ptr[out_i * units + u_i] += temp_px * W_ptr[w_i * units + u_i];
                     }
                     if (usebias)
@@ -135,7 +136,7 @@ Tensor*  Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
     return &out;
 }
 
-Tensor*  Conv2D_Fast::backward_pass(const Tensor& dy, const float lr) 
+Tensor* Conv2D_Fast::backward_pass(const Tensor& dy, const float lr) 
 {   
     float* dx_ptr = dx.tensor.get();
     float* dw_ptr = dw.tensor.get();
@@ -150,7 +151,7 @@ Tensor*  Conv2D_Fast::backward_pass(const Tensor& dy, const float lr)
     size_t out_wo_units = dy.tot_size / units;
     size_t skip_w_help = ch * (w_width - 1);
     size_t bi_help = out_wo_units / dy.shape[0];
-    size_t skip_h_help = (w_height - 1) * X.row*X.col;
+    size_t skip_h_help = (w_height - 1) * X.row * X.col;
     size_t offset = width - w_width;
     size_t id_help = w_width * ch;
 
@@ -198,6 +199,7 @@ Tensor*  Conv2D_Fast::backward_pass(const Tensor& dy, const float lr)
                         for (size_t u_i = 0; u_i < units; u_i++)
                         {
                             float grad = dy_ptr[dy_i * units + u_i];
+                            // data races TODO
                             dx_i[id1] += grad * W_ptr[w_i * units + u_i];
                             dw_i[w_i * units + u_i] += grad * X_ptr[id1];
                         }
@@ -234,7 +236,7 @@ Tensor*  Conv2D_Fast::backward_pass(const Tensor& dy, const float lr)
     return &dx;
 }
 
-Tensor*  Linear_Fast::forward_pass(const Tensor& px, const bool training) 
+Tensor* Linear_Fast::forward_pass(const Tensor& px, const bool training) 
     {
         if (!init) 
         {   
@@ -257,7 +259,7 @@ Tensor*  Linear_Fast::forward_pass(const Tensor& px, const bool training)
             m_out_rank = px.rank;
             m_out_shape = std::make_unique<size_t[]>(m_out_rank);
             std::memcpy(m_out_shape.get(), px.shape.get(), m_out_rank * sizeof(size_t));
-            // TO DO: CATCH < 1 RANK
+            // TODO: CATCH < 1 RANK
             m_out_shape[m_out_rank - 1] = units;
 
             init = true;
@@ -270,8 +272,6 @@ Tensor*  Linear_Fast::forward_pass(const Tensor& px, const bool training)
         
         // copy px into X
         if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
-        
-
 
         if (usebias) out = wef::matmul(px, W, true) + B;
         else out = wef::matmul(px, W, true);
@@ -279,7 +279,7 @@ Tensor*  Linear_Fast::forward_pass(const Tensor& px, const bool training)
 
     }
 
-Tensor*  Linear_Fast::backward_pass(const Tensor& dy, const float lr) 
+Tensor* Linear_Fast::backward_pass(const Tensor& dy, const float lr) 
     {
         // gradient wrt the layer below
         dx = wef::matmul(dy, wef::transpose(W), true);
@@ -301,5 +301,3 @@ Tensor*  Linear_Fast::backward_pass(const Tensor& dy, const float lr)
 
         return &dx;
     }
-
-

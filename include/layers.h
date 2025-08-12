@@ -118,9 +118,7 @@ class Conv2D : public Layer {
             { m_name = "Conv2D"; }
         
         Tensor* forward_pass(const Tensor& px, const bool training) override;
-        Tensor* forward_pass_legacy(const Tensor& px, const bool training);
         Tensor* backward_pass(const Tensor& dy, const float lr) override;
-        Tensor* backward_pass_legacy(const Tensor& dy, const float lr);
     };
 
 class MaxPool2D : public Layer {
@@ -206,7 +204,7 @@ class Flatten : public Layer {
 
             }
 
-            // TO DO : add init check
+            // TODO : add init check
             
             X = Tensor(px);
 
@@ -273,6 +271,100 @@ class Conv2D_Fast : public Layer {
         Tensor* forward_pass_legacy(const Tensor& px, const bool training);
         Tensor* backward_pass(const Tensor& dy, const float lr) override;
         Tensor* backward_pass_legacy(const Tensor& dy, const float lr);
+};
+
+class Conv2D_legacy : public Layer {
+
+    public:
+        
+        std::mt19937 g;
+        
+        size_t w_height, w_width, units;
+        size_t height, width, ch;
+
+        std::normal_distribution<float> dist;
+        
+        Tensor W, X, out, dx, dw, B, db;
+        bool usebias = false;
+        
+        // initilize weights
+        Conv2D_legacy(size_t w_h, size_t w_w, size_t u, bool use_bias=false, size_t rand=3)
+            : g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias)
+            { m_name = "Conv2D"; }
+        
+        Tensor* forward_pass(const Tensor& px, const bool training);
+        Tensor* backward_pass(const Tensor& dy, const float lr);
+    };
+
+class Conv2D_NR : public Layer {
+
+    public:
+        
+        std::mt19937 g;
+        
+        size_t w_height, w_width, units;
+        size_t height, width, ch;
+
+        std::normal_distribution<float> dist;
+        
+        Tensor W, X, out, dx, dw, B, db;
+        bool usebias = false;
+        
+        // initilize weights
+        Conv2D_NR(size_t w_h, size_t w_w, size_t u, bool use_bias=false, size_t rand=3)
+            : g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias)
+            { m_name = "Conv2D"; }
+        
+        Tensor* forward_pass(const Tensor& px, const bool training);
+        Tensor* backward_pass(const Tensor& dy, const float lr);
+    };
+
+class Conv2D_GPU : public Layer {
+
+    public:
+        
+        std::mt19937 g;
+        
+        size_t w_height, w_width, units;
+        size_t height, width, ch;
+        size_t WB_size;
+        void* m_gpu;
+
+        std::normal_distribution<float> dist;
+        
+        Tensor W, X, out, dx, dw, B, db;
+        std::unique_ptr<float[]> WB;
+        bool usebias = false;
+        
+        // initilize weights
+        Conv2D_GPU(void* gpu, size_t w_h, size_t w_w, size_t u, bool use_bias=false, size_t rand=3)
+            : m_gpu(gpu), g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias)
+            {
+                m_name = "Conv2D_GPU";
+            }
+        
+        Tensor* forward_pass(const Tensor& px, const bool training) override;
+        Tensor* backward_pass(const Tensor& dy, const float lr) override;
+};
+
+class Linear_GPU : public Layer {
+
+    public:
+        size_t units;
+        std::normal_distribution<float> dist;
+        std::mt19937 g;
+        Tensor out, W, B, X, dx, dw, db;
+        bool usebias = false;
+        void* m_gpu;
+
+        
+        // initilize weights
+        Linear_GPU(void* gpu, size_t unit, bool use_bias=false, size_t rand=3) 
+            : m_gpu(gpu), units(unit), usebias(use_bias), dist(0.0f, std::sqrt(2.0f/units)), g(rand)
+            { m_name = "linear"; }
+        
+        Tensor* forward_pass(const Tensor& px, const bool training) override;
+        Tensor* backward_pass(const Tensor& dy, const float lr) override;
 };
 
 

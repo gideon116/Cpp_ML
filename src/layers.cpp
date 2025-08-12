@@ -2,7 +2,7 @@
 #include <random>
 #include "../include/layers.h"
 
-Tensor*  Linear::forward_pass(const Tensor& px, const bool training) 
+Tensor* Linear::forward_pass(const Tensor& px, const bool training) 
     {
         if (!init) 
         {   
@@ -25,7 +25,7 @@ Tensor*  Linear::forward_pass(const Tensor& px, const bool training)
             m_out_rank = px.rank;
             m_out_shape = std::make_unique<size_t[]>(m_out_rank);
             std::memcpy(m_out_shape.get(), px.shape.get(), m_out_rank * sizeof(size_t));
-            // TO DO: CATCH < 1 RANK
+            // TODO: CATCH < 1 RANK
             m_out_shape[m_out_rank - 1] = units;
 
             init = true;
@@ -48,7 +48,7 @@ Tensor*  Linear::forward_pass(const Tensor& px, const bool training)
         // return &wef::matmul(px, W);
     }
 
-Tensor*  Linear::backward_pass(const Tensor& dy, const float lr) 
+Tensor* Linear::backward_pass(const Tensor& dy, const float lr) 
     {
         // gradient wrt the layer below
         dx = wef::matmul(dy, wef::transpose(W));
@@ -71,7 +71,7 @@ Tensor*  Linear::backward_pass(const Tensor& dy, const float lr)
         return &dx;
     }
 
-Tensor*  Conv2D::forward_pass(const Tensor& px, const bool training) 
+Tensor* Conv2D::forward_pass(const Tensor& px, const bool training) 
     {
     if (!init) 
     {   
@@ -142,7 +142,7 @@ Tensor*  Conv2D::forward_pass(const Tensor& px, const bool training)
     size_t out_wo_units = out.tot_size / units;
     size_t skip_w_help = ch * (w_width - 1);
     size_t bi_help = out_wo_units / out.shape[0];
-    size_t skip_h_help = (w_height - 1) * px.row*px.col;
+    size_t skip_h_help = (w_height - 1) * px.row * px.col;
     size_t offset = width - w_width;
     size_t id_help = w_width * ch;
 
@@ -158,7 +158,7 @@ Tensor*  Conv2D::forward_pass(const Tensor& px, const bool training)
             float temp_px = px_ptr[
                 ch * out_i + skip_w + skip_h
                 + 
-                w_i + ch*offset * (w_i / id_help)
+                w_i + ch * offset * (w_i / id_help)
             ];
 
             for (size_t u_i = 0; u_i < units; u_i++)
@@ -172,7 +172,7 @@ Tensor*  Conv2D::forward_pass(const Tensor& px, const bool training)
     return &out;
     }
 
-Tensor*  Conv2D::backward_pass(const Tensor& dy, const float lr) 
+Tensor* Conv2D::backward_pass(const Tensor& dy, const float lr) 
     {   
         float* dx_ptr = dx.tensor.get();
         float* dw_ptr = dw.tensor.get();
@@ -186,8 +186,8 @@ Tensor*  Conv2D::backward_pass(const Tensor& dy, const float lr)
 
         size_t out_wo_units = dy.tot_size / units;
         size_t skip_w_help = ch * (w_width - 1);
-        size_t bi_help = out_wo_units / out.shape[0];
-        size_t skip_h_help = (w_height - 1) * X.row*X.col;
+        size_t bi_help = out_wo_units / dy.shape[0];
+        size_t skip_h_help = (w_height - 1) * X.row * X.col;
         size_t offset = width - w_width;
         size_t id_help = w_width * ch;
 
@@ -203,7 +203,7 @@ Tensor*  Conv2D::backward_pass(const Tensor& dy, const float lr)
                 size_t id1 = 
                     ch * dy_i + skip_w + skip_h
                     + 
-                    w_i + ch*offset * (w_i / id_help);
+                    w_i + ch * offset * (w_i / id_help);
 
                 for (size_t u_i = 0; u_i < units; u_i++)
                 {
@@ -227,7 +227,7 @@ Tensor*  Conv2D::backward_pass(const Tensor& dy, const float lr)
         return &dx;
     }
 
-Tensor*  Conv2D::forward_pass_legacy(const Tensor& px, const bool training) 
+Tensor* Conv2D_legacy::forward_pass(const Tensor& px, const bool training) 
     {
     if (!init) 
     {   
@@ -311,7 +311,7 @@ Tensor*  Conv2D::forward_pass_legacy(const Tensor& px, const bool training)
                             }
                         }
                     }
-                    pm_out[ind++] = temp + pm_b[oc]; // TO DO: check BIAS
+                    pm_out[ind++] = temp + (usebias ? pm_b[oc] : 0.0); // TODO: check BIAS
                 }
             }
         }
@@ -320,7 +320,7 @@ Tensor*  Conv2D::forward_pass_legacy(const Tensor& px, const bool training)
     return &out;
     }
 
-Tensor*  Conv2D::backward_pass_legacy(const Tensor& dy, const float lr) 
+Tensor* Conv2D_legacy::backward_pass(const Tensor& dy, const float lr) 
     {
         std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float)); // zero fill
         std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(float)); // zero fill
@@ -375,7 +375,7 @@ Tensor*  Conv2D::backward_pass_legacy(const Tensor& dy, const float lr)
         return &dx;
     }
 
-Tensor*  MaxPool2D::forward_pass(const Tensor& px, const bool training) 
+Tensor* MaxPool2D::forward_pass(const Tensor& px, const bool training) 
     {
         if (!init)
         {   
@@ -464,7 +464,7 @@ Tensor*  MaxPool2D::forward_pass(const Tensor& px, const bool training)
         return &out;
     }
 
-Tensor*  MaxPool2D::backward_pass(const Tensor& dy, const float lr) 
+Tensor* MaxPool2D::backward_pass(const Tensor& dy, const float lr) 
     {
         std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float));  // zero fill
         size_t ind = 0;
@@ -490,7 +490,7 @@ Tensor*  MaxPool2D::backward_pass(const Tensor& dy, const float lr)
         return &dx;
     }
 
-Tensor*  ReduceSum::forward_pass(const Tensor& px, const bool training) 
+Tensor* ReduceSum::forward_pass(const Tensor& px, const bool training) 
     { 
 
         if (!init) 
@@ -547,7 +547,7 @@ Tensor*  ReduceSum::forward_pass(const Tensor& px, const bool training)
         return &out;
     }
 
-Tensor*  ReduceSum::backward_pass(const Tensor& dy, float) 
+Tensor* ReduceSum::backward_pass(const Tensor& dy, float) 
     {
         if (!init) throw std::invalid_argument("layer not initilized");
 
@@ -569,7 +569,7 @@ Tensor*  ReduceSum::backward_pass(const Tensor& dy, float)
         return &dx;
     }
 
-Tensor*  LayerNorm::forward_pass(const Tensor& px, const bool training)
+Tensor* LayerNorm::forward_pass(const Tensor& px, const bool training)
 {
     if (!init) 
         {
@@ -618,7 +618,7 @@ Tensor*  LayerNorm::forward_pass(const Tensor& px, const bool training)
         return &y_i;
 }
 
-Tensor*  LayerNorm::backward_pass(const Tensor& dy, const float lr)
+Tensor* LayerNorm::backward_pass(const Tensor& dy, const float lr)
 {
     if (!init) throw std::invalid_argument("layer not initilized");
 
@@ -642,6 +642,200 @@ Tensor*  LayerNorm::backward_pass(const Tensor& dy, const float lr)
 
     gamma = gamma - d_gamma * lr / dy.shape[0];
     beta = beta - d_beta * lr / dy.shape[0];
+
+    return &dx;
+}
+
+Tensor* Conv2D_NR::forward_pass(const Tensor& px, const bool training) 
+{
+    if (!init) 
+    {   
+        // initially initilize the shape of X later just copy the tensors
+        X = Tensor(px);
+        
+        // h, w, c, units
+        height = px.shape[1]; width = px.shape[2]; ch = px.shape[3];
+        dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / (w_height * w_width * ch)));
+        // for above now we have (2/fan_in = hwc)^0.5 good for relu we can use fan_out for tanh... which is hwu
+
+        size_t w_shape[4] = {w_height, w_width, ch, units};
+        W = Tensor::create(w_shape, 4);
+
+        size_t B_shape[4] = {1, 1, 1, units};
+        B = Tensor::create(B_shape, 4);
+        std::fill_n(B.tensor.get(), B.tot_size, 0.01f);
+
+        float* pm = W.tensor.get();
+        for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
+
+        m_out_rank = px.rank; // this is 4, its always 4
+        m_out_shape = std::make_unique<size_t[]>(m_out_rank); // heap allocation is not the best but we only do this once pre layer so its whatever
+        m_out_shape[1] = height - w_height + 1;
+        m_out_shape[2] = width - w_width + 1;
+        m_out_shape[3] = units;
+
+        // gradient wrt the layer below
+        dx = Tensor(px);
+        
+        // gradients wrt weights and biases
+        dw = Tensor(W);
+        db = Tensor(B);
+
+        m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
+
+        init = true;
+    }
+    else
+    {
+        // if trying to use (reuse) the layer on a different tensor
+        if (px.shape[1] != height || 
+            px.shape[2] != width ||
+            px.shape[3] != ch) throw std::invalid_argument("cannot reuse layer");
+    }
+
+    // copy px into X
+    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+
+    m_out_shape[0] = px.shape[0]; // flexable batch 
+    out = Tensor::create(m_out_shape.get(), 4);
+    float* pm_out = out.tensor.get();
+    float* pm_b = B.tensor.get();
+
+    size_t ind = 0;
+    size_t i1[4];
+    size_t i2[4];
+
+    #pragma omp parallel for collapse(4) schedule(static)
+    for (size_t b1 = 0; b1 < out.shape[0]; b1++)
+    {
+        for (size_t h1 = 0; h1 < out.shape[1]; h1++)
+        {
+            for (size_t w1 = 0; w1 < out.shape[2]; w1++)
+            {
+                for (size_t oc = 0; oc < out.shape[3]; oc++)    
+                {
+                    float temp = 0.0f;
+                    for (size_t h2 = 0; h2 < w_height; h2++)
+                    {
+                        for (size_t w2 = 0; w2 < w_width; w2++)
+                        {
+                            for (size_t c2 = 0; c2 < ch; c2++)
+                            {
+                                // doing this to ensure cstyle array for indexing
+                                // not making a new array and just rewriting
+                                i1[0] = b1; i1[1] = h2 + h1; i1[2] = w2 + w1; i1[3] = c2;
+                                i2[0] = h2; i2[1] = w2; i2[2] = c2; i2[3] = oc; 
+
+                                temp += px.index(i1) * W.index(i2);
+                            }
+                        }
+                    }
+                    pm_out[ind++] = temp + (usebias ? pm_b[oc] : 0.0); // TODO: check BIAS
+                }
+            }
+        }
+    }
+
+    return &out;
+}
+
+Tensor* Conv2D_NR::backward_pass(const Tensor& dy, const float lr) 
+{
+    std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float)); // zero fill
+    std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(float)); // zero fill
+
+    #pragma omp parallel for collapse(4) schedule(static)
+    for (size_t bin_hin = 0; bin_hin < dx.shape[0] * dx.shape[1]; bin_hin++)
+        {
+            size_t bin = bin_hin / dx.shape[1];
+            size_t hin = bin_hin % dx.shape[1];
+            
+            for (size_t win_cin = 0; win_cin < dx.shape[2] * dx.shape[3]; win_cin++)  
+                {
+                    size_t win = win_cin / dx.shape[3];
+                    size_t cin = win_cin % dx.shape[3];
+
+                    float temp = 0.0;
+                    for (size_t hk = 0; hk < w_height; hk++)            
+                        {
+                            if (hin < hk) continue;
+                            size_t ho = hin - hk; // move out
+
+                            for (size_t wk = 0; wk < w_width; wk++)                
+                            {
+                                if (win < wk) continue;
+                                size_t wo = win - wk; // move out
+
+                                for (size_t co = 0; co < units; co++)
+                            
+                                {
+                                    if (ho >= dy.shape[1] || wo >= dy.shape[2]) continue;
+                                    
+                                    size_t ik[4] = {hk, wk, cin, co};
+                                    size_t io[4] = {bin, ho, wo, co};
+
+                                    temp += dy.index(io) * W.index(ik);
+                                }
+                            }
+                        }
+                    size_t iin[4] = {bin, hin, win, cin};
+                    dx.index(iin) = temp;
+                }
+        }
+    
+    #pragma omp parallel for collapse(4) schedule(static)
+    for (size_t hk_wk = 0; hk_wk < dw.shape[0] * dw.shape[1]; hk_wk++)
+        {
+            size_t hk = hk_wk / dw.shape[1];
+            size_t wk = hk_wk % dw.shape[1];
+        
+            for (size_t cin_co = 0; cin_co < dw.shape[2] * dw.shape[3]; cin_co++)
+            {
+                size_t cin = cin_co / dw.shape[3];
+                size_t co = cin_co % dw.shape[3];
+                
+                float temp = 0.0;
+                for (size_t bin = 0; bin < dy.shape[0]; bin++)
+                    {
+                        for (size_t ho = 0; ho < dy.shape[1]; ho++)
+                        {
+                            // I chose to do this rather than doing the inner 3 loops
+                            // with dx.shape[...] b/c otherwise I'd have to add three 
+                            // bounds checks like "if (win < wk) continue;"
+                            size_t hin = ho + hk;
+
+                            for (size_t wo = 0; wo < dy.shape[2]; wo++)  
+                            {
+                                
+                                size_t win = wo + wk;
+                                
+                                size_t iin[4] = {bin, hin, win, cin};
+                                size_t io[4] = {bin, ho, wo, co};
+
+                                temp += dy.index(io) * X.index(iin);
+                            }
+                        }
+                    }
+                size_t ik[4] = {hk, wk, cin, co};
+                dw.index(ik) = temp;
+                
+            }
+        }
+
+
+    float* pm_w = W.tensor.get();
+    float* pm_dw = dw.tensor.get();
+    // divide lr by batch size
+    for (size_t i = 0; i < W.tot_size; i++)
+        pm_w[i] -= (pm_dw[i] * lr / dy.shape[0]);
+
+    if (usebias)
+    {
+        db = dy;
+        for (size_t i = 0; i < db.rank - 1; i++)
+            db = wef::reducesum(db, i);
+        B = B - db * lr / dy.shape[0];
+    }
 
     return &dx;
 }

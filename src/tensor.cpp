@@ -1,7 +1,6 @@
 #include <iostream>
 #include "../include/tensor.h"
 
-
 Tensor::Tensor(const std::initializer_list<Tensor>& vs)
 {   
     if (static_cast<size_t>(vs.size()) == 0) throw std::invalid_argument("empty tensor");
@@ -141,7 +140,7 @@ Tensor::Tensor(const size_t in_shape[], const char&, const size_t& carray_len)
 
 float& Tensor::index(const size_t params[])
 {
-    // TO DO: ADD CHECKS!!!!!
+    // TODO: ADD CHECKS!!!!!
     // if (sizeof(params)/sizeof(params[0]) != rank) throw std::invalid_argument("requested shape does not match tensor");
     
     size_t val = params[rank-1];

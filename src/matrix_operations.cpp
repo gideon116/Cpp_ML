@@ -9,7 +9,7 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
     
     std::unique_ptr<size_t[]> temp_shape = std::make_unique<size_t[]>(m1.rank);
 
-    // TO DO: CATCH < 1 RANK
+    // TODO: CATCH < 1 RANK
     for (size_t i = 0; i < m1.rank - 1; i ++) temp_shape[i] = m1.shape[i];
     temp_shape[m1.rank - 1] = m2.col;
 
@@ -73,8 +73,8 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, size_t n_threads)
     
     std::unique_ptr<size_t[]> temp_shape = std::make_unique<size_t[]>(m1.rank);
 
-    // TO DO: CATCH < 1 RANK
-    for (size_t i = 0; i < m1.rank - 1; i ++) temp_shape[i] = m1.shape[i];
+    // TODO: CATCH < 1 RANK
+    for (size_t i = 0; i < m1.rank - 1; i++) temp_shape[i] = m1.shape[i];
     temp_shape[m1.rank - 1] = m2.col;
 
     Tensor m = Tensor::create(temp_shape.get(), m1.rank);
@@ -159,7 +159,7 @@ Tensor wef::cops(const Tensor& m1, const float con, float (*f)(float, float))
 Tensor wef::transpose(const Tensor& m1)
 {
     std::unique_ptr<size_t[]> temp_shape = std::make_unique<size_t[]>(m1.rank);
-    // TO DO: CATCH < 2 RANK
+    // TODO: CATCH < 2 RANK
     for (size_t i = 0; i < m1.rank - 2; i ++) temp_shape[i] = m1.shape[i];
     temp_shape[m1.rank - 1] = m1.row;
     temp_shape[m1.rank - 2] = m1.col;
@@ -312,7 +312,7 @@ float wef::l2(const Tensor& m1, const Tensor& m2)
 
 float wef::binarycrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real and m2 pred !!
 {
-    // TO DO: catch mismatch tensor
+    // TODO: catch mismatch tensor
 
     const float* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
     const float* pm2 = m2.tensor.get();
@@ -335,7 +335,7 @@ float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m
     // Note m1 is actual labels and m2 is probabilities 
     // eg: m1 = {{1}, {2}}, m2 = {{0, 1, 0}, {0, 0, 1}}
 
-    // TO DO: catch mismatch tensor
+    // TODO: catch mismatch tensor
 
     const float* pm1 = m1.tensor.get(); // grab raw pointers for speeeed
     const float* pm2 = m2.tensor.get();
@@ -376,7 +376,7 @@ float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m
 
 float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real and m2 pred !!
 {
-    // TO DO: catch mismatch tensor
+    // TODO: catch mismatch tensor
 
     // Note m1 is actual labels and m2 is probabilities 
     // eg: m1 = {{1}, {2}}, m2 = {{0, 1, 0}, {0, 0, 1}}
