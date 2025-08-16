@@ -1,0 +1,33 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(binding = 0) readonly    buffer buffer_m1    { float m1[]; };
+layout(binding = 1) readonly    buffer buffer_m2    { float m2[]; };
+layout(binding = 2) writeonly   buffer buffer_m     { float m[]; };
+
+layout(push_constant) uniform pc
+{
+    uint    m1_r, m1_c, m2_c,
+            batch, 
+            m1_stride, m2_stride, m_stride;
+};
+
+void main()
+{
+    uint ci = gl_GlobalInvocationID.x;
+    uint ri = gl_GlobalInvocationID.y;
+    uint bi = gl_GlobalInvocationID.z;
+
+    if (ri >= m1_r || ci >= m2_c || bi >= batch) return;
+
+    uint m1_i = bi * m1_stride + ri * m1_c;
+    uint m2_i = bi * m2_stride + ci;
+    uint m_i = bi * m_stride + ri * m2_c + ci;
+
+    float sum = 0.0;
+    for (uint j = 0; j < m1_c; j++)
+        sum += m1[m1_i + j] * m2[m2_i + j * m2_c];
+
+    m[m_i] = sum;
+}

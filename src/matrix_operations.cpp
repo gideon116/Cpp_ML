@@ -286,7 +286,7 @@ Tensor wef::reducesum(const Tensor& m1, const int ax)
     for (size_t i = ax + 1; i < m1.rank; i++) eaa *= m1.shape[i];
     size_t ax_help = m1.shape[ax]*eaa;
 
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static) // TODO : data races
     for (size_t i = 0; i < m1.tot_size; i++) pm[ (i % eaa) + eaa * (i / ax_help) ] += pm1[i];
     
     return m;
@@ -445,6 +445,77 @@ void wef::print(const Tensor& m1, size_t* arr, size_t num, bool allc)
     if (!allc) delete[] arr;
 
 }
+
+Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul*/)
+{
+    struct PC
+    {
+        uint32_t operation; // 0 add, 1 sub, 2 mul
+        uint32_t batch;
+        uint32_t stride;
+    } push_constant;
+
+    const char* spvPath =  "../shaders/binaries/elemwise.spv";
+    VkDeviceSize bytes = sizeof(float) * m1.tot_size;
+
+    Tensor m = m1;
+
+    push_constant.operation = operation;
+    push_constant.batch = m1.batch;
+    push_constant.stride = m1.row * m1.col;
+
+    const uint32_t WG = 256;
+    uint32_t gx = useGPU::ceilDiv(m1.row * m1.col, WG);
+    uint32_t gz = m1.batch;
+
+    ((useGPU*)gpu)->program({bytes, bytes}, {bytes}, {m1.tensor.get(), m2.tensor.get()}, {m.tensor.get()}, spvPath, (void*)&push_constant, sizeof(push_constant), gx, 1, gz);
+    
+    return m;
+}
+
+Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
+{
+    if (m1.col != m2.row) throw std::invalid_argument("matrix size mismatch [3]");
+    const bool not_bcast = (m2.batch != 1);
+    if (not_bcast && (m1.batch != m2.batch)) throw std::invalid_argument("matrix size mismatch [4]");
+
+    const char* spvPath =  "../shaders/binaries/matmul.spv";
+    std::unique_ptr<size_t[]> temp_shape = std::make_unique<size_t[]>(m1.rank);
+
+    // TODO: CATCH < 1 RANK
+    for (size_t i = 0; i < m1.rank - 1; i ++) temp_shape[i] = m1.shape[i];
+    temp_shape[m1.rank - 1] = m2.col;
+    Tensor m = Tensor::create(temp_shape.get(), m1.rank);
+
+    VkDeviceSize sizeA = sizeof(float) * m1.tot_size;
+    VkDeviceSize sizeB = sizeof(float) * m2.tot_size;
+    VkDeviceSize sizeC = sizeof(float) * m.tot_size;
+
+    struct PC
+    {
+        uint32_t    m1_r, m1_c, m2_c,
+                    batch, 
+                    m1_stride, m2_stride, m_stride;
+    } push_constant;
+
+    push_constant.m1_r = m1.row;
+    push_constant.m1_c = m1.col; // or m2.row;
+    push_constant.m2_c = m2.col;
+    push_constant.batch = m1.batch; // assume no m1 bcast
+    push_constant.m1_stride = m1.row * m1.col;
+    push_constant.m2_stride = m2.row * m2.col * not_bcast; // set to 0 to broadcast B across batches
+    push_constant.m_stride = m.row * m.col;
+
+    const uint32_t WGX = 16;
+    const uint32_t WGY = 16;
+    uint32_t gx = useGPU::ceilDiv(m2.col, WGX);
+    uint32_t gy = useGPU::ceilDiv(m1.row, WGY);
+    uint32_t gz = m1.batch;
+
+    ((useGPU*)gpu)->program({sizeA, sizeB}, {sizeC}, {m1.tensor.get(), m2.tensor.get()}, {m.tensor.get()}, spvPath, (void*)&push_constant, sizeof(push_constant), gx, gy, gz);
+    return m;
+}
+
 
 Tensor wef::pow(const Tensor& m1, const float con) { return cops(m1, con, [](float a, float b){ return std::pow(a, b); }); }
 Tensor wef::relu(const Tensor& m1) { return activation(m1, 'a'); }

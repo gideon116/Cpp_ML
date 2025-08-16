@@ -25,3 +25,6 @@ g++ train.cpp src/*.cpp -pthread -O3 && ./a.out && rm a.out
 
 # OpenMP build
 g++ train.cpp src/*.cpp -pthread -O3 -fopenmp && ./a.out && rm a.out
+
+# GPU build
+g++ train.cpp src/*.cpp -pthread -O3 -lvulkan -Wl,-rpath,dependencies/vulkan/macOS/lib && ./a.out && rm a.out

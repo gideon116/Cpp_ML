@@ -6,6 +6,7 @@
 #include "layers.h"
 #include "tensor.h"
 #include "matrix_operations.h"
+#include "useGPU.h"
 
 class Timer
 {
@@ -38,14 +39,14 @@ class Model
         void fit(
                 const Tensor& real, const Tensor& input,
                 const Tensor& valid_real, const Tensor& valid_input,
-                const int epochs=10, const float lr=0.01f);
+                const int epochs=10, const float lr=0.01f, bool use_gpu=false, size_t batch_size=0);
         
         // no validation
         void fit(const Tensor& real, const Tensor& input, const int epochs=10, const float lr=0.01f);
-        Tensor predict(const Tensor& input);
+        Tensor predict(const Tensor& input, bool use_gpu=false);
         void summary();
 
-    private:
+
         std::vector<Layer*> network;
 };
 

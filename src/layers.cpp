@@ -2,12 +2,14 @@
 #include <random>
 #include "../include/layers.h"
 
-Tensor* Linear::forward_pass(const Tensor& px, const bool training) 
+Tensor* Linear::forward_pass(const Tensor& px, const bool training, void*) 
     {
         if (!init) 
         {   
             // initially initilize the shape of X later just copy the tensors
             X = Tensor(px);
+
+            dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / (px.col)));
 
             size_t w_shape[2] = {px.col, units};
             size_t b_shape[2] = {1, units};
@@ -15,7 +17,7 @@ Tensor* Linear::forward_pass(const Tensor& px, const bool training)
             B = Tensor::create(b_shape, 2);
 
             float* B_ptr = B.tensor.get();
-            std::fill_n(B.tensor.get(), B.tot_size, 0.01f); // zero fill
+            std::fill_n(B.tensor.get(), B.tot_size, 0.0f); // zero fill
 
             float* pm = W.tensor.get();
             for (size_t i = 0; i < size_t(px.col) * units; i++) pm[i] = dist(g);
@@ -48,7 +50,7 @@ Tensor* Linear::forward_pass(const Tensor& px, const bool training)
         // return &wef::matmul(px, W);
     }
 
-Tensor* Linear::backward_pass(const Tensor& dy, const float lr) 
+Tensor* Linear::backward_pass(const Tensor& dy, const float lr, void*) 
     {
         // gradient wrt the layer below
         dx = wef::matmul(dy, wef::transpose(W));
@@ -71,7 +73,7 @@ Tensor* Linear::backward_pass(const Tensor& dy, const float lr)
         return &dx;
     }
 
-Tensor* Conv2D::forward_pass(const Tensor& px, const bool training) 
+Tensor* Conv2D::forward_pass(const Tensor& px, const bool training, void*) 
     {
     if (!init) 
     {   
@@ -88,7 +90,7 @@ Tensor* Conv2D::forward_pass(const Tensor& px, const bool training)
 
         size_t B_shape[4] = {1, 1, 1, units};
         B = Tensor::create(B_shape, 4);
-        std::fill_n(B.tensor.get(), B.tot_size, 0.01f);
+        std::fill_n(B.tensor.get(), B.tot_size, 0.0f);
 
         float* pm = W.tensor.get();
         for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
@@ -172,7 +174,7 @@ Tensor* Conv2D::forward_pass(const Tensor& px, const bool training)
     return &out;
     }
 
-Tensor* Conv2D::backward_pass(const Tensor& dy, const float lr) 
+Tensor* Conv2D::backward_pass(const Tensor& dy, const float lr, void*) 
     {   
         float* dx_ptr = dx.tensor.get();
         float* dw_ptr = dw.tensor.get();
@@ -227,7 +229,7 @@ Tensor* Conv2D::backward_pass(const Tensor& dy, const float lr)
         return &dx;
     }
 
-Tensor* Conv2D_legacy::forward_pass(const Tensor& px, const bool training) 
+Tensor* Conv2D_legacy::forward_pass(const Tensor& px, const bool training, void*) 
     {
     if (!init) 
     {   
@@ -244,7 +246,7 @@ Tensor* Conv2D_legacy::forward_pass(const Tensor& px, const bool training)
 
         size_t B_shape[4] = {1, 1, 1, units};
         B = Tensor::create(B_shape, 4);
-        std::fill_n(B.tensor.get(), B.tot_size, 0.01f);
+        std::fill_n(B.tensor.get(), B.tot_size, 0.0f);
 
         float* pm = W.tensor.get();
         for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
@@ -320,7 +322,7 @@ Tensor* Conv2D_legacy::forward_pass(const Tensor& px, const bool training)
     return &out;
     }
 
-Tensor* Conv2D_legacy::backward_pass(const Tensor& dy, const float lr) 
+Tensor* Conv2D_legacy::backward_pass(const Tensor& dy, const float lr, void*) 
     {
         std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float)); // zero fill
         std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(float)); // zero fill
@@ -375,7 +377,7 @@ Tensor* Conv2D_legacy::backward_pass(const Tensor& dy, const float lr)
         return &dx;
     }
 
-Tensor* MaxPool2D::forward_pass(const Tensor& px, const bool training) 
+Tensor* MaxPool2D::forward_pass(const Tensor& px, const bool training, void*) 
     {
         if (!init)
         {   
@@ -412,7 +414,7 @@ Tensor* MaxPool2D::forward_pass(const Tensor& px, const bool training)
         }
 
         // copy px into X
-        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float)); // TODO : is X even used in back prop?
 
         // batch is flexable
         m_out_shape[0] = px.shape[0];
@@ -428,7 +430,7 @@ Tensor* MaxPool2D::forward_pass(const Tensor& px, const bool training)
             {
                 for (size_t w1 = 0; w1 < out.shape[2]; w1++)
                 {
-                    for (size_t c = 0; c < out.shape[3]; c++)    
+                    for (size_t c = 0; c < out.shape[3]; c++)
                     {
                         float temp_val = -1e19f;
                         size_t temp_ind[4];
@@ -464,7 +466,7 @@ Tensor* MaxPool2D::forward_pass(const Tensor& px, const bool training)
         return &out;
     }
 
-Tensor* MaxPool2D::backward_pass(const Tensor& dy, const float lr) 
+Tensor* MaxPool2D::backward_pass(const Tensor& dy, const float lr, void*) 
     {
         std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float));  // zero fill
         size_t ind = 0;
@@ -490,7 +492,7 @@ Tensor* MaxPool2D::backward_pass(const Tensor& dy, const float lr)
         return &dx;
     }
 
-Tensor* ReduceSum::forward_pass(const Tensor& px, const bool training) 
+Tensor* ReduceSum::forward_pass(const Tensor& px, const bool training, void*) 
     { 
 
         if (!init) 
@@ -547,7 +549,7 @@ Tensor* ReduceSum::forward_pass(const Tensor& px, const bool training)
         return &out;
     }
 
-Tensor* ReduceSum::backward_pass(const Tensor& dy, float) 
+Tensor* ReduceSum::backward_pass(const Tensor& dy, float, void*) 
     {
         if (!init) throw std::invalid_argument("layer not initilized");
 
@@ -569,7 +571,7 @@ Tensor* ReduceSum::backward_pass(const Tensor& dy, float)
         return &dx;
     }
 
-Tensor* LayerNorm::forward_pass(const Tensor& px, const bool training)
+Tensor* LayerNorm::forward_pass(const Tensor& px, const bool training, void*)
 {
     if (!init) 
         {
@@ -618,7 +620,7 @@ Tensor* LayerNorm::forward_pass(const Tensor& px, const bool training)
         return &y_i;
 }
 
-Tensor* LayerNorm::backward_pass(const Tensor& dy, const float lr)
+Tensor* LayerNorm::backward_pass(const Tensor& dy, const float lr, void*)
 {
     if (!init) throw std::invalid_argument("layer not initilized");
 
@@ -646,7 +648,7 @@ Tensor* LayerNorm::backward_pass(const Tensor& dy, const float lr)
     return &dx;
 }
 
-Tensor* Conv2D_NR::forward_pass(const Tensor& px, const bool training) 
+Tensor* Conv2D_NR::forward_pass(const Tensor& px, const bool training, void*) 
 {
     if (!init) 
     {   
@@ -663,7 +665,7 @@ Tensor* Conv2D_NR::forward_pass(const Tensor& px, const bool training)
 
         size_t B_shape[4] = {1, 1, 1, units};
         B = Tensor::create(B_shape, 4);
-        std::fill_n(B.tensor.get(), B.tot_size, 0.01f);
+        std::fill_n(B.tensor.get(), B.tot_size, 0.0f);
 
         float* pm = W.tensor.get();
         for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
@@ -739,7 +741,7 @@ Tensor* Conv2D_NR::forward_pass(const Tensor& px, const bool training)
     return &out;
 }
 
-Tensor* Conv2D_NR::backward_pass(const Tensor& dy, const float lr) 
+Tensor* Conv2D_NR::backward_pass(const Tensor& dy, const float lr, void*) 
 {
     std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float)); // zero fill
     std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(float)); // zero fill
