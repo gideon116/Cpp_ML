@@ -9,9 +9,9 @@ Tensor* Linear::forward_pass(const Tensor& px, const bool training, void*)
             // initially initilize the shape of X later just copy the tensors
             X = Tensor(px);
 
-            dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / (px.col)));
+            dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / (px.shape[px.rank-1])));
 
-            size_t w_shape[2] = {px.col, units};
+            size_t w_shape[2] = {px.shape[px.rank-1], units};
             size_t b_shape[2] = {1, units};
             W = Tensor::create(w_shape, 2);
             B = Tensor::create(b_shape, 2);
@@ -20,7 +20,7 @@ Tensor* Linear::forward_pass(const Tensor& px, const bool training, void*)
             std::fill_n(B.tensor.get(), B.tot_size, 0.0f); // zero fill
 
             float* pm = W.tensor.get();
-            for (size_t i = 0; i < size_t(px.col) * units; i++) pm[i] = dist(g);
+            for (size_t i = 0; i < size_t(px.shape[px.rank-1]) * units; i++) pm[i] = dist(g);
 
             m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
             
@@ -35,7 +35,7 @@ Tensor* Linear::forward_pass(const Tensor& px, const bool training, void*)
         else
         {
             // if trying to use (reuse) the layer on a different tensor
-            if (W.row != px.col) throw std::invalid_argument("cannot reuse layer");
+            if (W.shape[W.rank-2] != px.shape[px.rank-1]) throw std::invalid_argument("cannot reuse layer");
         }
 
         // copy px into X
@@ -144,14 +144,14 @@ Tensor* Conv2D::forward_pass(const Tensor& px, const bool training, void*)
     size_t out_wo_units = out.tot_size / units;
     size_t skip_w_help = ch * (w_width - 1);
     size_t bi_help = out_wo_units / out.shape[0];
-    size_t skip_h_help = (w_height - 1) * px.row * px.col;
+    size_t skip_h_help = (w_height - 1) * px.shape[px.rank-2] * px.shape[px.rank-1];
     size_t offset = width - w_width;
     size_t id_help = w_width * ch;
 
     #pragma omp parallel for schedule(static)
     for (size_t out_i = 0; out_i < out_wo_units; out_i++)
     {
-        size_t skip_w = skip_w_help * (out_i / out.row);
+        size_t skip_w = skip_w_help * (out_i / out.shape[out.rank-2]);
         size_t bi = out_i / bi_help;
         size_t skip_h = bi * skip_h_help;
 
@@ -189,14 +189,14 @@ Tensor* Conv2D::backward_pass(const Tensor& dy, const float lr, void*)
         size_t out_wo_units = dy.tot_size / units;
         size_t skip_w_help = ch * (w_width - 1);
         size_t bi_help = out_wo_units / dy.shape[0];
-        size_t skip_h_help = (w_height - 1) * X.row * X.col;
+        size_t skip_h_help = (w_height - 1) * X.shape[X.rank-2] * X.shape[X.rank-1];
         size_t offset = width - w_width;
         size_t id_help = w_width * ch;
 
         #pragma omp parallel for schedule(static)
         for (size_t dy_i = 0; dy_i < out_wo_units; dy_i++)
         {
-            size_t skip_w = skip_w_help * (dy_i / dy.row);
+            size_t skip_w = skip_w_help * (dy_i / dy.shape[dy.rank-2]);
             size_t bi = dy_i / bi_help;
             size_t skip_h = bi * skip_h_help;
 
@@ -841,3 +841,135 @@ Tensor* Conv2D_NR::backward_pass(const Tensor& dy, const float lr, void*)
 
     return &dx;
 }
+
+/*
+Tensor scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor& mask)
+{
+    Tensor product = wef::matmul(q, wef::transpose(k), )
+    keys_dim = tf.cast(tf.shape(k)[-1], tf.float32)
+
+    eij = product / tf.math.sqrt(keys_dim)
+
+    if mask is not None:
+        eij += (mask * -1e9)
+
+    aij = tf.nn.softmax(eij, axis=-1)
+    z = tf.matmul(aij, v)
+
+    return z
+}
+
+
+class MultiHeadAttention(tf.keras.layers.Layer):
+    def __init__(self, num_heads, max_len, rel):
+        super(MultiHeadAttention, self).__init__()
+        self.num_heads = num_heads
+        self.max_len = max_len
+        self.rel = rel
+
+    def build(self, input_shape):
+        self.d_model = input_shape[-1]
+        assert self.d_model % self.num_heads == 0
+
+        self.depth = self.d_model // self.num_heads
+
+        self.wq = tf.keras.layers.Dense(units=self.d_model)
+        self.wk = tf.keras.layers.Dense(units=self.d_model)
+        self.wv = tf.keras.layers.Dense(units=self.d_model)
+
+        self.dense = tf.keras.layers.Dense(units=self.d_model)
+
+        self.relative_key = tf.keras.layers.Embedding(2 * self.max_len + 1, self.depth)
+        self.relative_val = tf.keras.layers.Embedding(2 * self.max_len + 1, self.depth)
+
+    def _generate_relative_positions_matrix(self, length_q, length_k):
+
+        range_vec_k = tf.range(length_k)
+        range_vec_q = tf.range(length_q) + (length_k - length_q) // 2
+
+        distance_mat = range_vec_k[None, :] - range_vec_q[:, None]
+        distance_mat = distance_mat + self.max_len
+
+        # if length_q + (length_k - length_q) // 2 > self.max_len:
+        #     logging.warn(
+        #         'Axial attention span is larger than MAX_SPAN.')
+        #     distance_mat = tf.clip_by_value(distance_mat, -self.max_len, self.max_len)
+        return distance_mat
+
+    def _relative_attention_inner_1(self, x, y, z, transpose):
+
+        batch = tf.shape(x)[0]
+        xy_matmul = tf.matmul(x, y, transpose_b=transpose) / tf.math.sqrt(
+            tf.cast(self.depth, tf.float32))  # [batch_size, heads, length or 1, length or depth]
+        x_t = tf.transpose(x, [2, 0, 1, 3])  # [length or 1, batch_size, heads, length or depth]
+        x_t_r = tf.reshape(x_t, [self.max_len, self.num_heads * batch,
+                                 self.depth])  # [length or 1, batch_size * heads, length or depth]
+        z_t = tf.transpose(z, perm=[0, 2, 1])
+        x_tz_matmul = tf.matmul(x_t_r, z_t) / tf.math.sqrt(
+            tf.cast(self.depth, tf.float32))  # [length or 1, batch_size * heads, length or depth]
+        x_tz_matmul_r = tf.reshape(x_tz_matmul, [self.max_len, batch, self.num_heads,
+                                                 self.max_len])  # [length or 1, batch_size, heads, length or depth]
+        x_tz_matmul_r_t = tf.transpose(x_tz_matmul_r, [1, 2, 0, 3])  # [batch_size, heads, length or 1, length or depth]
+        return xy_matmul + x_tz_matmul_r_t
+
+    def _relative_attention_inner_2(self, aij, v, a_z, transpose):
+
+        batch = tf.shape(aij)[0]
+
+        xy_matmul = tf.matmul(aij, v)
+
+        x_t = tf.transpose(aij, perm=[2, 0, 1, 3])
+        x_t_r = tf.reshape(x_t, shape=(self.max_len, batch * self.num_heads, self.max_len))
+        xz = tf.matmul(x_t_r, a_z)
+        xz_r = tf.reshape(xz, shape=(self.max_len, batch, self.num_heads, self.depth))
+        xz_r_t = tf.transpose(xz_r, perm=[1, 2, 0, 3])
+
+        return xy_matmul + xz_r_t
+
+    def dot_product_attention_relative(self, q, k, v, mask):
+
+        length_k = tf.shape(k)[2]
+        length_q = tf.shape(q)[2]
+
+        relations_keys = self.relative_key(self._generate_relative_positions_matrix(length_q, length_k))
+        relations_values = self.relative_val(self._generate_relative_positions_matrix(length_q, length_k))
+
+        eij = self._relative_attention_inner_1(q, k, relations_keys, True)
+        eij += mask * (-1e9)
+        aij = tf.nn.softmax(eij)
+
+        return self._relative_attention_inner_2(aij, v, relations_values, False)
+
+    def split_heads(self, x, batch_size):
+        shape = (batch_size, self.max_len, self.num_heads, self.depth)
+        x = tf.reshape(x, shape=shape)
+
+        return tf.transpose(x, perm=[0, 2, 1, 3])
+
+    def call(self, q, k, v, mask):
+
+        batch_size = tf.shape(q)[0]
+
+        q = self.wq(q)  # (batch_size, seq_len, d_model)
+        k = self.wk(k)  # (batch_size, seq_len, d_model)
+        v = self.wv(v)  # (batch_size, seq_len, d_model)
+
+        q = self.split_heads(q, batch_size)  # (batch_size, num_heads, seq_len_q, depth)
+        k = self.split_heads(k, batch_size)  # (batch_size, num_heads, seq_len_k, depth)
+        v = self.split_heads(v, batch_size)  # (batch_size, num_heads, seq_len_v, depth)
+
+        if self.rel:
+            scaled_attention = self.dot_product_attention_relative(q, k, v, mask)
+        else:
+            scaled_attention = scaled_dot_product_attention(q, k, v, mask)
+
+        scaled_attention = tf.transpose(scaled_attention,
+                                        perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
+
+        concat_attention = tf.reshape(scaled_attention,
+                                      (batch_size, -1, self.d_model))  # (batch_size, seq_len_q, d_model)
+
+        output = self.dense(concat_attention)  # (batch_size, seq_len_q, d_model)
+
+        return output
+*/

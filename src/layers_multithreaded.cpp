@@ -74,7 +74,7 @@ Tensor* Conv2D_Fast::forward_pass(const Tensor& px, const bool training, void*)
     size_t out_wo_units = out.tot_size / units;
     size_t skip_w_help = ch * (w_width - 1);
     size_t bi_help = out_wo_units / out.shape[0];
-    size_t skip_h_help = (w_height - 1) * px.row*px.col;
+    size_t skip_h_help = (w_height - 1) * px.shape[px.rank-2]*px.shape[px.rank-1];
     size_t offset = width - w_width;
     size_t id_help = w_width * ch;
 
@@ -124,7 +124,7 @@ Tensor* Conv2D_Fast::forward_pass(const Tensor& px, const bool training, void*)
             },
             
             // pass these are parameters cause we dont want to copy the entire tensor
-            W.tot_size, out.row, units, ch, usebias);
+            W.tot_size, out.shape[out.rank-2], units, ch, usebias);
     }
 
     // free
@@ -151,7 +151,7 @@ Tensor* Conv2D_Fast::backward_pass(const Tensor& dy, const float lr, void*)
     size_t out_wo_units = dy.tot_size / units;
     size_t skip_w_help = ch * (w_width - 1);
     size_t bi_help = out_wo_units / dy.shape[0];
-    size_t skip_h_help = (w_height - 1) * X.row * X.col;
+    size_t skip_h_help = (w_height - 1) * X.shape[X.rank-2] * X.shape[X.rank-1];
     size_t offset = width - w_width;
     size_t id_help = w_width * ch;
 
@@ -207,7 +207,7 @@ Tensor* Conv2D_Fast::backward_pass(const Tensor& dy, const float lr, void*)
                 }
             },
         // pass these are parameters cause we dont want to copy the entire tensor
-        W.tot_size, dy.row, units, ch, dx_accum_pre_thread[th].tensor.get(), dw_accum_pre_thread[th].tensor.get());
+        W.tot_size, dy.shape[dy.rank-2], units, ch, dx_accum_pre_thread[th].tensor.get(), dw_accum_pre_thread[th].tensor.get());
     }
 
     // free
@@ -242,9 +242,9 @@ Tensor* Linear_Fast::forward_pass(const Tensor& px, const bool training, void*)
         {   
             // initially initilize the shape of X later just copy the tensors
             X = Tensor(px);
-            dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / (px.col)));
+            dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / (px.shape[px.rank-1])));
             
-            size_t w_shape[2] = {px.col, units};
+            size_t w_shape[2] = {px.shape[px.rank-1], units};
             size_t b_shape[2] = {1, units};
             W = Tensor::create(w_shape, 2);
             B = Tensor::create(b_shape, 2);
@@ -253,7 +253,7 @@ Tensor* Linear_Fast::forward_pass(const Tensor& px, const bool training, void*)
             std::fill_n(B.tensor.get(), B.tot_size, 0.0f); // zero fill
 
             float* pm = W.tensor.get();
-            for (size_t i = 0; i < size_t(px.col) * units; i++) pm[i] = dist(g);
+            for (size_t i = 0; i < size_t(px.shape[px.rank-1]) * units; i++) pm[i] = dist(g);
 
             m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
 
@@ -268,7 +268,7 @@ Tensor* Linear_Fast::forward_pass(const Tensor& px, const bool training, void*)
         else
         {
             // if trying to use (reuse) the layer on a different tensor
-            if (W.row != px.col) throw std::invalid_argument("cannot reuse layer");
+            if (W.shape[W.rank-2] != px.shape[px.rank-1]) throw std::invalid_argument("cannot reuse layer");
         }
         
         // copy px into X

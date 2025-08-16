@@ -30,16 +30,6 @@ Tensor::Tensor(const std::initializer_list<Tensor>& vs)
         }
         indexer += v.tot_size;
     }
-
-    index_helper = std::make_unique<size_t[]>(rank - 1);
-    index_helper[rank - 2] = shape[rank - 1];
-    for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
-    for (int i = rank - 1; i > -1; i--)
-    {
-        if (i == rank - 1) col = shape[i];
-        else if (i == rank - 2) row = shape[i];
-        else batch *= shape[i];
-    }
 }
 
 Tensor::Tensor(const std::initializer_list<float>& input)
@@ -57,16 +47,6 @@ Tensor::Tensor(const std::initializer_list<float>& input)
     tensor = std::make_unique<float[]>(tot_size);
     getArr(input, level);
 
-    index_helper = std::make_unique<size_t[]>(rank - 1);
-    index_helper[rank - 2] = shape[rank - 1];
-    for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
-
-    for (int i = rank - 1; i > -1; i--)
-    {
-        if (i == rank - 1) col = shape[i];
-        else if (i == rank - 2) row = shape[i];
-        else batch *= shape[i];  // all non col and row dims -> batch
-    }
 };
 
 Tensor::Tensor(const std::initializer_list<size_t>& in_shape, const char&)
@@ -83,23 +63,6 @@ Tensor::Tensor(const std::initializer_list<size_t>& in_shape, const char&)
     for (size_t i = 0; i < rank; i++) tot_size *= shape[i];
     tensor = std::make_unique<float[]>(tot_size);
 
-    if (rank >= 2)
-    {
-        batch = 1;
-        for (size_t i = 0; i < rank - 2; i++) batch *= shape[i];
-        row = shape[rank - 2];
-        col = shape[rank - 1];
-
-        index_helper = std::make_unique<size_t[]>(rank - 1);
-        index_helper[rank - 2] = shape[rank - 1];
-        for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
-    }
-    else
-    {
-        batch = tot_size;
-        row = col = 1;
-        index_helper = nullptr;
-    } 
 }
 
 Tensor::Tensor(const size_t in_shape[], const char&, const size_t& carray_len)
@@ -119,32 +82,15 @@ Tensor::Tensor(const size_t in_shape[], const char&, const size_t& carray_len)
     for (size_t i = 0; i < rank; i++) tot_size *= shape[i];
     tensor = std::make_unique<float[]>(tot_size);
 
-    if (rank >= 2)
-    {
-        batch = 1;
-        for (size_t i = 0; i < rank - 2; i++) batch *= shape[i];
-        row = shape[rank - 2];
-        col = shape[rank - 1];
-
-        index_helper = std::make_unique<size_t[]>(rank - 1);
-        index_helper[rank - 2] = shape[rank - 1];
-        for (int i = rank - 3; i > -1; i--) index_helper[i] = shape[i + 1] * index_helper[i + 1];
-    }
-    else
-    {
-        batch = tot_size;
-        row = col = 1;
-        index_helper = nullptr;
-    } 
 }
 
 float& Tensor::index(const size_t params[])
 {
     // TODO: ADD CHECKS!!!!!
     // if (sizeof(params)/sizeof(params[0]) != rank) throw std::invalid_argument("requested shape does not match tensor");
-    
-    size_t val = params[rank-1];
-    for (size_t i = 0; i < (rank - 1); i++) val += params[i] * index_helper[i];
+    size_t val = 0;
+    for (size_t i = 0; i < rank; i++)
+        val = val * shape[i] + params[i];
     return tensor[val];
 }
 
@@ -152,8 +98,9 @@ float Tensor::index(const size_t params[]) const
 {
     // if (sizeof(params)/sizeof(params[0]) != rank) throw std::invalid_argument("requested shape does not match tensor");
     
-    size_t val = params[rank-1];
-    for (size_t i = 0; i < (rank - 1); i++) val += params[i] * index_helper[i];
+    size_t val = 0;
+    for (size_t i = 0; i < rank; i++)
+        val = val * shape[i] + params[i];
     return tensor[val];
 }
 
@@ -180,7 +127,7 @@ Tensor Tensor::ops(const Tensor& other, float (*f)(float, float)) const
     float* c = (t.tensor).get();
 
     #pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < batch * row * col; i++) 
+    for (size_t i = 0; i < tot_size; i++) 
     {   
         c[i] = f(a[i], b[i]);
     }
@@ -280,7 +227,7 @@ Tensor Tensor::ops(const float scalar, float (*f)(float, float)) const
     float* a = (this->tensor).get();
     float* c = (t.tensor).get();
 
-    for (size_t i = 0; i < batch * row * col; i++)  c[i] = f(a[i], scalar);
+    for (size_t i = 0; i < tot_size; i++)  c[i] = f(a[i], scalar);
     
     return t;
 }
@@ -289,32 +236,28 @@ Tensor& Tensor::operator=(const Tensor& other)
 {
     if (this != &other) 
     {
-        batch = other.batch; row = other.row; col = other.col; rank = other.rank; tot_size = other.tot_size;
+        rank = other.rank; tot_size = other.tot_size;
 
         shape = std::make_unique<size_t[]>(rank);
-        index_helper = std::make_unique<size_t[]>(rank-1);
-        tensor = std::make_unique<float[]>(batch*row*col);
+        tensor = std::make_unique<float[]>(tot_size);
 
         std::memcpy(shape.get(), other.shape.get(), sizeof(size_t)*rank);
-        std::memcpy(index_helper.get(), other.index_helper.get(), sizeof(size_t)*(rank-1));
-        std::memcpy(tensor.get(), other.tensor.get(), sizeof(float)*batch*row*col);
+        std::memcpy(tensor.get(), other.tensor.get(), sizeof(float)*tot_size);
     }
     return *this;
 }
 
 Tensor::Tensor(Tensor&& other) noexcept
 {
-    batch = other.batch; row = other.row; col = other.col; rank = other.rank; tot_size = other.tot_size;
+    rank = other.rank; tot_size = other.tot_size;
     shape = std::move(other.shape);
-    index_helper = std::move(other.index_helper);
     tensor = std::move(other.tensor);
 }
 
 Tensor& Tensor::operator=(Tensor&& other)
 {
-    batch = other.batch; row = other.row; col = other.col; rank = other.rank; tot_size = other.tot_size;
+    rank = other.rank; tot_size = other.tot_size;
     shape = std::move(other.shape);
-    index_helper = std::move(other.index_helper);
     tensor = std::move(other.tensor);
     
     return *this;
@@ -322,24 +265,19 @@ Tensor& Tensor::operator=(Tensor&& other)
 
 Tensor::Tensor(const Tensor& other) // copy constructor
     :
-        batch(other.batch),
-        row(other.row),
-        col(other.col),
         rank(other.rank),
         tot_size(other.tot_size),
         shape(std::make_unique<size_t[]>(rank)),
-        index_helper(std::make_unique<size_t[]>(rank-1)),
-        tensor(std::make_unique<float[]>(batch*row*col))
+        tensor(std::make_unique<float[]>(tot_size))
 {
     std::memcpy(shape.get(), other.shape.get(), sizeof(size_t)*rank);
-    std::memcpy(index_helper.get(), other.index_helper.get(), sizeof(size_t)*(rank-1));
-    std::memcpy(tensor.get(), other.tensor.get(), sizeof(float)*batch*row*col);
+    std::memcpy(tensor.get(), other.tensor.get(), sizeof(float)*tot_size);
 }
 
 Tensor& Tensor::operator+=(const float scalar) 
 {   
     float* a = (this->tensor).get();
-    for (size_t i = 0; i < batch * row * col; i++) a[i] += scalar;
+    for (size_t i = 0; i < tot_size; i++) a[i] += scalar;
     return *this;
 }
 

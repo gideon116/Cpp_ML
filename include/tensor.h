@@ -9,13 +9,12 @@ class Tensor
 {
     public:
 
-        size_t batch = 1; size_t row = 0; size_t col = 0; size_t rank = 0; size_t tot_size = 0;
+        size_t rank = 0; size_t tot_size = 0;
         std::unique_ptr<size_t[]> shape;
-        std::unique_ptr<size_t[]> index_helper;
         std::unique_ptr<float[]> tensor;
 
         // default 
-        Tensor() : batch(1), row(0), col(0), rank(0), tot_size(0), shape(nullptr), index_helper(nullptr), tensor(nullptr) {}
+        Tensor() : rank(0), tot_size(0), shape(nullptr), tensor(nullptr) {}
 
         // create from scratch based on shape (init list or arr)
         static Tensor create(const std::initializer_list<size_t>& shape) { return Tensor(shape, 'C'); }

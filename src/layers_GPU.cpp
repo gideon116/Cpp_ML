@@ -7,9 +7,9 @@ Tensor* Linear_GPU::forward_pass(const Tensor& px, const bool training, void* gp
     {   
         // initially initilize the shape of X later just copy the tensors
         X = Tensor(px);
-        dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / (px.col)));
+        dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / (px.shape[px.rank-1])));
 
-        size_t w_shape[2] = {px.col, units};
+        size_t w_shape[2] = {px.shape[px.rank-1], units};
         size_t b_shape[2] = {1, units};
         W = Tensor::create(w_shape, 2);
         B = Tensor::create(b_shape, 2);
@@ -18,7 +18,7 @@ Tensor* Linear_GPU::forward_pass(const Tensor& px, const bool training, void* gp
         std::fill_n(B.tensor.get(), B.tot_size, 0.0f); // zero fill
 
         float* pm = W.tensor.get();
-        for (size_t i = 0; i < size_t(px.col) * units; i++) pm[i] = dist(g);
+        for (size_t i = 0; i < size_t(px.shape[px.rank-1]) * units; i++) pm[i] = dist(g);
 
         m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
 
@@ -33,7 +33,7 @@ Tensor* Linear_GPU::forward_pass(const Tensor& px, const bool training, void* gp
     else
     {
         // if trying to use (reuse) the layer on a different tensor
-        if (W.row != px.col) throw std::invalid_argument("cannot reuse layer");
+        if (W.shape[W.rank-2] != px.shape[px.rank-1]) throw std::invalid_argument("cannot reuse layer");
     }
     
     // copy px into X
@@ -168,7 +168,7 @@ Tensor* Conv2D_GPU::forward_pass(const Tensor& px, const bool training, void* gp
     VkDeviceSize sizeB = sizeof(float) * WB_size;
     VkDeviceSize sizeC = sizeof(float) * out.tot_size;
 
-    const char* spvPath = "../shaders/binaries/conv2d_f.spv";
+    const char* spvPath = "shaders/binaries/conv2d_f.spv";
     ((useGPU*)gpu)->program({sizeA, sizeB}, {sizeC}, {px.tensor.get(), WB.get()}, {out.tensor.get()}, spvPath, &push_constant, sizeof(push_constant), gx, gy, gz);
 
     return &out;
@@ -213,7 +213,7 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu)
     VkDeviceSize sizeC = sizeof(float) * dy.tot_size;
     VkDeviceSize sizeA = sizeof(float) * dx.tot_size;
 
-    const char* spvPath = "../shaders/binaries/conv2d_b_dx.spv";
+    const char* spvPath = "shaders/binaries/conv2d_b_dx.spv";
     ((useGPU*)gpu)->program({sizeB, sizeC}, {/*output=*/sizeA}, {W.tensor.get(), dy.tensor.get()}, {/*output=*/dx.tensor.get()}, spvPath, &push_constant, sizeof(push_constant), gx, gy, gz);
 
     gx = useGPU::ceilDiv(dw.shape[3], WGX);
@@ -224,7 +224,7 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu)
     sizeA = sizeof(float) * X.tot_size;
     sizeB = sizeof(float) * dw.tot_size;
     
-    spvPath ="../shaders/binaries/conv2d_b_dw.spv";
+    spvPath ="shaders/binaries/conv2d_b_dw.spv";
     ((useGPU*)gpu)->program({sizeC, sizeA}, {/*output=*/sizeB}, {dy.tensor.get(), X.tensor.get()}, {/*output=*/dw.tensor.get()}, spvPath, &push_constant, sizeof(push_constant), gx, gy, gz);
 
     float* pm_w = W.tensor.get();
@@ -321,7 +321,7 @@ Tensor* MaxPool2D_GPU::forward_pass(const Tensor& px, const bool training, void*
     VkDeviceSize sizePx = sizeof(float) * px.tot_size;
     VkDeviceSize sizeOut = sizeof(float) * out.tot_size;
 
-    const char* spvPath = "../shaders/binaries/MaxPool2D_f.spv";
+    const char* spvPath = "shaders/binaries/MaxPool2D_f.spv";
     ((useGPU*)gpu)->program({sizePx}, {m_argmax_len * sizeof(uint32_t), sizeOut}, {px.tensor.get()}, {argmax.get(), out.tensor.get()}, spvPath, &push_constant, sizeof(push_constant), gx, gy, gz);
 
 
@@ -361,7 +361,7 @@ Tensor* MaxPool2D_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu
     VkDeviceSize sizedy = sizeof(float) * dy.tot_size;
     VkDeviceSize sizedx = sizeof(float) * dx.tot_size;
 
-    const char* spvPath = "../shaders/binaries/MaxPool2D_b.spv";
+    const char* spvPath = "shaders/binaries/MaxPool2D_b.spv";
     ((useGPU*)gpu)->program({m_argmax_len * sizeof(uint32_t), sizedy}, {sizedx}, {argmax.get(), dy.tensor.get()}, {dx.tensor.get()}, spvPath, &push_constant, sizeof(push_constant), gx, gy, gz);
 
     return &dx;

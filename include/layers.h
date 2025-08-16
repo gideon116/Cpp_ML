@@ -40,6 +40,26 @@ class Linear : public Layer {
         Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
 };
 
+class MHA : public Layer {
+
+    public:
+        size_t units;
+        std::normal_distribution<float> dist;
+        std::mt19937 g;
+        Tensor out, W, B, X, dx, dw, db;
+        bool usebias = false;
+
+        
+        // initilize weights
+        MHA(size_t unit, bool use_bias=false, size_t rand=3) 
+            : units(unit), usebias(use_bias), g(rand)
+            { m_name = "linear"; }
+        
+        Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
+        Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
+};
+
+
 class ReLU : public Layer {
 
     public:
@@ -380,6 +400,5 @@ class MaxPool2D_GPU : public Layer {
         Tensor* forward_pass(const Tensor& px, const bool training, void* gpu) override;
         Tensor* backward_pass(const Tensor& dy, const float lr, void* gpu) override;
     };
-
 
 #endif
