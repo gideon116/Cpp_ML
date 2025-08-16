@@ -1,51 +1,110 @@
 #include "../include/model.h"
+#include <thread>
 
-void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_real, const Tensor& valid_input, const int epochs, const float lr)
+void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_real, const Tensor& valid_input, const int epochs, const float lr, bool use_gpu, size_t batch_size)
 {
+
+    if (!batch_size) batch_size = input.shape[0];
+    size_t num_batches = input.shape[0] / batch_size; // drop remainder
+
+    void* gpu;
+    if (use_gpu) gpu = new useGPU;
+    Tensor dy;
+    
+
+    size_t* mini_batch_shape = new size_t[input.rank];
+    memcpy(mini_batch_shape, input.shape.get(), sizeof(size_t) * input.rank);
+    mini_batch_shape[0] = batch_size;
+    Tensor mini_input = Tensor::create(mini_batch_shape, input.rank);
+    delete[] mini_batch_shape;
+
+    size_t* r_mini_batch_shape = new size_t[real.rank];
+    memcpy(r_mini_batch_shape, real.shape.get(), sizeof(size_t) * real.rank);
+    r_mini_batch_shape[0] = batch_size;
+    Tensor mini_real = Tensor::create(r_mini_batch_shape, real.rank);
+    delete[] r_mini_batch_shape;
+
+    
     Timer timer;
     std::cout << "\n____________________________________________";
     std::cout << "\nBeginning training\n\n";
-
-    float loss, val_loss;
-    const Tensor* y_ptr = nullptr;
-    Tensor* dy_ptr = nullptr;
-    Tensor dy;
-    const Tensor* val_pred_ptr = nullptr;
+        
     for (int epoch = 0; epoch < epochs; epoch++) 
     {
         Timer timer;
-    
-        // train
-        y_ptr = &input;
-        for (Layer* layer : network)
-        {
-            y_ptr = (*layer).forward_pass(*y_ptr);
-        }
 
+        #if 1
+        double loss = 0.0;
+        for (size_t b = 0; b < num_batches; b++)
+        {
+            memcpy(mini_input.tensor.get(), input.tensor.get() + b * mini_input.tot_size, sizeof(float) * mini_input.tot_size);
+            memcpy(mini_real.tensor.get(), real.tensor.get() + b * mini_real.tot_size, sizeof(float) * mini_real.tot_size);
+
+            // train
+            const Tensor* y_ptr = &mini_input;
+            for (Layer* layer : network)
+                y_ptr = (*layer).forward_pass(*y_ptr, /*training=*/true, gpu);
+            
+            // loss calc
+            if (epoch == 0 && b == 0) dy = *y_ptr;
+        
+            loss += wef::categoricalcrossentropy(mini_real, *y_ptr, dy);
+
+            
+            // backprop
+            Tensor* dy_ptr = &dy;
+            for (int i = (int)network.size() - 1; i >= 0; i--)
+                dy_ptr = (*network[i]).backward_pass(*dy_ptr, lr, gpu);
+
+
+        }
+        
+        std::cout << "epoch: " << epoch + 1 << "\n\ttrain_loss = " << loss/num_batches << "\n";
+
+        #else
+
+        double loss = 0.0;
+
+        // train
+        const Tensor* y_ptr = &input;
+        for (Layer* layer : network)
+            y_ptr = (*layer).forward_pass(*y_ptr, /*training=*/true, gpu);
+        
         // loss calc
-        if (!dy_ptr) dy = *y_ptr;
+        if (epoch == 0) dy = *y_ptr;
 
         loss = wef::categoricalcrossentropy(real, *y_ptr, dy);
         std::cout << "epoch: " << epoch + 1 << "\n\ttrain_loss = " << loss << "\n";
-        
-        // validation
-        val_pred_ptr = &valid_input;
-        for (Layer* layer : network) val_pred_ptr = (*layer).forward_pass(*val_pred_ptr, false);
-        val_loss = wef::categoricalcrossentropy(valid_real, *val_pred_ptr);
-        std::cout << "\tvalid_loss = " << val_loss << "\n";
 
         // backprop
-        dy_ptr = &dy;
+        Tensor* dy_ptr = &dy;
         for (int i = (int)network.size() - 1; i >= 0; i--) {
-            dy_ptr = (*network[i]).backward_pass(*dy_ptr, lr);
+            dy_ptr = (*network[i]).backward_pass(*dy_ptr, lr, gpu);
         }
 
+        #endif
+        
+        // validation
+        const Tensor* val_pred_ptr = &valid_input;
+        for (Layer* layer : network)
+            val_pred_ptr = (*layer).forward_pass(*val_pred_ptr, false, gpu);
+        float val_loss = wef::categoricalcrossentropy(valid_real, *val_pred_ptr);
+        std::cout << "\tvalid_loss = " << val_loss << "\n";
+
+        float acc = 0;
+        for (int i = 0; i < valid_real.tot_size; i++)
+            acc += wef::argmax(wef::softmax(*val_pred_ptr)).tensor[i] == valid_real.tensor[i];
+        acc /= valid_real.tot_size;
+        std::cout << "\tval_accuracy = " << acc << std::endl;
         std::cout << "\ttime per epoch = ";
-    }
+
+}
 
     std::cout << "\n____________________________________________";
     std::cout << "\nTraining complete";
     std::cout << "\nTotal training time = ";
+
+    if (use_gpu) delete (useGPU*)gpu;
 }
 
 void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const float lr)
@@ -87,10 +146,13 @@ void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const
     std::cout << "\nTotal training time = ";
 }
 
-Tensor Model::predict(const Tensor& input)
+Tensor Model::predict(const Tensor& input, bool use_gpu)
 { 
+    void* gpu;
+    if (use_gpu) gpu = new useGPU;
+
     const Tensor* y_ptr = &input;
-    for (Layer* layer : network) {y_ptr = (*layer).forward_pass(*y_ptr, false);}
+    for (Layer* layer : network) {y_ptr = (*layer).forward_pass(*y_ptr, false, gpu);}
     return *y_ptr;
 }
 

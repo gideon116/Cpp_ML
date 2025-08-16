@@ -1,12 +1,16 @@
 #if 0
-#endif
-#if 1
+#else
 #include "include/layers.h"
 #include "include/tensor.h"
 #include "include/model.h"
 #include "include/mnist.h"
 
-// TODO: MULTITHREAD TENSOR OPS & MAXPOOL
+// TODO: mutithread tensor ops and maxpool
+// TODO: add gpu support for linux and windows
+// TODO: tile dw and dx shaders for conv2d backward pass
+// TODO: add attention/mha layer
+// TODO: add shaders for reduce sum / layer normalization
+// TODO: add embedding layer
 
 int main() {
 

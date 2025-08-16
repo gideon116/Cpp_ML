@@ -3,7 +3,7 @@
 #include <random>
 #include "../include/layers.h"
 
-Tensor* Conv2D_Fast::forward_pass(const Tensor& px, const bool training) 
+Tensor* Conv2D_Fast::forward_pass(const Tensor& px, const bool training, void*) 
 {
     if (!init) 
     {   
@@ -20,7 +20,7 @@ Tensor* Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
 
         size_t B_shape[4] = {1, 1, 1, units};
         B = Tensor::create(B_shape, 4);
-        std::fill_n(B.tensor.get(), B.tot_size, 0.01f);
+        std::fill_n(B.tensor.get(), B.tot_size, 0.0f);
 
         float* pm = W.tensor.get();
         for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
@@ -136,7 +136,7 @@ Tensor* Conv2D_Fast::forward_pass(const Tensor& px, const bool training)
     return &out;
 }
 
-Tensor* Conv2D_Fast::backward_pass(const Tensor& dy, const float lr) 
+Tensor* Conv2D_Fast::backward_pass(const Tensor& dy, const float lr, void*) 
 {   
     float* dx_ptr = dx.tensor.get();
     float* dw_ptr = dw.tensor.get();
@@ -236,20 +236,21 @@ Tensor* Conv2D_Fast::backward_pass(const Tensor& dy, const float lr)
     return &dx;
 }
 
-Tensor* Linear_Fast::forward_pass(const Tensor& px, const bool training) 
+Tensor* Linear_Fast::forward_pass(const Tensor& px, const bool training, void*) 
     {
         if (!init) 
         {   
             // initially initilize the shape of X later just copy the tensors
             X = Tensor(px);
-
+            dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / (px.col)));
+            
             size_t w_shape[2] = {px.col, units};
             size_t b_shape[2] = {1, units};
             W = Tensor::create(w_shape, 2);
             B = Tensor::create(b_shape, 2);
 
             float* B_ptr = B.tensor.get();
-            std::fill_n(B.tensor.get(), B.tot_size, 0.01f); // zero fill
+            std::fill_n(B.tensor.get(), B.tot_size, 0.0f); // zero fill
 
             float* pm = W.tensor.get();
             for (size_t i = 0; i < size_t(px.col) * units; i++) pm[i] = dist(g);
@@ -279,7 +280,7 @@ Tensor* Linear_Fast::forward_pass(const Tensor& px, const bool training)
 
     }
 
-Tensor* Linear_Fast::backward_pass(const Tensor& dy, const float lr) 
+Tensor* Linear_Fast::backward_pass(const Tensor& dy, const float lr, void*) 
     {
         // gradient wrt the layer below
         dx = wef::matmul(dy, wef::transpose(W), true);
