@@ -104,7 +104,7 @@ float Tensor::index(const size_t params[]) const
     return tensor[val];
 }
 
-void Tensor::printShape()
+void Tensor::print_shape()
 {
     std::cout << "[ ";
     for (size_t i = 0; i < rank; i++) std::cout << shape[i] << " ";
@@ -267,8 +267,8 @@ Tensor::Tensor(const Tensor& other) // copy constructor
     :
         rank(other.rank),
         tot_size(other.tot_size),
-        shape(std::make_unique<size_t[]>(rank)),
-        tensor(std::make_unique<float[]>(tot_size))
+        shape(std::make_unique<size_t[]>(other.rank)),
+        tensor(std::make_unique<float[]>(other.tot_size))
 {
     std::memcpy(shape.get(), other.shape.get(), sizeof(size_t)*rank);
     std::memcpy(tensor.get(), other.tensor.get(), sizeof(float)*tot_size);

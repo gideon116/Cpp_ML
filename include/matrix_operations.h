@@ -17,6 +17,7 @@ namespace wef {
         Tensor matmul(const Tensor& m1, const Tensor& m2);
         Tensor matmul(const Tensor& m1, const Tensor& m2, bool, size_t n_threads=0);
         Tensor transpose(const Tensor& m1);
+        Tensor transpose(const Tensor& m1, const size_t* perm);
         Tensor argmax(const Tensor& m1);
         Tensor activation(const Tensor& m1, const char ops);
         Tensor softmax(const Tensor& m1);

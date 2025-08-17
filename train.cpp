@@ -1,4 +1,21 @@
-#if 0
+#if 1
+#include "include/layers.h"
+#include "include/tensor.h"
+#include "include/model.h"
+#include "include/mnist.h"
+
+
+    
+int main()
+{
+
+    Tensor a = {{{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}}};
+    
+    MHA mha(4, 2, true);
+    mha.forward_pass(a, a, a, false, true, nullptr);
+
+
+}
 #else
 #include "include/layers.h"
 #include "include/tensor.h"
@@ -23,8 +40,8 @@ int main() {
     Tensor test_im = load_mnist_images("mnist/t10k-images-idx3-ubyte", n_test);
     Tensor test_l = load_mnist_labels("mnist/t10k-labels-idx1-ubyte", n_test);
 
-    std::cout << "train image shape is: "; train_im.printShape();
-    std::cout << "train label shape is: "; train_l.printShape();
+    std::cout << "train image shape is: "; train_im.print_shape();
+    std::cout << "train label shape is: "; train_l.print_shape();
 
     float lr = 0.01f;
 

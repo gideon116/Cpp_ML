@@ -22,7 +22,7 @@ Tensor* Linear::forward_pass(const Tensor& px, const bool training, void*)
             float* pm = W.tensor.get();
             for (size_t i = 0; i < size_t(px.shape[px.rank-1]) * units; i++) pm[i] = dist(g);
 
-            m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
+            m_num_param = W.tot_size + (m_use_bias ? B.tot_size : 0);
             
             m_out_rank = px.rank;
             m_out_shape = std::make_unique<size_t[]>(m_out_rank);
@@ -42,11 +42,11 @@ Tensor* Linear::forward_pass(const Tensor& px, const bool training, void*)
         if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
 
 
-        if (usebias) out = wef::matmul(px, W, true) + B;
+        if (m_use_bias) out = wef::matmul(px, W, true) + B;
         else out = wef::matmul(px, W, true);
         return &out;
 
-        // if (usebias) return &wef::matmul(px, W) + B;
+        // if (m_use_bias) return &wef::matmul(px, W) + B;
         // return &wef::matmul(px, W);
     }
 
@@ -62,7 +62,7 @@ Tensor* Linear::backward_pass(const Tensor& dy, const float lr, void*)
 
         W = W - dw * lr / dy.shape[0];
 
-        if (usebias) 
+        if (m_use_bias) 
         {
             // gradient wrt bias sum everything aside from the last axis
             db = dy;
@@ -108,7 +108,7 @@ Tensor* Conv2D::forward_pass(const Tensor& px, const bool training, void*)
         dw = Tensor(W);
         db = Tensor(B);
         
-        m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
+        m_num_param = W.tot_size + (m_use_bias ? B.tot_size : 0);
         
         init = true;
     }
@@ -166,7 +166,7 @@ Tensor* Conv2D::forward_pass(const Tensor& px, const bool training, void*)
             for (size_t u_i = 0; u_i < units; u_i++)
                 out_ptr[out_i * units + u_i] += temp_px * W_ptr[w_i * units + u_i];
         }
-        if (usebias)
+        if (m_use_bias)
             for (size_t u_i = 0; u_i < units; u_i++)
                 out_ptr[out_i * units + u_i] += B_ptr[u_i];
     }
@@ -219,7 +219,7 @@ Tensor* Conv2D::backward_pass(const Tensor& dy, const float lr, void*)
         // divide lr by batch size
         for (size_t i = 0; i < W.tot_size; i++) W_ptr[i] -= dw_ptr[i] * lr /dy.shape[0];
 
-        if (usebias)
+        if (m_use_bias)
         {
             db = dy;
             for (size_t i = 0; i < db.rank - 1; i++) db = wef::reducesum(db, i);
@@ -264,7 +264,7 @@ Tensor* Conv2D_legacy::forward_pass(const Tensor& px, const bool training, void*
         dw = Tensor(W);
         db = Tensor(B);
 
-        m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
+        m_num_param = W.tot_size + (m_use_bias ? B.tot_size : 0);
 
         init = true;
     }
@@ -313,7 +313,7 @@ Tensor* Conv2D_legacy::forward_pass(const Tensor& px, const bool training, void*
                             }
                         }
                     }
-                    pm_out[ind++] = temp + (usebias ? pm_b[oc] : 0.0); // TODO: check BIAS
+                    pm_out[ind++] = temp + (m_use_bias ? pm_b[oc] : 0.0); // TODO: check BIAS
                 }
             }
         }
@@ -367,7 +367,7 @@ Tensor* Conv2D_legacy::backward_pass(const Tensor& dy, const float lr, void*)
         // divide lr by batch size
         for (size_t i = 0; i < W.tot_size; i++) pm_w[i] = pm_w[i] - (pm_dw[i] * lr / dy.shape[0]);
 
-        if (usebias)
+        if (m_use_bias)
         {
             db = dy;
             for (size_t i = 0; i < db.rank - 1; i++) db = wef::reducesum(db, i);
@@ -683,7 +683,7 @@ Tensor* Conv2D_NR::forward_pass(const Tensor& px, const bool training, void*)
         dw = Tensor(W);
         db = Tensor(B);
 
-        m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
+        m_num_param = W.tot_size + (m_use_bias ? B.tot_size : 0);
 
         init = true;
     }
@@ -732,7 +732,7 @@ Tensor* Conv2D_NR::forward_pass(const Tensor& px, const bool training, void*)
                             }
                         }
                     }
-                    pm_out[ind++] = temp + (usebias ? pm_b[oc] : 0.0); // TODO: check BIAS
+                    pm_out[ind++] = temp + (m_use_bias ? pm_b[oc] : 0.0); // TODO: check BIAS
                 }
             }
         }
@@ -831,7 +831,7 @@ Tensor* Conv2D_NR::backward_pass(const Tensor& dy, const float lr, void*)
     for (size_t i = 0; i < W.tot_size; i++)
         pm_w[i] -= (pm_dw[i] * lr / dy.shape[0]);
 
-    if (usebias)
+    if (m_use_bias)
     {
         db = dy;
         for (size_t i = 0; i < db.rank - 1; i++)
@@ -842,134 +842,65 @@ Tensor* Conv2D_NR::backward_pass(const Tensor& dy, const float lr, void*)
     return &dx;
 }
 
-/*
-Tensor scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor& mask)
+Tensor MHA::scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const bool& mask)
 {
-    Tensor product = wef::matmul(q, wef::transpose(k), )
-    keys_dim = tf.cast(tf.shape(k)[-1], tf.float32)
+    Tensor product = wef::matmul(q, wef::transpose(k));
+    float keys_dim = (float)k.shape[k.rank-1];
 
-    eij = product / tf.math.sqrt(keys_dim)
+    Tensor eij = product / sqrt(keys_dim);
 
-    if mask is not None:
-        eij += (mask * -1e9)
+    if (mask)
+        eij += (mask * -1e9);
 
-    aij = tf.nn.softmax(eij, axis=-1)
-    z = tf.matmul(aij, v)
-
-    return z
+    Tensor aij = wef::softmax(eij);
+    Tensor z = wef::matmul(aij, v);
+    return z;
 }
 
+Tensor MHA::split_heads(Tensor& x, size_t m_num_heads, size_t m_depth)
+{
+    size_t shape[4] = {x.shape[0], x.shape[1], m_num_heads, m_depth};
+ 
+    x.shape.reset();
+    x.shape = std::make_unique<size_t[]>(4);
+    memcpy(x.shape.get(), shape, sizeof(size_t) * 4);
+    x.rank = 4; // (batch_size, seq_len_q, d_model)
 
-class MultiHeadAttention(tf.keras.layers.Layer):
-    def __init__(self, num_heads, max_len, rel):
-        super(MultiHeadAttention, self).__init__()
-        self.num_heads = num_heads
-        self.max_len = max_len
-        self.rel = rel
+    size_t prem[4] = {0, 2, 1, 3};
+    return wef::transpose(x, prem);
+}
 
-    def build(self, input_shape):
-        self.d_model = input_shape[-1]
-        assert self.d_model % self.num_heads == 0
+Tensor* MHA::forward_pass(const Tensor& q, const Tensor& k, const Tensor& v, const bool& mask, const bool training, void* gpu)
+{
+    if (!init)
+    {
+        m_d_model = q.shape[-1];
+        m_num_heads = 1;
+        if (m_d_model % m_num_heads != 0)
+            throw std::invalid_argument("tensor rank must be > 1");
 
-        self.depth = self.d_model // self.num_heads
+        m_depth = m_d_model / m_num_heads;
+        wq = std::make_unique<Linear>(m_d_model, m_use_bias);
+        wk = std::make_unique<Linear>(m_d_model, m_use_bias);
+        wv = std::make_unique<Linear>(m_d_model, m_use_bias);
+        out_layer = std::make_unique<Linear>(m_d_model, m_use_bias);
+        init = true;
+    }
 
-        self.wq = tf.keras.layers.Dense(units=self.d_model)
-        self.wk = tf.keras.layers.Dense(units=self.d_model)
-        self.wv = tf.keras.layers.Dense(units=self.d_model)
+    // TODO : add shape check after init
 
-        self.dense = tf.keras.layers.Dense(units=self.d_model)
+    wq->forward_pass(q, training, gpu);  // (batch_size, seq_len, d_model)
 
-        self.relative_key = tf.keras.layers.Embedding(2 * self.max_len + 1, self.depth)
-        self.relative_val = tf.keras.layers.Embedding(2 * self.max_len + 1, self.depth)
+   
 
-    def _generate_relative_positions_matrix(self, length_q, length_k):
+    return &a;  // (batch_size, seq_len_q, d_model)
+}
 
-        range_vec_k = tf.range(length_k)
-        range_vec_q = tf.range(length_q) + (length_k - length_q) // 2
-
-        distance_mat = range_vec_k[None, :] - range_vec_q[:, None]
-        distance_mat = distance_mat + self.max_len
-
-        # if length_q + (length_k - length_q) // 2 > self.max_len:
-        #     logging.warn(
-        #         'Axial attention span is larger than MAX_SPAN.')
-        #     distance_mat = tf.clip_by_value(distance_mat, -self.max_len, self.max_len)
-        return distance_mat
-
-    def _relative_attention_inner_1(self, x, y, z, transpose):
-
-        batch = tf.shape(x)[0]
-        xy_matmul = tf.matmul(x, y, transpose_b=transpose) / tf.math.sqrt(
-            tf.cast(self.depth, tf.float32))  # [batch_size, heads, length or 1, length or depth]
-        x_t = tf.transpose(x, [2, 0, 1, 3])  # [length or 1, batch_size, heads, length or depth]
-        x_t_r = tf.reshape(x_t, [self.max_len, self.num_heads * batch,
-                                 self.depth])  # [length or 1, batch_size * heads, length or depth]
-        z_t = tf.transpose(z, perm=[0, 2, 1])
-        x_tz_matmul = tf.matmul(x_t_r, z_t) / tf.math.sqrt(
-            tf.cast(self.depth, tf.float32))  # [length or 1, batch_size * heads, length or depth]
-        x_tz_matmul_r = tf.reshape(x_tz_matmul, [self.max_len, batch, self.num_heads,
-                                                 self.max_len])  # [length or 1, batch_size, heads, length or depth]
-        x_tz_matmul_r_t = tf.transpose(x_tz_matmul_r, [1, 2, 0, 3])  # [batch_size, heads, length or 1, length or depth]
-        return xy_matmul + x_tz_matmul_r_t
-
-    def _relative_attention_inner_2(self, aij, v, a_z, transpose):
-
-        batch = tf.shape(aij)[0]
-
-        xy_matmul = tf.matmul(aij, v)
-
-        x_t = tf.transpose(aij, perm=[2, 0, 1, 3])
-        x_t_r = tf.reshape(x_t, shape=(self.max_len, batch * self.num_heads, self.max_len))
-        xz = tf.matmul(x_t_r, a_z)
-        xz_r = tf.reshape(xz, shape=(self.max_len, batch, self.num_heads, self.depth))
-        xz_r_t = tf.transpose(xz_r, perm=[1, 2, 0, 3])
-
-        return xy_matmul + xz_r_t
-
-    def dot_product_attention_relative(self, q, k, v, mask):
-
-        length_k = tf.shape(k)[2]
-        length_q = tf.shape(q)[2]
-
-        relations_keys = self.relative_key(self._generate_relative_positions_matrix(length_q, length_k))
-        relations_values = self.relative_val(self._generate_relative_positions_matrix(length_q, length_k))
-
-        eij = self._relative_attention_inner_1(q, k, relations_keys, True)
-        eij += mask * (-1e9)
-        aij = tf.nn.softmax(eij)
-
-        return self._relative_attention_inner_2(aij, v, relations_values, False)
-
-    def split_heads(self, x, batch_size):
-        shape = (batch_size, self.max_len, self.num_heads, self.depth)
-        x = tf.reshape(x, shape=shape)
-
-        return tf.transpose(x, perm=[0, 2, 1, 3])
-
-    def call(self, q, k, v, mask):
-
-        batch_size = tf.shape(q)[0]
-
-        q = self.wq(q)  # (batch_size, seq_len, d_model)
-        k = self.wk(k)  # (batch_size, seq_len, d_model)
-        v = self.wv(v)  # (batch_size, seq_len, d_model)
-
-        q = self.split_heads(q, batch_size)  # (batch_size, num_heads, seq_len_q, depth)
-        k = self.split_heads(k, batch_size)  # (batch_size, num_heads, seq_len_k, depth)
-        v = self.split_heads(v, batch_size)  # (batch_size, num_heads, seq_len_v, depth)
-
-        if self.rel:
-            scaled_attention = self.dot_product_attention_relative(q, k, v, mask)
-        else:
-            scaled_attention = scaled_dot_product_attention(q, k, v, mask)
-
-        scaled_attention = tf.transpose(scaled_attention,
-                                        perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
-
-        concat_attention = tf.reshape(scaled_attention,
-                                      (batch_size, -1, self.d_model))  # (batch_size, seq_len_q, d_model)
-
-        output = self.dense(concat_attention)  # (batch_size, seq_len_q, d_model)
-
-        return output
-*/
+Tensor* MHA::backward_pass(const Tensor& dy, const float lr, void* gpu)
+{
+    Tensor* dy_ptr = out_layer->backward_pass(dy, lr, gpu);
+    dy_ptr = wv->backward_pass(*dy_ptr, lr, gpu);
+    dy_ptr = wk->backward_pass(*dy_ptr, lr, gpu);
+    dy_ptr = wq->backward_pass(*dy_ptr, lr, gpu);
+    return dy_ptr;
+}

@@ -176,18 +176,15 @@ Tensor wef::cops(const Tensor& m1, const float con, float (*f)(float, float))
 
 Tensor wef::transpose(const Tensor& m1)
 {
-    // TODO: make it work for any premutation not just .T
-    if (m1.rank < 2) throw std::invalid_argument("tensor 1 rank must be > 1");
+    // TODO: make this a wrapper for the full perm below
+    if (m1.rank < 2) throw std::invalid_argument("tensor rank must be > 1");
     
-    std::unique_ptr<size_t[]> temp_shape = std::make_unique<size_t[]>(m1.rank);
-    memcpy(temp_shape.get(), m1.shape.get(), sizeof(size_t) * m1.rank);
     size_t M = m1.shape[m1.rank - 2];
     size_t N = m1.shape[m1.rank - 1];
-    
-    temp_shape[m1.rank - 1] = M;
-    temp_shape[m1.rank - 2] = N;
 
-    Tensor m = Tensor::create(temp_shape.get(), m1.rank);
+    Tensor m = m1; // creating new tensor and value will be overwritten
+    m.shape[m1.rank - 1] = M;
+    m.shape[m1.rank - 2] = N;
 
     const float* pm1 = m1.tensor.get();
     float* pm = m.tensor.get();
@@ -198,18 +195,73 @@ Tensor wef::transpose(const Tensor& m1)
     const float* pm1temp;
     float* pmtemp;
 
-    for (size_t b = 0; b < batch; b++){
-
+    for (size_t b = 0; b < batch; b++)
+    {
         pm1temp = pm1 + b * msize;
         pmtemp = pm + b * msize;
 
         #pragma omp parallel for collapse(2) schedule(static)
-        for (size_t i = 0; i < M; i++) {
-            for (size_t j = 0; j < N; j++) {
+        for (size_t i = 0; i < M; i++)
+            for (size_t j = 0; j < N; j++)
                 pmtemp[j * M + i] = pm1temp[i * N + j];
-            }
-        }
     }
+    return m;
+}
+
+void transpose_helper(const size_t* old_shape, size_t* new_shape, const size_t rank, const size_t* perm,
+                        size_t* old_stride, size_t*  new_stride, size_t* multi, size_t* p_inv)
+{
+    old_stride[rank - 1] = 1;
+    new_stride[rank - 1] = 1;
+
+    for (size_t i = 0; i < rank; i++)
+        new_shape[i] = old_shape[perm[i]];
+
+    for (int i = (int)rank - 2; i >= 0; i--)
+    {
+        old_stride[i] = old_stride[i + 1] * old_shape[i + 1];
+        new_stride[i] = new_stride[i + 1] * new_shape[i + 1]; 
+    }
+
+    for (size_t i = 0; i < rank; i++) 
+        p_inv[perm[i]] = i; 
+}
+
+size_t transpose_index_mapper(size_t index, size_t rank, size_t* new_shape, size_t* multi, size_t* new_stride, size_t* old_stride, size_t* p_inv)
+{
+    // dest linear to dest multi
+    for (size_t i = 0; i < rank; i++) 
+        multi[i] = (index / new_stride[i]) % new_shape[i]; 
+
+    // dest multi to source linear
+    size_t prem_index = 0;
+    for (size_t i = 0; i < rank; i++)
+        prem_index += multi[p_inv[i]] * old_stride[i];
+
+    return prem_index;
+}
+
+Tensor wef::transpose(const Tensor& m1, const size_t* perm)
+{
+    // TODO : add prem check
+
+    if (m1.rank < 2) throw std::invalid_argument("tensor rank must be > 1");
+    
+    std::unique_ptr<size_t[]> old_stride, new_stride, multi, p_inv;
+    old_stride = std::make_unique<size_t[]>(m1.rank);
+    new_stride = std::make_unique<size_t[]>(m1.rank);
+    multi = std::make_unique<size_t[]>(m1.rank);
+    p_inv = std::make_unique<size_t[]>(m1.rank);
+
+    Tensor m = m1; // creating new tensor and value will be overwritten
+    transpose_helper(m1.shape.get(), m.shape.get(), m.rank, perm, old_stride.get(), new_stride.get(), multi.get(), p_inv.get());
+
+    const float* pm1 = m1.tensor.get();
+    float* pm = m.tensor.get();
+
+    for (size_t i = 0; i < m.tot_size; i++)
+        pm[i] = pm1[transpose_index_mapper(i, m.rank, m.shape.get(), multi.get(), new_stride.get(), old_stride.get(), p_inv.get())];
+    
     return m;
 }
 

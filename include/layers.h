@@ -28,12 +28,12 @@ class Linear : public Layer {
         std::normal_distribution<float> dist;
         std::mt19937 g;
         Tensor out, W, B, X, dx, dw, db;
-        bool usebias = false;
+        bool m_use_bias = false;
 
         
         // initilize weights
         Linear(size_t unit, bool use_bias=false, size_t rand=3) 
-            : units(unit), usebias(use_bias), g(rand)
+            : units(unit), m_use_bias(use_bias), g(rand)
             { m_name = "linear"; }
         
         Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
@@ -43,19 +43,24 @@ class Linear : public Layer {
 class MHA : public Layer {
 
     public:
-        size_t units;
-        std::normal_distribution<float> dist;
-        std::mt19937 g;
-        Tensor out, W, B, X, dx, dw, db;
-        bool usebias = false;
 
-        
+        bool m_use_bias = false;
+
+        size_t m_d_model, m_num_heads, m_depth;
+        std::unique_ptr<Linear> wq, wk, wv, out_layer;
+
+        Tensor a = {10};
+
         // initilize weights
-        MHA(size_t unit, bool use_bias=false, size_t rand=3) 
-            : units(unit), usebias(use_bias), g(rand)
-            { m_name = "linear"; }
+        MHA(size_t d_model, size_t num_heads=1, bool use_bias=false) 
+            : m_d_model(d_model), m_num_heads(num_heads), m_use_bias(use_bias)
+            { m_name = "MHA"; }
         
-        Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
+        Tensor scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const bool& mask);
+        Tensor split_heads(Tensor& x, size_t m_num_heads, size_t m_depth);
+
+        Tensor* forward_pass(const Tensor& q, const Tensor& k, const Tensor& v, const bool& mask, const bool training=true, void* gpu=nullptr);
+        Tensor* forward_pass(const Tensor& px, const bool training=true, void* gpu=nullptr) override {return &a;};
         Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
 };
 
@@ -127,11 +132,11 @@ class Conv2D : public Layer {
         std::normal_distribution<float> dist;
         
         Tensor W, X, out, dx, dw, B, db;
-        bool usebias = false;
+        bool m_use_bias = false;
         
         // initilize weights
         Conv2D(size_t w_h, size_t w_w, size_t u, bool use_bias=false, size_t rand=3)
-            : g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias)
+            : g(rand), w_height(w_h), w_width(w_w), units(u), m_use_bias(use_bias)
             { m_name = "Conv2D"; }
         
         Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
@@ -249,11 +254,11 @@ class Linear_Fast : public Layer {
         std::normal_distribution<float> dist;
         std::mt19937 g;
         Tensor out, W, B, X, dx, dw, db;
-        bool usebias = false;
+        bool m_use_bias = false;
         
         // initilize weights
         Linear_Fast(size_t unit, bool use_bias=false, size_t rand=3) 
-            : units(unit), usebias(use_bias), g(rand)
+            : units(unit), m_use_bias(use_bias), g(rand)
             { m_name = "Linear"; }
         
         Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
@@ -272,11 +277,11 @@ class Conv2D_Fast : public Layer {
         std::normal_distribution<float> dist;
         
         Tensor W, X, out, dx, dw, B, db;
-        bool usebias = false;
+        bool m_use_bias = false;
         
         // initilize weights
         Conv2D_Fast(size_t w_h, size_t w_w, size_t u, bool use_bias=false, size_t rand=3)
-            : g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias)
+            : g(rand), w_height(w_h), w_width(w_w), units(u), m_use_bias(use_bias)
             {
                 m_name = "Conv2D";
             }
@@ -297,11 +302,11 @@ class Conv2D_legacy : public Layer {
         std::normal_distribution<float> dist;
         
         Tensor W, X, out, dx, dw, B, db;
-        bool usebias = false;
+        bool m_use_bias = false;
         
         // initilize weights
         Conv2D_legacy(size_t w_h, size_t w_w, size_t u, bool use_bias=false, size_t rand=3)
-            : g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias)
+            : g(rand), w_height(w_h), w_width(w_w), units(u), m_use_bias(use_bias)
             { m_name = "Conv2D"; }
         
         Tensor* forward_pass(const Tensor& px, const bool training, void*);
@@ -320,11 +325,11 @@ class Conv2D_NR : public Layer {
         std::normal_distribution<float> dist;
         
         Tensor W, X, out, dx, dw, B, db;
-        bool usebias = false;
+        bool m_use_bias = false;
         
         // initilize weights
         Conv2D_NR(size_t w_h, size_t w_w, size_t u, bool use_bias=false, size_t rand=3)
-            : g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias)
+            : g(rand), w_height(w_h), w_width(w_w), units(u), m_use_bias(use_bias)
             { m_name = "Conv2D"; }
         
         Tensor* forward_pass(const Tensor& px, const bool training, void*);
@@ -345,11 +350,11 @@ class Conv2D_GPU : public Layer {
         
         Tensor W, X, out, dx, dw, B, db;
         std::unique_ptr<float[]> WB;
-        bool usebias = false;
+        bool m_use_bias = false;
         
         // initilize weights
         Conv2D_GPU(size_t w_h, size_t w_w, size_t u, bool use_bias=false, size_t rand=3)
-            : g(rand), w_height(w_h), w_width(w_w), units(u), usebias(use_bias)
+            : g(rand), w_height(w_h), w_width(w_w), units(u), m_use_bias(use_bias)
             {
                 m_name = "Conv2D";
             }
@@ -365,12 +370,12 @@ class Linear_GPU : public Layer {
         std::normal_distribution<float> dist;
         std::mt19937 g;
         Tensor out, W, B, X, dx, dw, db;
-        bool usebias = false;
+        bool m_use_bias = false;
 
         
         // initilize weights
         Linear_GPU(size_t unit, bool use_bias=false, size_t rand=3) 
-            : units(unit), usebias(use_bias), g(rand)
+            : units(unit), m_use_bias(use_bias), g(rand)
             { m_name = "linear"; }
         
         Tensor* forward_pass(const Tensor& px, const bool training, void* gpu) override;

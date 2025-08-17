@@ -20,7 +20,7 @@ Tensor* Linear_GPU::forward_pass(const Tensor& px, const bool training, void* gp
         float* pm = W.tensor.get();
         for (size_t i = 0; i < size_t(px.shape[px.rank-1]) * units; i++) pm[i] = dist(g);
 
-        m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
+        m_num_param = W.tot_size + (m_use_bias ? B.tot_size : 0);
 
         m_out_rank = px.rank;
         m_out_shape = std::make_unique<size_t[]>(m_out_rank);
@@ -39,7 +39,7 @@ Tensor* Linear_GPU::forward_pass(const Tensor& px, const bool training, void* gp
     // copy px into X
     if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
     
-    if (usebias) out = wef::matmul_GPU(gpu, px, W) + B;
+    if (m_use_bias) out = wef::matmul_GPU(gpu, px, W) + B;
     else out = wef::matmul_GPU(gpu, px, W);
     return &out;
 
@@ -58,7 +58,7 @@ Tensor* Linear_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu)
     W = wef::elemwise_GPU(gpu, W, dw * lr / dy.shape[0], /*operation=subtract=*/1);
     // W = W - dw * lr / dy.shape[0];
 
-    if (usebias) 
+    if (m_use_bias) 
     {
         // gradient wrt bias sum everything aside from the last axis
         db = dy;
@@ -106,10 +106,10 @@ Tensor* Conv2D_GPU::forward_pass(const Tensor& px, const bool training, void* gp
         db = Tensor(B);
 
         // weight + bias buffer
-        WB_size = W.tot_size + (usebias ? units : 0);
+        WB_size = W.tot_size + (m_use_bias ? units : 0);
         WB = std::make_unique<float[]>(WB_size);
 
-        m_num_param = W.tot_size + (usebias ? B.tot_size : 0);
+        m_num_param = W.tot_size + (m_use_bias ? B.tot_size : 0);
         
         init = true;
     }
@@ -130,7 +130,7 @@ Tensor* Conv2D_GPU::forward_pass(const Tensor& px, const bool training, void* gp
 
     std::memcpy(WB.get(), W.tensor.get(), W.tot_size * sizeof(float));
     uint32_t biasOffset = 0;
-    if (usebias)
+    if (m_use_bias)
     {
         biasOffset = W.tot_size;
         std::memcpy(WB.get() + W.tot_size, B.tensor.get(), units * sizeof(float));
@@ -235,7 +235,7 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu)
     // for (size_t i = 0; i < W.tot_size; i++)
     //     pm_w[i] -= (pm_dw[i] * lr / dy.shape[0]);
 
-    if (usebias)
+    if (m_use_bias)
     {
         db = dy;
         for (size_t i = 0; i < db.rank - 1; i++)

@@ -33,7 +33,7 @@ class Tensor
         // overload for read only access
         float index(const size_t params[]) const;
 
-        void printShape();
+        void print_shape();
 
         // bc unique ptr forbids copying and rule of 5
         Tensor(Tensor&& other) noexcept; // move constructor
