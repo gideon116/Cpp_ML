@@ -1,22 +1,4 @@
-#if 1
-#include "include/layers.h"
-#include "include/tensor.h"
-#include "include/model.h"
-#include "include/mnist.h"
-
-
-    
-int main()
-{
-
-    Tensor a = {{{1, 1}, {2, 2}, {3, 3}, {4, 4}}};
-    
-    MHA mha(4, 2, true);
-    Tensor* dy = mha.forward_pass(a, a, a, nullptr, true, nullptr);
-    mha.backward_pass(*dy, 0.01, nullptr);
-
-
-}
+#if 0
 #else
 #include "include/layers.h"
 #include "include/tensor.h"
