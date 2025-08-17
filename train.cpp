@@ -9,10 +9,11 @@
 int main()
 {
 
-    Tensor a = {{{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}}};
+    Tensor a = {{{1, 1}, {2, 2}, {3, 3}, {4, 4}}};
     
     MHA mha(4, 2, true);
-    mha.forward_pass(a, a, a, false, true, nullptr);
+    Tensor* dy = mha.forward_pass(a, a, a, nullptr, true, nullptr);
+    mha.backward_pass(*dy, 0.01, nullptr);
 
 
 }

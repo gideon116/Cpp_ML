@@ -45,22 +45,30 @@ class MHA : public Layer {
     public:
 
         bool m_use_bias = false;
+        bool m_self_attention = false;
 
-        size_t m_d_model, m_num_heads, m_depth;
+        size_t m_d_model, m_num_heads, m_depth, m_seq_len_q, m_seq_len_k, m_seq_len_v, m_batch;
         std::unique_ptr<Linear> wq, wk, wv, out_layer;
 
-        Tensor a = {10};
+        Tensor m_aij, m_q, m_k, m_v, m_output;
+        float keys_dim;
 
         // initilize weights
         MHA(size_t d_model, size_t num_heads=1, bool use_bias=false) 
             : m_d_model(d_model), m_num_heads(num_heads), m_use_bias(use_bias)
-            { m_name = "MHA"; }
-        
-        Tensor scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const bool& mask);
-        Tensor split_heads(Tensor& x, size_t m_num_heads, size_t m_depth);
+        {
+            m_name = "MHA"; 
+            if (m_d_model % m_num_heads != 0)
+                throw std::invalid_argument("tensor rank must be > 1");
 
-        Tensor* forward_pass(const Tensor& q, const Tensor& k, const Tensor& v, const bool& mask, const bool training=true, void* gpu=nullptr);
-        Tensor* forward_pass(const Tensor& px, const bool training=true, void* gpu=nullptr) override {return &a;};
+        m_depth = m_d_model / m_num_heads;}
+        
+        Tensor scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask);
+        void split_heads(Tensor& x, size_t seq_len);
+        void merge_heads(Tensor& x, size_t seq_len);
+
+        Tensor* forward_pass(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask, const bool training=true, void* gpu=nullptr);
+        Tensor* forward_pass(const Tensor& px, const bool training=true, void* gpu=nullptr) override {return &m_q;};
         Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
 };
 

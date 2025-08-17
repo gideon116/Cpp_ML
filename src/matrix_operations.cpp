@@ -4,7 +4,7 @@
 Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
 {
     if (m1.rank < 2 || m2.rank < 2)
-        throw std::invalid_argument("tensor 1 and tensor 2 rank must me > 1");
+        throw std::invalid_argument("tensor 1 and tensor 2 rank must be > 1");
 
     size_t M = m1.shape[m1.rank - 2];
     size_t N = m1.shape[m1.rank - 1];
@@ -78,7 +78,7 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
 Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, size_t n_threads)
 {
     if (m1.rank < 2 || m2.rank < 2)
-        throw std::invalid_argument("tensor 1 and tensor 2 rank must me > 1");
+        throw std::invalid_argument("tensor 1 and tensor 2 rank must be > 1");
 
     size_t M = m1.shape[m1.rank - 2];
     size_t N = m1.shape[m1.rank - 1];
@@ -569,7 +569,7 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
 Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
 {
     if (m1.rank < 2 || m2.rank < 2)
-        throw std::invalid_argument("tensor 1 and tensor 2 rank must me > 1");
+        throw std::invalid_argument("tensor 1 and tensor 2 rank must be > 1");
 
     size_t M = m1.shape[m1.rank - 2];
     size_t N = m1.shape[m1.rank - 1];

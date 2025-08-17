@@ -842,24 +842,24 @@ Tensor* Conv2D_NR::backward_pass(const Tensor& dy, const float lr, void*)
     return &dx;
 }
 
-Tensor MHA::scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const bool& mask)
+Tensor MHA::scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask)
 {
     Tensor product = wef::matmul(q, wef::transpose(k));
-    float keys_dim = (float)k.shape[k.rank-1];
+    keys_dim = (float)k.shape[k.rank-1];
 
     Tensor eij = product / sqrt(keys_dim);
 
     if (mask)
-        eij += (mask * -1e9);
+        eij = eij + (*mask * -1e9f); // TODO : add tensor += overload
 
-    Tensor aij = wef::softmax(eij);
-    Tensor z = wef::matmul(aij, v);
+    m_aij = wef::softmax(eij);
+    Tensor z = wef::matmul(m_aij, v);
     return z;
 }
 
-Tensor MHA::split_heads(Tensor& x, size_t m_num_heads, size_t m_depth)
+void MHA::split_heads(Tensor& x, size_t seq_len)
 {
-    size_t shape[4] = {x.shape[0], x.shape[1], m_num_heads, m_depth};
+    size_t shape[4] = {m_batch, seq_len, m_num_heads, m_depth};
  
     x.shape.reset();
     x.shape = std::make_unique<size_t[]>(4);
@@ -867,19 +867,17 @@ Tensor MHA::split_heads(Tensor& x, size_t m_num_heads, size_t m_depth)
     x.rank = 4; // (batch_size, seq_len_q, d_model)
 
     size_t prem[4] = {0, 2, 1, 3};
-    return wef::transpose(x, prem);
+    x = wef::transpose(x, prem);
 }
 
-Tensor* MHA::forward_pass(const Tensor& q, const Tensor& k, const Tensor& v, const bool& mask, const bool training, void* gpu)
+Tensor* MHA::forward_pass(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask, const bool training, void* gpu)
 {
     if (!init)
     {
-        m_d_model = q.shape[-1];
-        m_num_heads = 1;
-        if (m_d_model % m_num_heads != 0)
-            throw std::invalid_argument("tensor rank must be > 1");
-
-        m_depth = m_d_model / m_num_heads;
+        m_batch = q.shape[0];
+        m_seq_len_q = q.shape[1];
+        m_seq_len_k = k.shape[1];
+        m_seq_len_v = v.shape[1];
         wq = std::make_unique<Linear>(m_d_model, m_use_bias);
         wk = std::make_unique<Linear>(m_d_model, m_use_bias);
         wv = std::make_unique<Linear>(m_d_model, m_use_bias);
@@ -889,18 +887,78 @@ Tensor* MHA::forward_pass(const Tensor& q, const Tensor& k, const Tensor& v, con
 
     // TODO : add shape check after init
 
-    wq->forward_pass(q, training, gpu);  // (batch_size, seq_len, d_model)
+    m_q = *wq->forward_pass(q, training, gpu);  // (batch_size, seq_len, d_model)
+    m_k = *wk->forward_pass(k, training, gpu);  // (batch_size, seq_len, d_model)
+    m_v = *wv->forward_pass(v, training, gpu);  // (batch_size, seq_len, d_model)
 
-   
+    split_heads(m_q, m_seq_len_q);  // (batch_size, num_heads, seq_len_q, depth)
+    split_heads(m_k, m_seq_len_k);  // (batch_size, num_heads, seq_len_k, depth)
+    split_heads(m_v, m_seq_len_v);  // (batch_size, num_heads, seq_len_v, depth)
 
-    return &a;  // (batch_size, seq_len_q, d_model)
+    Tensor attention = scaled_dot_product_attention(m_q, m_k, m_v, mask);
+
+    size_t prem[4] = {0, 2, 1, 3};
+    attention = wef::transpose(attention, prem); // (batch_size, seq_len_q, num_heads, depth)
+    
+    size_t reshape[3] = {attention.shape[0], attention.shape[1], m_d_model};
+    attention.shape.reset();
+    attention.shape = std::make_unique<size_t[]>(3);
+    memcpy(attention.shape.get(), reshape, sizeof(size_t) * 3);
+    attention.rank = 3; // (batch_size, seq_len_q, d_model)
+
+    return out_layer->forward_pass(attention, training, gpu);  // (batch_size, seq_len_q, d_model)
+}
+
+void MHA::merge_heads(Tensor& x, size_t seq_len)
+{
+    size_t perm[4] = {0, 2, 1, 3};
+    x = wef::transpose(x, perm);
+    size_t shape[3] = {m_batch, seq_len, m_d_model};
+    x.shape.reset();
+    x.shape = std::make_unique<size_t[]>(3);
+    memcpy(x.shape.get(), shape, sizeof(size_t) * 3);
+    x.rank = 3;
 }
 
 Tensor* MHA::backward_pass(const Tensor& dy, const float lr, void* gpu)
 {
     Tensor* dy_ptr = out_layer->backward_pass(dy, lr, gpu);
-    dy_ptr = wv->backward_pass(*dy_ptr, lr, gpu);
-    dy_ptr = wk->backward_pass(*dy_ptr, lr, gpu);
-    dy_ptr = wq->backward_pass(*dy_ptr, lr, gpu);
-    return dy_ptr;
+
+    size_t shape[4] = {m_batch, m_seq_len_q, m_num_heads, m_depth};
+    dy_ptr->shape.reset();
+    dy_ptr->shape = std::make_unique<size_t[]>(4);
+    memcpy(dy_ptr->shape.get(), shape, sizeof(size_t) * 4);
+    dy_ptr->rank = 4;
+
+    size_t prem[4] = {0, 2, 1, 3};
+    *dy_ptr = wef::transpose(*dy_ptr, prem);
+
+    // undo "Tensor z = wef::matmul(aij, v);"
+    Tensor dv = wef::matmul(wef::transpose(m_aij), *dy_ptr);
+    Tensor daij = wef::matmul(*dy_ptr, wef::transpose(m_v));
+
+    // undo softmax
+    Tensor de = (daij - wef::reducesum(daij * m_aij, 3)) * m_aij;
+
+    // undo "Tensor eij = product / sqrt(keys_dim);"
+    const float scale = 1.0f / std::sqrt(keys_dim);
+    Tensor dq = wef::matmul(de, m_k) * scale;
+    Tensor dk = wef::matmul(wef::transpose(de), m_q) * scale;
+    
+    // undo split
+    merge_heads(dq, m_seq_len_q);
+    merge_heads(dk, m_seq_len_k);
+    merge_heads(dv, m_seq_len_v);
+
+    Tensor* dq_in = wq->backward_pass(dq, lr, gpu);
+    Tensor* dk_in = wk->backward_pass(dk, lr, gpu);
+    Tensor* dv_in = wv->backward_pass(dv, lr, gpu);
+    
+    if (m_self_attention)
+    {
+        m_output = *dq_in + *dk_in + *dv_in;
+        return &m_output;
+    }
+    else
+        return dq_in;
 }
