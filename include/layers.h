@@ -88,7 +88,7 @@ class Embedding : public Layer {
 
         // initilize weights
         Embedding(size_t vocab_size, size_t d_model, size_t rand=3) 
-            : m_vocab_size(vocab_size), m_d_model(), g(rand)
+            : m_vocab_size(vocab_size), m_d_model(d_model), g(rand)
             { m_name = "Embedding"; }
         
         Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
