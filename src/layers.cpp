@@ -962,3 +962,96 @@ Tensor* MHA::backward_pass(const Tensor& dy, const float lr, void* gpu)
     else
         return dq_in;
 }
+
+Tensor* Embedding::forward_pass(const Tensor& px, const bool training, void*) 
+    {
+        if (!init) 
+        {   
+            // initially initilize the shape of X later just copy the tensors
+            X = Tensor(px);
+
+            dist = std::normal_distribution<float>(0.0f, std::sqrt( 2.0f / m_vocab_size));
+
+            size_t w_shape[2] = {m_vocab_size, m_d_model};
+            W = Tensor::create(w_shape, 2);
+
+            float* pm = W.tensor.get();
+            for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
+
+            m_num_param = W.tot_size;
+
+            // in: [b, ml, 1(token)] or [b, ml]
+            // out: [b, ml, d_model]
+            if (px.shape[px.rank - 1] == 1)
+                m_out_rank = px.rank;
+            else
+                m_out_rank = px.rank + 1;
+
+            m_out_shape = std::make_unique<size_t[]>(m_out_rank);
+
+            std::memcpy(m_out_shape.get(), px.shape.get(), px.rank * sizeof(size_t)); // either px shape option works here cause we modify the last axis later
+            m_out_shape[m_out_rank - 1] = m_d_model;
+
+            // gradient wrt the layer below
+            dx = Tensor(px);
+
+            // gradients wrt weight
+            dw = Tensor(W);
+
+            init = true;
+        }
+        else
+        {
+            // TODO : add resuse guard
+        }
+
+        // copy px into X
+        // TODO : catch if X shape changes during training
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+
+        m_out_shape[0] = px.shape[0]; // flexable batch
+        out = Tensor::create(m_out_shape.get(), m_out_rank);
+
+
+        // cast the index (vocab) into an int and use it to index from the embedding table
+        float* pin = px.tensor.get();
+        float* pout = out.tensor.get();
+        float* pW = W.tensor.get();
+        size_t base;
+        for (size_t i = 0; i < px.tot_size; i++)
+        {
+            // pin[i] is the embedding row we want to index out
+            base = (size_t)pin[i] * m_d_model;
+            // end = (size_t)pin[i] * m_d_model + m_d_model;
+            memcpy(pout + i * m_d_model, pW + base, sizeof(float) * m_d_model);
+        }
+
+        return &out;
+
+    }
+
+Tensor* Embedding::backward_pass(const Tensor& dy, const float lr, void*) 
+    {
+        float* dx_ptr = dx.tensor.get();
+        float* dw_ptr = dw.tensor.get();
+        float* dy_ptr = dy.tensor.get();
+        float* X_ptr = X.tensor.get();
+
+        std::memset(dx_ptr, 0, (dx.tot_size) * sizeof(float)); // zero fill
+        std::memset(dw_ptr, 0, (dw.tot_size) * sizeof(float)); // zero fill
+
+        float* temp_dw = 0;
+        float* temp_dy = 0;
+        for (size_t i = 0; i < X.tot_size; i++)
+        {
+            temp_dw = dw_ptr + (size_t)X_ptr[i] * m_d_model;
+            temp_dy = dy_ptr + i * m_d_model;
+            for (size_t j = 0; j < m_d_model; j++)
+                temp_dw[j] += temp_dy[j];
+        }
+
+        W = W - dw * lr / dy.shape[0];
+
+        return &dx;
+    }
+

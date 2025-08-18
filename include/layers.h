@@ -54,8 +54,8 @@ class MHA : public Layer {
         float keys_dim;
 
         // initilize weights
-        MHA(size_t d_model, size_t num_heads=1, bool use_bias=false) 
-            : m_d_model(d_model), m_num_heads(num_heads), m_use_bias(use_bias)
+        MHA(size_t d_model, bool self_attention=false, size_t num_heads=1, bool use_bias=false) 
+            : m_d_model(d_model), m_self_attention(self_attention), m_num_heads(num_heads), m_use_bias(use_bias)
         {
             m_name = "MHA"; 
             if (m_d_model % m_num_heads != 0)
@@ -68,7 +68,30 @@ class MHA : public Layer {
         void merge_heads(Tensor& x, size_t seq_len);
 
         Tensor* forward_pass(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask, const bool training=true, void* gpu=nullptr);
-        Tensor* forward_pass(const Tensor& px, const bool training=true, void* gpu=nullptr) override {return &m_q;};
+        Tensor* forward_pass(const Tensor& px, const bool training=true, void* gpu=nullptr) override
+        {
+            std::cout << R"([ERROR ] YOU SHOULD NOT BE SEEING THIS MESSAGE! It means you passed the wrong input to MHA. 
+                            Stop and make sure to pass 3 inputs (q, k, v) to MHA otherwise your model won't work)";
+            return &m_q;
+        };
+        Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
+};
+
+class Embedding : public Layer {
+
+    public:
+        size_t m_vocab_size;
+        size_t m_d_model;
+        std::normal_distribution<float> dist;
+        std::mt19937 g;
+        Tensor out, W, X, dx, dw;
+
+        // initilize weights
+        Embedding(size_t vocab_size, size_t d_model, size_t rand=3) 
+            : m_vocab_size(vocab_size), m_d_model(), g(rand)
+            { m_name = "Embedding"; }
+        
+        Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
         Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
 };
 
