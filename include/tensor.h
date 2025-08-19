@@ -34,6 +34,9 @@ class Tensor
         float& index(const size_t params[]);
         // overload for read only access
         float index(const size_t params[]) const;
+        float& operator[](const std::initializer_list<size_t>& params);
+        float operator[](const std::initializer_list<size_t>& params) const;
+        Tensor operator[](const size_t& index); // TODO : DONT EVEN THINK ABOUT SHIPPING THIS
 
         void print_shape();
 

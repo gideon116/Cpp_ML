@@ -97,11 +97,52 @@ float& Tensor::index(const size_t params[])
 float Tensor::index(const size_t params[]) const
 {
     // if (sizeof(params)/sizeof(params[0]) != rank) throw std::invalid_argument("requested shape does not match tensor");
-    
     size_t val = 0;
     for (size_t i = 0; i < rank; i++)
         val = val * shape[i] + params[i];
     return tensor[val];
+}
+
+float& Tensor::operator[](const std::initializer_list<size_t>& params)
+{
+    if ((size_t)params.size() != rank)
+        throw std::invalid_argument("len(shape) must be == rank");
+
+    size_t val = 0;
+    size_t i = 0;
+    for (const auto& index : params)
+    {
+        val = val * shape[i] + index;
+        i++;
+    }
+    return tensor[val];
+}
+
+float Tensor::operator[](const std::initializer_list<size_t>& params) const
+{
+    if ((size_t)params.size() != rank)
+        throw std::invalid_argument("len(shape) must be == rank");
+
+    size_t val = 0;
+    size_t i = 0;
+    for (const auto& index : params)
+    {
+        val = val * shape[i] + index;
+        i++;
+    }
+    return tensor[val];
+}
+
+Tensor Tensor::operator[](const size_t& index)
+{
+    if (index >= shape[0])
+        throw std::invalid_argument("index out of bounds");
+
+    std::unique_ptr<size_t[]> new_shape = std::make_unique<size_t[]>(rank - 1);
+    memcpy(new_shape.get(), shape.get() + 1, (rank - 1) * sizeof(size_t));
+    Tensor out = Tensor::create(new_shape.get(), rank - 1);
+    memcpy(out.tensor.get(), tensor.get() + index * size/shape[0], (size/shape[0]) * sizeof(float));
+    return out;
 }
 
 void Tensor::print_shape()
