@@ -15,12 +15,12 @@ Tensor* Linear_GPU::forward_pass(const Tensor& px, const bool training, void* gp
         B = Tensor::create(b_shape, 2);
 
         float* B_ptr = B.tensor.get();
-        std::fill_n(B.tensor.get(), B.tot_size, 0.0f); // zero fill
+        std::fill_n(B.tensor.get(), B.size, 0.0f); // zero fill
 
         float* pm = W.tensor.get();
         for (size_t i = 0; i < size_t(px.shape[px.rank-1]) * units; i++) pm[i] = dist(g);
 
-        m_num_param = W.tot_size + (m_use_bias ? B.tot_size : 0);
+        m_num_param = W.size + (m_use_bias ? B.size : 0);
 
         m_out_rank = px.rank;
         m_out_shape = std::make_unique<size_t[]>(m_out_rank);
@@ -37,7 +37,7 @@ Tensor* Linear_GPU::forward_pass(const Tensor& px, const bool training, void* gp
     }
     
     // copy px into X
-    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.size * sizeof(float));
     
     if (m_use_bias) out = wef::matmul_GPU(gpu, px, W) + B;
     else out = wef::matmul_GPU(gpu, px, W);
@@ -56,7 +56,7 @@ Tensor* Linear_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu)
     for (size_t i = 0; i < dw.rank - 2; i++) dw = wef::reducesum(dw, i);
 
     W = wef::elemwise_GPU(gpu, W, dw * lr / dy.shape[0], /*operation=subtract=*/1);
-    // W = W - dw * lr / dy.shape[0];
+    // W -= dw * lr / dy.shape[0];
 
     if (m_use_bias) 
     {
@@ -64,7 +64,7 @@ Tensor* Linear_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu)
         db = dy;
         for (size_t i = 0; i < db.rank - 1; i++) db = wef::reducesum(db, i);
         B = wef::elemwise_GPU(gpu, B, db * lr / dy.shape[0], 1);
-        // B = B - db * lr / dy.shape[0];
+        // B-= db * lr / dy.shape[0];
     }
 
     return &dx;
@@ -87,10 +87,10 @@ Tensor* Conv2D_GPU::forward_pass(const Tensor& px, const bool training, void* gp
 
         size_t B_shape[4] = {1, 1, 1, units};
         B = Tensor::create(B_shape, 4);
-        std::fill_n(B.tensor.get(), B.tot_size, 0.0f);
+        std::fill_n(B.tensor.get(), B.size, 0.0f);
 
         float* pm = W.tensor.get();
-        for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
+        for (size_t i = 0; i < W.size; i++) pm[i] = dist(g);
 
         m_out_rank = px.rank; // this is 4, its always 4
         m_out_shape = std::make_unique<size_t[]>(m_out_rank); // heap allocation is not the best but we only do this once pre layer so its whatever
@@ -106,10 +106,10 @@ Tensor* Conv2D_GPU::forward_pass(const Tensor& px, const bool training, void* gp
         db = Tensor(B);
 
         // weight + bias buffer
-        WB_size = W.tot_size + (m_use_bias ? units : 0);
+        WB_size = W.size + (m_use_bias ? units : 0);
         WB = std::make_unique<float[]>(WB_size);
 
-        m_num_param = W.tot_size + (m_use_bias ? B.tot_size : 0);
+        m_num_param = W.size + (m_use_bias ? B.size : 0);
         
         init = true;
     }
@@ -122,18 +122,18 @@ Tensor* Conv2D_GPU::forward_pass(const Tensor& px, const bool training, void* gp
     }
 
     // copy px into X
-    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.size * sizeof(float));
 
     m_out_shape[0] = px.shape[0]; // flexable batch 
     out = Tensor::create(m_out_shape.get(), 4);
-    std::memset(out.tensor.get(), 0, (out.tot_size) * sizeof(float));
+    std::memset(out.tensor.get(), 0, (out.size) * sizeof(float));
 
-    std::memcpy(WB.get(), W.tensor.get(), W.tot_size * sizeof(float));
+    std::memcpy(WB.get(), W.tensor.get(), W.size * sizeof(float));
     uint32_t biasOffset = 0;
     if (m_use_bias)
     {
-        biasOffset = W.tot_size;
-        std::memcpy(WB.get() + W.tot_size, B.tensor.get(), units * sizeof(float));
+        biasOffset = W.size;
+        std::memcpy(WB.get() + W.size, B.tensor.get(), units * sizeof(float));
     }
 
     struct PC
@@ -164,9 +164,9 @@ Tensor* Conv2D_GPU::forward_pass(const Tensor& px, const bool training, void* gp
     uint32_t gy = useGPU::ceilDiv(push_constant.outH, WGY);
     uint32_t gz = useGPU::ceilDiv(push_constant.batch, WGZ);
 
-    VkDeviceSize sizeA = sizeof(float) * px.tot_size;
+    VkDeviceSize sizeA = sizeof(float) * px.size;
     VkDeviceSize sizeB = sizeof(float) * WB_size;
-    VkDeviceSize sizeC = sizeof(float) * out.tot_size;
+    VkDeviceSize sizeC = sizeof(float) * out.size;
 
     const char* spvPath = "shaders/binaries/conv2d_f.spv";
     ((useGPU*)gpu)->program({sizeA, sizeB}, {sizeC}, {px.tensor.get(), WB.get()}, {out.tensor.get()}, spvPath, &push_constant, sizeof(push_constant), gx, gy, gz);
@@ -179,8 +179,8 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu)
     float* dx_ptr = dx.tensor.get();
     float* dw_ptr = dw.tensor.get();
 
-    std::memset(dx_ptr, 0, (dx.tot_size) * sizeof(float)); // zero fill
-    std::memset(dw_ptr, 0, (dw.tot_size) * sizeof(float)); // zero fill
+    std::memset(dx_ptr, 0, (dx.size) * sizeof(float)); // zero fill
+    std::memset(dw_ptr, 0, (dw.size) * sizeof(float)); // zero fill
 
     // gpu computation
     struct PC
@@ -209,9 +209,9 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu)
     uint32_t gy = useGPU::ceilDiv(dx.shape[2] * dx.shape[3], WGY);
     uint32_t gz = useGPU::ceilDiv(dx.shape[1], WGZ);
     
-    VkDeviceSize sizeB = sizeof(float) * W.tot_size;
-    VkDeviceSize sizeC = sizeof(float) * dy.tot_size;
-    VkDeviceSize sizeA = sizeof(float) * dx.tot_size;
+    VkDeviceSize sizeB = sizeof(float) * W.size;
+    VkDeviceSize sizeC = sizeof(float) * dy.size;
+    VkDeviceSize sizeA = sizeof(float) * dx.size;
 
     const char* spvPath = "shaders/binaries/conv2d_b_dx.spv";
     ((useGPU*)gpu)->program({sizeB, sizeC}, {/*output=*/sizeA}, {W.tensor.get(), dy.tensor.get()}, {/*output=*/dx.tensor.get()}, spvPath, &push_constant, sizeof(push_constant), gx, gy, gz);
@@ -220,9 +220,9 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu)
     gy = useGPU::ceilDiv(dw.shape[2], WGY);
     gz = useGPU::ceilDiv(dw.shape[0] * dw.shape[1], WGZ);
 
-    sizeC = sizeof(float) * dy.tot_size;
-    sizeA = sizeof(float) * X.tot_size;
-    sizeB = sizeof(float) * dw.tot_size;
+    sizeC = sizeof(float) * dy.size;
+    sizeA = sizeof(float) * X.size;
+    sizeB = sizeof(float) * dw.size;
     
     spvPath ="shaders/binaries/conv2d_b_dw.spv";
     ((useGPU*)gpu)->program({sizeC, sizeA}, {/*output=*/sizeB}, {dy.tensor.get(), X.tensor.get()}, {/*output=*/dw.tensor.get()}, spvPath, &push_constant, sizeof(push_constant), gx, gy, gz);
@@ -231,9 +231,7 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu)
     float* pm_dw = dw.tensor.get();
     // divide lr by batch size
     W = wef::elemwise_GPU(gpu, W, dw * lr / dy.shape[0], 1); // or
-    // W = W - dw * lr / dy.shape[0]; // or 
-    // for (size_t i = 0; i < W.tot_size; i++)
-    //     pm_w[i] -= (pm_dw[i] * lr / dy.shape[0]);
+    // W -= dw * lr / dy.shape[0];
 
     if (m_use_bias)
     {
@@ -241,7 +239,7 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu)
         for (size_t i = 0; i < db.rank - 1; i++)
             db = wef::reducesum(db, i);
         B = wef::elemwise_GPU(gpu, B, db * lr / dy.shape[0], 1);
-        // B = B - db * lr / dy.shape[0];
+        // B -= db * lr / dy.shape[0];
     }
 
     return &dx;
@@ -284,7 +282,7 @@ Tensor* MaxPool2D_GPU::forward_pass(const Tensor& px, const bool training, void*
     }
 
     // copy px into X
-    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float)); // TODO : is X even used in back prop?
+    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.size * sizeof(float)); // TODO : is X even used in back prop?
 
     // batch is flexable
     m_out_shape[0] = px.shape[0];
@@ -318,8 +316,8 @@ Tensor* MaxPool2D_GPU::forward_pass(const Tensor& px, const bool training, void*
     uint32_t gy = useGPU::ceilDiv(push_constant.outH, WGY);
     uint32_t gz = useGPU::ceilDiv(push_constant.batch, WGZ);
 
-    VkDeviceSize sizePx = sizeof(float) * px.tot_size;
-    VkDeviceSize sizeOut = sizeof(float) * out.tot_size;
+    VkDeviceSize sizePx = sizeof(float) * px.size;
+    VkDeviceSize sizeOut = sizeof(float) * out.size;
 
     const char* spvPath = "shaders/binaries/MaxPool2D_f.spv";
     ((useGPU*)gpu)->program({sizePx}, {m_argmax_len * sizeof(uint32_t), sizeOut}, {px.tensor.get()}, {argmax.get(), out.tensor.get()}, spvPath, &push_constant, sizeof(push_constant), gx, gy, gz);
@@ -330,7 +328,7 @@ Tensor* MaxPool2D_GPU::forward_pass(const Tensor& px, const bool training, void*
 
 Tensor* MaxPool2D_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu) 
 {
-    std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float));  // zero fill
+    std::memset(dx.tensor.get(), 0, (dx.size) * sizeof(float));  // zero fill
     size_t ind = 0;
     size_t i1[4];
 
@@ -358,8 +356,8 @@ Tensor* MaxPool2D_GPU::backward_pass(const Tensor& dy, const float lr, void* gpu
     uint32_t gy = useGPU::ceilDiv(push_constant.outH, WGY);
     uint32_t gz = useGPU::ceilDiv(push_constant.batch, WGZ);
 
-    VkDeviceSize sizedy = sizeof(float) * dy.tot_size;
-    VkDeviceSize sizedx = sizeof(float) * dx.tot_size;
+    VkDeviceSize sizedy = sizeof(float) * dy.size;
+    VkDeviceSize sizedx = sizeof(float) * dx.size;
 
     const char* spvPath = "shaders/binaries/MaxPool2D_b.spv";
     ((useGPU*)gpu)->program({m_argmax_len * sizeof(uint32_t), sizedy}, {sizedx}, {argmax.get(), dy.tensor.get()}, {dx.tensor.get()}, spvPath, &push_constant, sizeof(push_constant), gx, gy, gz);

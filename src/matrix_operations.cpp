@@ -29,7 +29,7 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
     const float* pm2 = m2.tensor.get();
     float* pm = m.tensor.get();
 
-    size_t batch = m1.tot_size/(M*N);
+    size_t batch = m1.size/(M*N);
 
     const size_t m1size = M * N; // to shift pm1 by one batch worth
     const size_t m2size = N * K * !bcast; // only shift if m2 is not broadcast
@@ -37,7 +37,7 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
     /*
     // second option for matmul, maybe slower but its a flat loop
     #pragma omp parallel for schedule(static)
-    for (size_t elem = 0; elem < m.tot_size; elem++)
+    for (size_t elem = 0; elem < m.size; elem++)
     {
         size_t b = elem / (M * K);
         size_t c = b * m2size + elem % K;
@@ -103,7 +103,7 @@ Tensor wef::matmul(const Tensor& m1, const Tensor& m2, bool, size_t n_threads)
     const float* pm2 = m2.tensor.get();
     float* pm = m.tensor.get();
 
-    size_t batch = m1.tot_size/(M*N);
+    size_t batch = m1.size/(M*N);
 
     const size_t m1size = M * N; // to shift pm1 by one batch worth
     const size_t m2size = N * K * !bcast; // only shift if m2 is not broadcast
@@ -168,7 +168,7 @@ Tensor wef::cops(const Tensor& m1, const float con, float (*f)(float, float))
     float* pm = m.tensor.get();
 
     #pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < m1.tot_size; i++) pm[i] = f(pm1[i], con);
+    for (size_t i = 0; i < m1.size; i++) pm[i] = f(pm1[i], con);
 
     return m;
 
@@ -190,7 +190,7 @@ Tensor wef::transpose(const Tensor& m1)
     float* pm = m.tensor.get();
 
     const size_t msize = M * N;
-    size_t batch = m1.tot_size/(M*N);
+    size_t batch = m1.size/(M*N);
 
     const float* pm1temp;
     float* pmtemp;
@@ -259,7 +259,7 @@ Tensor wef::transpose(const Tensor& m1, const size_t* perm)
     const float* pm1 = m1.tensor.get();
     float* pm = m.tensor.get();
 
-    for (size_t i = 0; i < m.tot_size; i++)
+    for (size_t i = 0; i < m.size; i++)
         pm[i] = pm1[transpose_index_mapper(i, m.rank, m.shape.get(), multi.get(), new_stride.get(), old_stride.get(), p_inv.get())];
     
     return m;
@@ -281,7 +281,7 @@ Tensor wef::argmax(const Tensor& m1)
     size_t last_axis = m1.shape[m1.rank-1];
 
     #pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < m1.tot_size / last_axis; i++)
+    for (size_t i = 0; i < m1.size / last_axis; i++)
     {
         float temp_val = -1e19f;
         for (size_t j = 0; j < last_axis; j++) 
@@ -304,7 +304,7 @@ Tensor wef::softmax(const Tensor& m1)
     size_t last_axis = m1.shape[m1.rank-1];
 
     #pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < m1.tot_size / last_axis; i++)
+    for (size_t i = 0; i < m1.size / last_axis; i++)
     {
         float sum = 1e-19f;
         for (size_t j = 0; j < last_axis; j++)
@@ -323,7 +323,7 @@ Tensor wef::activation(const Tensor& m1, const char ops)
     float* pm = m.tensor.get();
 
     #pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < m1.tot_size; i++) 
+    for (size_t i = 0; i < m1.size; i++) 
     {
         switch (ops) {
             // relu
@@ -368,14 +368,14 @@ Tensor wef::reducesum(const Tensor& m1, const int ax)
     const float* pm1 = m1.tensor.get();
     float* pm = m.tensor.get();
     
-    std::memset(pm, 0, (m.tot_size) * sizeof(float));
+    std::memset(pm, 0, (m.size) * sizeof(float));
 
     size_t eaa = 1; // everything after axis i.e. b, h w, axis, x1, x2 -> eaa = x1 * x2
     for (size_t i = ax + 1; i < m1.rank; i++) eaa *= m1.shape[i];
     size_t ax_help = m1.shape[ax]*eaa;
 
     #pragma omp parallel for schedule(static) // TODO : data races
-    for (size_t i = 0; i < m1.tot_size; i++) pm[ (i % eaa) + eaa * (i / ax_help) ] += pm1[i];
+    for (size_t i = 0; i < m1.size; i++) pm[ (i % eaa) + eaa * (i / ax_help) ] += pm1[i];
     
     return m;
 }
@@ -390,12 +390,12 @@ float wef::l2(const Tensor& m1, const Tensor& m2)
     float loss = 0.0f;
 
     #pragma omp parallel for reduction(+:loss) schedule(static) 
-    for (size_t i = 0; i < m1.tot_size; i++) 
+    for (size_t i = 0; i < m1.size; i++) 
     {
         loss += std::pow(pm1[i] - pm2[i], 2);
     }
 
-    return loss / (m1.tot_size);
+    return loss / (m1.size);
 }
 
 float wef::binarycrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real and m2 pred !!
@@ -408,14 +408,14 @@ float wef::binarycrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real 
     const float eps = 1e-19f;
     
     #pragma omp parallel for reduction(+:loss) schedule(static) 
-    for (size_t i = 0; i < m1.tot_size; i++)
+    for (size_t i = 0; i < m1.size; i++)
     {   
         size_t temp_real = pm1[i] > 0.5;
         
         loss += -(temp_real * std::log(pm2[i] + eps) + (1 - temp_real) * std::log(1 - pm2[i] + eps));
     }
 
-    return loss / m1.tot_size;
+    return loss / m1.size;
 }
 
 float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m /*m is same as pred*/) // m1 is real and m2 pred !!
@@ -434,7 +434,7 @@ float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m
     const size_t num_classes = m2.shape[m2.rank - 1];
 
     #pragma omp parallel for reduction(+:loss) schedule(static)
-    for (size_t i = 0; i < m1.tot_size; i++) 
+    for (size_t i = 0; i < m1.size; i++) 
     {   
         size_t tempid = i * num_classes;
         size_t base = i * m.shape[m.rank - 1];
@@ -459,7 +459,7 @@ float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m
         
     }
     
-    return loss / m1.tot_size;
+    return loss / m1.size;
 }
 
 float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real and m2 pred !!
@@ -477,7 +477,7 @@ float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2) // m1 is 
     const size_t num_classes = m2.shape[m2.rank - 1];
 
     #pragma omp parallel for reduction(+:loss) schedule(static) 
-    for (size_t i = 0; i < m1.tot_size; i++) 
+    for (size_t i = 0; i < m1.size; i++) 
     {   
         size_t tempid = i * num_classes;
 
@@ -495,7 +495,7 @@ float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2) // m1 is 
         }
     }
     
-    return loss / m1.tot_size;
+    return loss / m1.size;
 }
 
 void wef::print(const Tensor& m1, size_t* arr, size_t num, bool allc)
@@ -545,19 +545,19 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
     struct PC
     {
         uint32_t operation; // 0 add, 1 sub, 2 mul
-        uint32_t tot_size;
+        uint32_t size;
     } push_constant;
 
     const char* spvPath =  "shaders/binaries/elemwise.spv";
-    VkDeviceSize bytes = sizeof(float) * m1.tot_size;
+    VkDeviceSize bytes = sizeof(float) * m1.size;
 
     Tensor m = m1;
 
     push_constant.operation = operation;
-    push_constant.tot_size = m1.tot_size;
+    push_constant.size = m1.size;
 
     const uint32_t WG = 256;
-    uint32_t gx = useGPU::ceilDiv(m1.tot_size, WG);
+    uint32_t gx = useGPU::ceilDiv(m1.size, WG);
     uint32_t gy = 1;
     uint32_t gz = 1;
 
@@ -592,9 +592,9 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
 
     const char* spvPath =  "shaders/binaries/matmul.spv";
 
-    VkDeviceSize sizeA = sizeof(float) * m1.tot_size;
-    VkDeviceSize sizeB = sizeof(float) * m2.tot_size;
-    VkDeviceSize sizeC = sizeof(float) * m.tot_size;
+    VkDeviceSize sizeA = sizeof(float) * m1.size;
+    VkDeviceSize sizeB = sizeof(float) * m2.size;
+    VkDeviceSize sizeC = sizeof(float) * m.size;
 
     struct PC
     {
@@ -606,7 +606,7 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
     push_constant.m1_r = M;
     push_constant.m1_c = N;
     push_constant.m2_c = K;
-    push_constant.batch = m1.tot_size/(M*N); // assume no m1 bcast
+    push_constant.batch = m1.size/(M*N); // assume no m1 bcast
     push_constant.m1_stride = M * N;
     push_constant.m2_stride = N * K * !bcast; // set to 0 to broadcast B across batches
     push_constant.m_stride = M * K;
@@ -615,7 +615,7 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
     const uint32_t WGY = 16;
     uint32_t gx = useGPU::ceilDiv(K, WGX);
     uint32_t gy = useGPU::ceilDiv(M, WGY);
-    uint32_t gz = m1.tot_size/(M*N);
+    uint32_t gz = m1.size/(M*N);
 
     ((useGPU*)gpu)->program({sizeA, sizeB}, {sizeC}, {m1.tensor.get(), m2.tensor.get()}, {m.tensor.get()}, spvPath, (void*)&push_constant, sizeof(push_constant), gx, gy, gz);
     return m;

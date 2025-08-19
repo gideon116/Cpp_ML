@@ -261,19 +261,19 @@ class Flatten : public Layer {
             {
                 // if trying to use (reuse) the layer on a different tensor
                 if (training)
-                    if (dx.tot_size != px.tot_size) // TODO : better to check shape but this is faster
+                    if (dx.size != px.size) // TODO : better to check shape but this is faster
                         throw std::invalid_argument("cannot reuse layer");
             }
 
             m_out_shape[0] = px.shape[0];
             out = Tensor::create(m_out_shape.get(), 2);
-            memcpy(out.tensor.get(), px.tensor.get(), out.tot_size * sizeof(float));
+            memcpy(out.tensor.get(), px.tensor.get(), out.size * sizeof(float));
 
             return &out;
         }
         Tensor* backward_pass(const Tensor& dy, float, void*) override 
         {
-            memcpy(dx.tensor.get(), dy.tensor.get(), dx.tot_size * sizeof(float));
+            memcpy(dx.tensor.get(), dy.tensor.get(), dx.size * sizeof(float));
             return &dx;
         }
 };

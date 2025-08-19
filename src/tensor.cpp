@@ -13,7 +13,7 @@ Tensor::Tensor(const std::initializer_list<Tensor>& vs)
 
     for (const Tensor& v : vs)
     { 
-        tot_size += v.tot_size;
+        size += v.size;
         if (rank != v.rank + 1) throw std::invalid_argument("ragged tensor");
         for (size_t i = 0; i < v.rank; i++) 
         {
@@ -21,14 +21,14 @@ Tensor::Tensor(const std::initializer_list<Tensor>& vs)
         }
     }
 
-    tensor = std::make_unique<float[]>(tot_size);
+    tensor = std::make_unique<float[]>(size);
     for (const Tensor& v : vs)
     {
-        for (size_t j = 0; j < v.tot_size; j++)
+        for (size_t j = 0; j < v.size; j++)
         {
             tensor[indexer + j] = v.tensor[j];
         }
-        indexer += v.tot_size;
+        indexer += v.size;
     }
 }
 
@@ -42,9 +42,9 @@ Tensor::Tensor(const std::initializer_list<float>& input)
     getShape(input, level);
 
     level = 0;
-    tot_size = 1;
-    for (size_t i = 0; i < rank; i++) tot_size *= shape[i];
-    tensor = std::make_unique<float[]>(tot_size);
+    size = 1;
+    for (size_t i = 0; i < rank; i++) size *= shape[i];
+    tensor = std::make_unique<float[]>(size);
     getArr(input, level);
 
 };
@@ -59,9 +59,9 @@ Tensor::Tensor(const std::initializer_list<size_t>& in_shape, const char&)
         size_t i = 0; for (int s : in_shape) shape[i++] = s;
     }
 
-    tot_size = 1;
-    for (size_t i = 0; i < rank; i++) tot_size *= shape[i];
-    tensor = std::make_unique<float[]>(tot_size);
+    size = 1;
+    for (size_t i = 0; i < rank; i++) size *= shape[i];
+    tensor = std::make_unique<float[]>(size);
 
 }
 
@@ -78,9 +78,9 @@ Tensor::Tensor(const size_t in_shape[], const char&, const size_t& carray_len)
         for (size_t s = 0; s < rank; s++) shape[s] = in_shape[s];
     }
 
-    tot_size = 1;
-    for (size_t i = 0; i < rank; i++) tot_size *= shape[i];
-    tensor = std::make_unique<float[]>(tot_size);
+    size = 1;
+    for (size_t i = 0; i < rank; i++) size *= shape[i];
+    tensor = std::make_unique<float[]>(size);
 
 }
 
@@ -113,12 +113,13 @@ void Tensor::print_shape()
 
 }
 
-Tensor Tensor::ops(const Tensor& other, float (*f)(float, float)) const
+Tensor Tensor::ops(const Tensor& other, float (*f)(float&, float&)) const
 {   
     // if we should broadcast one of the tensors because its like [a, b, c] and [1, 1, c] then run ops_bcast
-    if (rank != other.rank) return ops_bcast(other, f);
-    for (size_t i = 0; i < rank; i++)
-        if (shape[i] != other.shape[i]) return ops_bcast(other, f);
+    if (rank != other.rank)
+        return ops_bcast(other, f);
+    if (memcmp(shape.get(), other.shape.get(), rank * sizeof(size_t)))
+        return ops_bcast(other, f);
 
     // no need to broadcast...
     Tensor t = Tensor(*this);
@@ -127,14 +128,34 @@ Tensor Tensor::ops(const Tensor& other, float (*f)(float, float)) const
     float* c = (t.tensor).get();
 
     #pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < tot_size; i++) 
+    for (size_t i = 0; i < size; i++) 
     {   
         c[i] = f(a[i], b[i]);
     }
     return t;
 }
 
-Tensor Tensor::ops_bcast(const Tensor& other, float (*f)(float, float)) const
+Tensor& Tensor::ops_eq(const Tensor& other, float (*f)(float&, float&))
+{   
+
+    if (rank != other.rank) // TODO : add ability to += with broadcast
+        throw std::invalid_argument("[ERROR ] tensor shapes must match");
+    if (memcmp(shape.get(), other.shape.get(), rank * sizeof(size_t)))
+        throw std::invalid_argument("[ERROR ] tensor shapes must match");
+
+    // no need to broadcast...
+    float* a = (this->tensor).get();
+    float* b = (other.tensor).get();
+
+    #pragma omp parallel for schedule(static)
+    for (size_t i = 0; i < size; i++) 
+    {   
+        a[i] = f(a[i], b[i]);
+    }
+    return *this;
+}
+
+Tensor Tensor::ops_bcast(const Tensor& other, float (*f)(float&, float&)) const
 {
     size_t out_rank = std::max(rank, other.rank);
     std::unique_ptr<size_t[]> out = std::make_unique<size_t[]>(out_rank);
@@ -147,10 +168,11 @@ Tensor Tensor::ops_bcast(const Tensor& other, float (*f)(float, float)) const
     std::unique_ptr<size_t[]> pitch = std::make_unique<size_t[]>(out_rank);
 
     // 1 fill
-    for (size_t i = 0; i < out_rank; i++) 
-    {
-        shape_a[i] = 1; shape_b[i] = 1; stride_a[i] = 1; stride_b[i] = 1; pitch[i] = 1;
-    }
+    std::fill(shape_a.get(), shape_a.get() + out_rank, 1);
+    std::fill(shape_b.get(), shape_b.get() + out_rank, 1);
+    std::fill(stride_a.get(), stride_a.get() + out_rank, 1);
+    std::fill(stride_b.get(), stride_b.get() + out_rank, 1);
+    std::fill(pitch.get(), pitch.get() + out_rank, 1);
 
     // if we need to pad other e.g. [2, 3, 4] and [3, 4] -> [2, 3, 4] and [1, 3, 4]
     if (rank > other.rank)
@@ -220,43 +242,51 @@ Tensor Tensor::ops_bcast(const Tensor& other, float (*f)(float, float)) const
     return c;
 }
 
-Tensor Tensor::ops(const float scalar, float (*f)(float, float)) const
+Tensor Tensor::ops(const float& scalar, float (*f)(float&, const float&)) const
 {   
     
     Tensor t = Tensor(*this);
     float* a = (this->tensor).get();
     float* c = (t.tensor).get();
 
-    for (size_t i = 0; i < tot_size; i++)  c[i] = f(a[i], scalar);
+    for (size_t i = 0; i < size; i++)  c[i] = f(a[i], scalar);
     
     return t;
+}
+
+Tensor& Tensor::ops_eq(const float& scalar, float (*f)(float&, const float&))
+{   
+    float* a = (this->tensor).get();
+    for (size_t i = 0; i < size; i++)
+        a[i] = f(a[i], scalar);
+    return *this;
 }
 
 Tensor& Tensor::operator=(const Tensor& other)
 {
     if (this != &other) 
     {
-        rank = other.rank; tot_size = other.tot_size;
+        rank = other.rank; size = other.size;
 
         shape = std::make_unique<size_t[]>(rank);
-        tensor = std::make_unique<float[]>(tot_size);
+        tensor = std::make_unique<float[]>(size);
 
         std::memcpy(shape.get(), other.shape.get(), sizeof(size_t)*rank);
-        std::memcpy(tensor.get(), other.tensor.get(), sizeof(float)*tot_size);
+        std::memcpy(tensor.get(), other.tensor.get(), sizeof(float)*size);
     }
     return *this;
 }
 
 Tensor::Tensor(Tensor&& other) noexcept
 {
-    rank = other.rank; tot_size = other.tot_size;
+    rank = other.rank; size = other.size;
     shape = std::move(other.shape);
     tensor = std::move(other.tensor);
 }
 
 Tensor& Tensor::operator=(Tensor&& other)
 {
-    rank = other.rank; tot_size = other.tot_size;
+    rank = other.rank; size = other.size;
     shape = std::move(other.shape);
     tensor = std::move(other.tensor);
     
@@ -266,23 +296,16 @@ Tensor& Tensor::operator=(Tensor&& other)
 Tensor::Tensor(const Tensor& other) // copy constructor
     :
         rank(other.rank),
-        tot_size(other.tot_size),
+        size(other.size),
         shape(std::make_unique<size_t[]>(other.rank)),
-        tensor(std::make_unique<float[]>(other.tot_size))
+        tensor(std::make_unique<float[]>(other.size))
 {
     std::memcpy(shape.get(), other.shape.get(), sizeof(size_t)*rank);
-    std::memcpy(tensor.get(), other.tensor.get(), sizeof(float)*tot_size);
-}
-
-Tensor& Tensor::operator+=(const float scalar) 
-{   
-    float* a = (this->tensor).get();
-    for (size_t i = 0; i < tot_size; i++) a[i] += scalar;
-    return *this;
+    std::memcpy(tensor.get(), other.tensor.get(), sizeof(float)*size);
 }
 
 // when the scalar is in front
 Tensor operator+(float s, const Tensor& t) { return t + s; }
 Tensor operator-(float s, const Tensor& t) { return (t * - 1) + s; }
 Tensor operator*(float s, const Tensor& t) { return t * s; }
-Tensor operator/(float s, const Tensor& t) { return t.ops(s, [](float a, float b){ return b / a; }); } // here makes sure to put tensor in denom
+Tensor operator/(float s, const Tensor& t) { return t.ops(s, [](float& a, const float& b){ return b / a; }); } // here makes sure to put tensor in denom

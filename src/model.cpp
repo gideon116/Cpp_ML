@@ -32,8 +32,8 @@ void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_rea
         double loss = 0.0;
         for (size_t b = 0; b < num_batches; b++)
         {
-            memcpy(mini_input.tensor.get(), input.tensor.get() + b * mini_input.tot_size, sizeof(float) * mini_input.tot_size);
-            memcpy(mini_real.tensor.get(), real.tensor.get() + b * mini_real.tot_size, sizeof(float) * mini_real.tot_size);
+            memcpy(mini_input.tensor.get(), input.tensor.get() + b * mini_input.size, sizeof(float) * mini_input.size);
+            memcpy(mini_real.tensor.get(), real.tensor.get() + b * mini_real.size, sizeof(float) * mini_real.size);
 
             // train
             const Tensor* y_ptr = &mini_input;
@@ -85,9 +85,9 @@ void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_rea
         std::cout << "\tvalid_loss = " << val_loss << "\n";
 
         float acc = 0;
-        for (int i = 0; i < valid_real.tot_size; i++)
+        for (int i = 0; i < valid_real.size; i++)
             acc += wef::argmax(wef::softmax(*val_pred_ptr)).tensor[i] == valid_real.tensor[i];
-        acc /= valid_real.tot_size;
+        acc /= valid_real.size;
         std::cout << "\tval_accuracy = " << acc << std::endl;
         std::cout << "\ttime per epoch = ";
 

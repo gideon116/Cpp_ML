@@ -1,4 +1,5 @@
 #if 0
+
 #else
 #include "include/layers.h"
 #include "include/tensor.h"
@@ -8,9 +9,9 @@
 // TODO: mutithread tensor ops and maxpool
 // TODO: add gpu support for linux and windows
 // TODO: tile dw and dx shaders for conv2d backward pass
-// TODO: add attention/mha layer
+// TODO: make tensor class tempelatable
 // TODO: add shaders for reduce sum / layer normalization
-// TODO: add embedding layer
+// TODO: use function pointers in shaders
 
 int main() {
 
@@ -32,8 +33,8 @@ int main() {
     int units2 = 16;
     int units5 = 10;
     
-    Conv2D_GPU cov1(3, 3, units1, true, 3), cov2(3, 3, units2, true, 4), cov3(3, 3, units2, true, 5);
-    Linear_GPU out(units5, true, 7), ffn1(16, true, 8), ffn2(512, true, 8), ffn3(512, true, 8);
+    Conv2D cov1(3, 3, units1, true, 3), cov2(3, 3, units2, true, 4), cov3(3, 3, units2, true, 5);
+    Linear out(units5, true, 7), ffn1(16, true, 8), ffn2(512, true, 8), ffn3(512, true, 8);
     ReLU relu1, relu2, relu3;
     ReduceSum r1(1), r2(1);
     Flatten flat;

@@ -17,12 +17,12 @@ Tensor* Linear::forward_pass(const Tensor& px, const bool training, void*)
             B = Tensor::create(b_shape, 2);
 
             float* B_ptr = B.tensor.get();
-            std::fill_n(B.tensor.get(), B.tot_size, 0.0f); // zero fill
+            std::fill_n(B.tensor.get(), B.size, 0.0f); // zero fill
 
             float* pm = W.tensor.get();
             for (size_t i = 0; i < size_t(px.shape[px.rank-1]) * units; i++) pm[i] = dist(g);
 
-            m_num_param = W.tot_size + (m_use_bias ? B.tot_size : 0);
+            m_num_param = W.size + (m_use_bias ? B.size : 0);
             
             m_out_rank = px.rank;
             m_out_shape = std::make_unique<size_t[]>(m_out_rank);
@@ -39,7 +39,7 @@ Tensor* Linear::forward_pass(const Tensor& px, const bool training, void*)
         }
 
         // copy px into X
-        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.size * sizeof(float));
 
 
         if (m_use_bias) out = wef::matmul(px, W, true) + B;
@@ -60,14 +60,14 @@ Tensor* Linear::backward_pass(const Tensor& dy, const float lr, void*)
         dw = wef::matmul(wef::transpose(X), dy);
         for (size_t i = 0; i < dw.rank - 2; i++) dw = wef::reducesum(dw, i);
 
-        W = W - dw * lr / dy.shape[0];
+        W -= dw * lr / dy.shape[0];
 
         if (m_use_bias) 
         {
             // gradient wrt bias sum everything aside from the last axis
             db = dy;
             for (size_t i = 0; i < db.rank - 1; i++) db = wef::reducesum(db, i);
-            B = B - db * lr / dy.shape[0];
+            B -= db * lr / dy.shape[0];
         }
 
         return &dx;
@@ -90,10 +90,10 @@ Tensor* Conv2D::forward_pass(const Tensor& px, const bool training, void*)
 
         size_t B_shape[4] = {1, 1, 1, units};
         B = Tensor::create(B_shape, 4);
-        std::fill_n(B.tensor.get(), B.tot_size, 0.0f);
+        std::fill_n(B.tensor.get(), B.size, 0.0f);
 
         float* pm = W.tensor.get();
-        for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
+        for (size_t i = 0; i < W.size; i++) pm[i] = dist(g);
 
         m_out_rank = px.rank; // this is 4, its always 4
         m_out_shape = std::make_unique<size_t[]>(m_out_rank); // heap allocation is not the best but we only do this once pre layer so its whatever
@@ -108,7 +108,7 @@ Tensor* Conv2D::forward_pass(const Tensor& px, const bool training, void*)
         dw = Tensor(W);
         db = Tensor(B);
         
-        m_num_param = W.tot_size + (m_use_bias ? B.tot_size : 0);
+        m_num_param = W.size + (m_use_bias ? B.size : 0);
         
         init = true;
     }
@@ -121,7 +121,7 @@ Tensor* Conv2D::forward_pass(const Tensor& px, const bool training, void*)
     }
 
     // copy px into X
-    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.size * sizeof(float));
 
     m_out_shape[0] = px.shape[0]; // flexable batch 
     out = Tensor::create(m_out_shape.get(), 4);
@@ -131,7 +131,7 @@ Tensor* Conv2D::forward_pass(const Tensor& px, const bool training, void*)
     float* W_ptr = W.tensor.get();
     float* B_ptr = B.tensor.get();
 
-    std::memset(out_ptr, 0, (out.tot_size) * sizeof(float));
+    std::memset(out_ptr, 0, (out.size) * sizeof(float));
 
     /*
     There is a lot of math below but the idea is to do the cov kernel math (W * Input) and expand 
@@ -141,7 +141,7 @@ Tensor* Conv2D::forward_pass(const Tensor& px, const bool training, void*)
     I jump everytime we hit the width of the weight to the second row and use some math to do that.
     */
 
-    size_t out_wo_units = out.tot_size / units;
+    size_t out_wo_units = out.size / units;
     size_t skip_w_help = ch * (w_width - 1);
     size_t bi_help = out_wo_units / out.shape[0];
     size_t skip_h_help = (w_height - 1) * px.shape[px.rank-2] * px.shape[px.rank-1];
@@ -155,7 +155,7 @@ Tensor* Conv2D::forward_pass(const Tensor& px, const bool training, void*)
         size_t bi = out_i / bi_help;
         size_t skip_h = bi * skip_h_help;
 
-        for (size_t w_i = 0; w_i < W.tot_size / units; w_i++)
+        for (size_t w_i = 0; w_i < W.size / units; w_i++)
         {
             float temp_px = px_ptr[
                 ch * out_i + skip_w + skip_h
@@ -179,14 +179,14 @@ Tensor* Conv2D::backward_pass(const Tensor& dy, const float lr, void*)
         float* dx_ptr = dx.tensor.get();
         float* dw_ptr = dw.tensor.get();
 
-        std::memset(dx_ptr, 0, (dx.tot_size) * sizeof(float)); // zero fill
-        std::memset(dw_ptr, 0, (dw.tot_size) * sizeof(float)); // zero fill
+        std::memset(dx_ptr, 0, (dx.size) * sizeof(float)); // zero fill
+        std::memset(dw_ptr, 0, (dw.size) * sizeof(float)); // zero fill
 
         float* dy_ptr = dy.tensor.get();
         float* W_ptr = W.tensor.get();
         float* X_ptr = X.tensor.get();
 
-        size_t out_wo_units = dy.tot_size / units;
+        size_t out_wo_units = dy.size / units;
         size_t skip_w_help = ch * (w_width - 1);
         size_t bi_help = out_wo_units / dy.shape[0];
         size_t skip_h_help = (w_height - 1) * X.shape[X.rank-2] * X.shape[X.rank-1];
@@ -200,7 +200,7 @@ Tensor* Conv2D::backward_pass(const Tensor& dy, const float lr, void*)
             size_t bi = dy_i / bi_help;
             size_t skip_h = bi * skip_h_help;
 
-            for (size_t w_i = 0; w_i < W.tot_size / units; w_i++)
+            for (size_t w_i = 0; w_i < W.size / units; w_i++)
             {
                 size_t id1 = 
                     ch * dy_i + skip_w + skip_h
@@ -217,13 +217,13 @@ Tensor* Conv2D::backward_pass(const Tensor& dy, const float lr, void*)
         }
 
         // divide lr by batch size
-        for (size_t i = 0; i < W.tot_size; i++) W_ptr[i] -= dw_ptr[i] * lr /dy.shape[0];
+       W -= dw * lr /dy.shape[0];
 
         if (m_use_bias)
         {
             db = dy;
             for (size_t i = 0; i < db.rank - 1; i++) db = wef::reducesum(db, i);
-            B = B - db * lr / dy.shape[0];
+            B -= db * lr / dy.shape[0];
         }
 
         return &dx;
@@ -246,10 +246,10 @@ Tensor* Conv2D_legacy::forward_pass(const Tensor& px, const bool training, void*
 
         size_t B_shape[4] = {1, 1, 1, units};
         B = Tensor::create(B_shape, 4);
-        std::fill_n(B.tensor.get(), B.tot_size, 0.0f);
+        std::fill_n(B.tensor.get(), B.size, 0.0f);
 
         float* pm = W.tensor.get();
-        for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
+        for (size_t i = 0; i < W.size; i++) pm[i] = dist(g);
 
         m_out_rank = px.rank; // this is 4, its always 4
         m_out_shape = std::make_unique<size_t[]>(m_out_rank); // heap allocation is not the best but we only do this once pre layer so its whatever
@@ -264,7 +264,7 @@ Tensor* Conv2D_legacy::forward_pass(const Tensor& px, const bool training, void*
         dw = Tensor(W);
         db = Tensor(B);
 
-        m_num_param = W.tot_size + (m_use_bias ? B.tot_size : 0);
+        m_num_param = W.size + (m_use_bias ? B.size : 0);
 
         init = true;
     }
@@ -277,7 +277,7 @@ Tensor* Conv2D_legacy::forward_pass(const Tensor& px, const bool training, void*
     }
 
     // copy px into X
-    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.size * sizeof(float));
 
     m_out_shape[0] = px.shape[0]; // flexable batch 
     out = Tensor::create(m_out_shape.get(), 4);
@@ -324,8 +324,8 @@ Tensor* Conv2D_legacy::forward_pass(const Tensor& px, const bool training, void*
 
 Tensor* Conv2D_legacy::backward_pass(const Tensor& dy, const float lr, void*) 
     {
-        std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float)); // zero fill
-        std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(float)); // zero fill
+        std::memset(dx.tensor.get(), 0, (dx.size) * sizeof(float)); // zero fill
+        std::memset(dw.tensor.get(), 0, (dw.size) * sizeof(float)); // zero fill
 
         size_t ind = 0;
         size_t i1[4];
@@ -365,13 +365,13 @@ Tensor* Conv2D_legacy::backward_pass(const Tensor& dy, const float lr, void*)
         float* pm_w = W.tensor.get();
         float* pm_dw = dw.tensor.get();
         // divide lr by batch size
-        for (size_t i = 0; i < W.tot_size; i++) pm_w[i] = pm_w[i] - (pm_dw[i] * lr / dy.shape[0]);
+        W -= dw * lr / dy.shape[0];
 
         if (m_use_bias)
         {
             db = dy;
             for (size_t i = 0; i < db.rank - 1; i++) db = wef::reducesum(db, i);
-            B = B - db * lr / dy.shape[0];
+            B -= db * lr / dy.shape[0];
         }
 
         return &dx;
@@ -414,7 +414,7 @@ Tensor* MaxPool2D::forward_pass(const Tensor& px, const bool training, void*)
         }
 
         // copy px into X
-        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float)); // TODO : is X even used in back prop?
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.size * sizeof(float)); // TODO : is X even used in back prop?
 
         // batch is flexable
         m_out_shape[0] = px.shape[0];
@@ -468,7 +468,7 @@ Tensor* MaxPool2D::forward_pass(const Tensor& px, const bool training, void*)
 
 Tensor* MaxPool2D::backward_pass(const Tensor& dy, const float lr, void*) 
     {
-        std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float));  // zero fill
+        std::memset(dx.tensor.get(), 0, (dx.size) * sizeof(float));  // zero fill
         size_t ind = 0;
         size_t i1[4];
 
@@ -520,7 +520,7 @@ Tensor* ReduceSum::forward_pass(const Tensor& px, const bool training, void*)
         }
 
         // copy px into X
-        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.size * sizeof(float));
 
         // batch flexability only applies if ax != 0
         if (ax != 0)
@@ -535,7 +535,7 @@ Tensor* ReduceSum::forward_pass(const Tensor& px, const bool training, void*)
         for (size_t i = ax + 1; i < px.rank; i++) eaa *= px.shape[i];
 
         #pragma omp parallel for schedule(static)
-        for (size_t i = 0; i < out.tot_size; i++)
+        for (size_t i = 0; i < out.size; i++)
         {
             float temp = 0.0f;
             size_t mult = (i/eaa) * (1 - px.shape[ax]);
@@ -560,7 +560,7 @@ Tensor* ReduceSum::backward_pass(const Tensor& dy, float, void*)
         for (size_t i = ax + 1; i < dx.rank; i++) eaa *= dx.shape[i];
 
         #pragma omp parallel for schedule(static)
-        for (size_t i = 0; i < dy.tot_size; i++)
+        for (size_t i = 0; i < dy.size; i++)
         {
             size_t mult = (i/eaa) * (1 - dx.shape[ax]) ;
             for (size_t j = 0; j < dx.shape[ax]; j++)
@@ -596,7 +596,7 @@ Tensor* LayerNorm::forward_pass(const Tensor& px, const bool training, void*)
             std::fill_n(beta.tensor.get(), ax_val, 0.01f);
             std::fill_n(gamma.tensor.get(), ax_val, 0.99f);
 
-            m_num_param = beta.tot_size + gamma.tot_size;
+            m_num_param = beta.size + gamma.size;
 
             m_out_rank = px.rank;
             m_out_shape = std::make_unique<size_t[]>(m_out_rank);
@@ -607,7 +607,7 @@ Tensor* LayerNorm::forward_pass(const Tensor& px, const bool training, void*)
         if (px.shape[axis] != ax_val) throw std::invalid_argument("cannot reuse layer [LayerNorm]");
 
         // copy px into X
-        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.size * sizeof(float));
 
         // follwoing Ba et al. 2016
         mu = wef::reducesum(px, /*axis=*/axis) / ax_val;
@@ -642,8 +642,8 @@ Tensor* LayerNorm::backward_pass(const Tensor& dy, const float lr, void*)
         - x_i_hat * (wef::reducesum(gamma * dy * x_i_hat, axis))
     );
 
-    gamma = gamma - d_gamma * lr / dy.shape[0];
-    beta = beta - d_beta * lr / dy.shape[0];
+    gamma -= d_gamma * lr / dy.shape[0];
+    beta -= d_beta * lr / dy.shape[0];
 
     return &dx;
 }
@@ -665,10 +665,10 @@ Tensor* Conv2D_NR::forward_pass(const Tensor& px, const bool training, void*)
 
         size_t B_shape[4] = {1, 1, 1, units};
         B = Tensor::create(B_shape, 4);
-        std::fill_n(B.tensor.get(), B.tot_size, 0.0f);
+        std::fill_n(B.tensor.get(), B.size, 0.0f);
 
         float* pm = W.tensor.get();
-        for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
+        for (size_t i = 0; i < W.size; i++) pm[i] = dist(g);
 
         m_out_rank = px.rank; // this is 4, its always 4
         m_out_shape = std::make_unique<size_t[]>(m_out_rank); // heap allocation is not the best but we only do this once pre layer so its whatever
@@ -683,7 +683,7 @@ Tensor* Conv2D_NR::forward_pass(const Tensor& px, const bool training, void*)
         dw = Tensor(W);
         db = Tensor(B);
 
-        m_num_param = W.tot_size + (m_use_bias ? B.tot_size : 0);
+        m_num_param = W.size + (m_use_bias ? B.size : 0);
 
         init = true;
     }
@@ -696,7 +696,7 @@ Tensor* Conv2D_NR::forward_pass(const Tensor& px, const bool training, void*)
     }
 
     // copy px into X
-    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+    if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.size * sizeof(float));
 
     m_out_shape[0] = px.shape[0]; // flexable batch 
     out = Tensor::create(m_out_shape.get(), 4);
@@ -743,8 +743,8 @@ Tensor* Conv2D_NR::forward_pass(const Tensor& px, const bool training, void*)
 
 Tensor* Conv2D_NR::backward_pass(const Tensor& dy, const float lr, void*) 
 {
-    std::memset(dx.tensor.get(), 0, (dx.tot_size) * sizeof(float)); // zero fill
-    std::memset(dw.tensor.get(), 0, (dw.tot_size) * sizeof(float)); // zero fill
+    std::memset(dx.tensor.get(), 0, (dx.size) * sizeof(float)); // zero fill
+    std::memset(dw.tensor.get(), 0, (dw.size) * sizeof(float)); // zero fill
 
     #pragma omp parallel for collapse(4) schedule(static)
     for (size_t bin_hin = 0; bin_hin < dx.shape[0] * dx.shape[1]; bin_hin++)
@@ -828,15 +828,14 @@ Tensor* Conv2D_NR::backward_pass(const Tensor& dy, const float lr, void*)
     float* pm_w = W.tensor.get();
     float* pm_dw = dw.tensor.get();
     // divide lr by batch size
-    for (size_t i = 0; i < W.tot_size; i++)
-        pm_w[i] -= (pm_dw[i] * lr / dy.shape[0]);
+    W -= dw * lr / dy.shape[0];
 
     if (m_use_bias)
     {
         db = dy;
         for (size_t i = 0; i < db.rank - 1; i++)
             db = wef::reducesum(db, i);
-        B = B - db * lr / dy.shape[0];
+        B -= db * lr / dy.shape[0];
     }
 
     return &dx;
@@ -850,7 +849,7 @@ Tensor MHA::scaled_dot_product_attention(const Tensor& q, const Tensor& k, const
     Tensor eij = product / sqrt(keys_dim);
 
     if (mask)
-        eij = eij + (*mask * -1e9f); // TODO : add tensor += overload
+        eij += (*mask * -1e9f); // TODO : add tensor += overload
 
     m_aij = wef::softmax(eij);
     Tensor z = wef::matmul(m_aij, v);
@@ -976,9 +975,9 @@ Tensor* Embedding::forward_pass(const Tensor& px, const bool training, void*)
             W = Tensor::create(w_shape, 2);
 
             float* pm = W.tensor.get();
-            for (size_t i = 0; i < W.tot_size; i++) pm[i] = dist(g);
+            for (size_t i = 0; i < W.size; i++) pm[i] = dist(g);
 
-            m_num_param = W.tot_size;
+            m_num_param = W.size;
 
             // in: [b, ml, 1(token)] or [b, ml]
             // out: [b, ml, d_model]
@@ -1007,7 +1006,7 @@ Tensor* Embedding::forward_pass(const Tensor& px, const bool training, void*)
 
         // copy px into X
         // TODO : catch if X shape changes during training
-        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.tot_size * sizeof(float));
+        if (training) std::memcpy(X.tensor.get(), px.tensor.get(), X.size * sizeof(float));
 
         m_out_shape[0] = px.shape[0]; // flexable batch
         out = Tensor::create(m_out_shape.get(), m_out_rank);
@@ -1018,7 +1017,7 @@ Tensor* Embedding::forward_pass(const Tensor& px, const bool training, void*)
         float* pout = out.tensor.get();
         float* pW = W.tensor.get();
         size_t base;
-        for (size_t i = 0; i < px.tot_size; i++)
+        for (size_t i = 0; i < px.size; i++)
         {
             // pin[i] is the embedding row we want to index out
             base = (size_t)pin[i] * m_d_model;
@@ -1037,12 +1036,12 @@ Tensor* Embedding::backward_pass(const Tensor& dy, const float lr, void*)
         float* dy_ptr = dy.tensor.get();
         float* X_ptr = X.tensor.get();
 
-        std::memset(dx_ptr, 0, (dx.tot_size) * sizeof(float)); // zero fill
-        std::memset(dw_ptr, 0, (dw.tot_size) * sizeof(float)); // zero fill
+        std::memset(dx_ptr, 0, (dx.size) * sizeof(float)); // zero fill
+        std::memset(dw_ptr, 0, (dw.size) * sizeof(float)); // zero fill
 
         float* temp_dw = 0;
         float* temp_dy = 0;
-        for (size_t i = 0; i < X.tot_size; i++)
+        for (size_t i = 0; i < X.size; i++)
         {
             temp_dw = dw_ptr + (size_t)X_ptr[i] * m_d_model;
             temp_dy = dy_ptr + i * m_d_model;
@@ -1050,7 +1049,7 @@ Tensor* Embedding::backward_pass(const Tensor& dy, const float lr, void*)
                 temp_dw[j] += temp_dy[j];
         }
 
-        W = W - dw * lr / dy.shape[0];
+        W -= dw * lr / dy.shape[0];
 
         return &dx;
     }
