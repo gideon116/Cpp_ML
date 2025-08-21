@@ -1,4 +1,138 @@
-#if 0
+#if 1
+#include "include/layers.h"
+#include "include/tensor.h"
+#include "include/model.h"
+#include "include/mnist.h"
+
+class TrainingTimer
+{
+public:
+    Timer timer;
+    TrainingTimer()
+    {
+        std::cout << "\n____________________________________________";
+        std::cout << "\nBeginning training\n\n";
+    }
+    ~TrainingTimer()
+    {
+        std::cout << "\n____________________________________________";
+        std::cout << "\nTraining complete";
+        std::cout << "\nTotal training time = ";
+    }
+};
+
+
+class functional_model
+{
+public:
+    functional_model() {}
+    
+private:
+    
+    const size_t units1 = 16;
+    const size_t units2 = 16;
+    const size_t units5 = 10;
+
+    Conv2D_Fast cov1{size_t(3), size_t(3), units1, false, size_t(4)}, cov2{size_t(3), size_t(3), units2, true, size_t(1)}, cov3{size_t(3), size_t(3), units2, true, size_t(2)};
+    Linear_Fast out{units5, false, size_t(7)}, ffn1{size_t(16), true, size_t(8)}, ffn2{size_t(1024), true, size_t(8)}, ffn3{size_t(1024), true, size_t(8)};
+    ReLU relu1, relu2, relu3;
+    ReduceSum r1{size_t(1)}, r2{size_t(1)};
+    Flatten flat;
+    LayerNorm norm{size_t(1)};
+    MaxPool2D mp{size_t(2), size_t(2)}, mp2{size_t(2), size_t(2)};
+
+private:
+
+    Tensor* call(Tensor& input, const bool& training)
+    {
+        Tensor* x = &input;
+        x = flat.call(m_layers, *x, training, nullptr);
+        x = out.call(m_layers, *x, training, nullptr);
+
+        return x;
+    }
+    void backward(const Tensor& real)
+    {
+        m_loss = wef::categoricalcrossentropy(real, *m_x, m_dy);
+     
+        m_y = &m_dy;
+        for (auto it = m_layers.rbegin(); it != m_layers.rend() ; it++)
+           m_y = (*it)->backward_pass(*m_y, m_lr, nullptr);
+    }
+
+    void valid(Tensor& val_input, Tensor& val_real)
+    {
+        // validation
+        Tensor* val_pred_ptr = call(val_input, false);
+        float val_loss = wef::categoricalcrossentropy(val_real, *val_pred_ptr);
+        std::cout << "\tvalid_loss = " << val_loss << "\n";
+
+        float acc = 0;
+        for (int i = 0; i < val_real.m_size; i++)
+            acc += wef::argmax(wef::softmax(*val_pred_ptr)).m_tensor[i] == val_real.m_tensor[i];
+        acc /= val_real.m_size;
+        std::cout << "\tval_accuracy = " << acc << std::endl;
+        std::cout << "\ttime per epoch = ";
+
+        m_layers.clear();
+    }
+
+    
+
+public:
+    
+    void train(Tensor& input, Tensor& real, Tensor& val_input, Tensor& val_real, int epochs, float lr)
+    {
+        TrainingTimer a;
+        m_lr = lr;
+
+        for (int epoch = 0; epoch < epochs; epoch++)
+        {
+            Timer timer;
+            m_x = call(input, true);
+            if (!epoch) m_dy = *m_x; // only set m_dy during epoch 0
+            backward(real);
+            m_layers.clear();
+
+            std::cout << "epoch: " << epoch + 1 << "\n\tloss = " << m_loss << "\n";
+            valid(val_input, val_real);
+        }
+
+    }
+
+private:
+    std::vector<Layer*> m_layers;
+    Tensor* m_x;
+    float m_lr = 0.0;
+    float m_loss = 0.0;
+    Tensor m_dy;
+    Tensor* m_y = nullptr;
+
+
+
+};
+
+
+int main()
+{
+
+
+    int n_test = 100;
+    int n_train = 1000;
+
+    Tensor train_im = load_mnist_images("mnist/train-images-idx3-ubyte", n_train);
+    Tensor train_l = load_mnist_labels("mnist/train-labels-idx1-ubyte", n_train);
+
+    Tensor test_im = load_mnist_images("mnist/t10k-images-idx3-ubyte", n_test);
+    Tensor test_l = load_mnist_labels("mnist/t10k-labels-idx1-ubyte", n_test);
+    
+    
+    functional_model model;
+    model.train(train_im, train_l, test_im, test_l, 3, 0.01);
+  
+
+    return 0;
+}
 #else
 #include "include/layers.h"
 #include "include/tensor.h"

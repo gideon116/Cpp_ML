@@ -1,154 +1,159 @@
 #include <iostream>
 #include "../include/tensor.h"
 
-Tensor::Tensor(const std::initializer_list<Tensor>& vs)
+Tensor::Tensor(const std::initializer_list<Tensor>& init_list) // CONST??
 {   
-    if (static_cast<size_t>(vs.size()) == 0) throw std::invalid_argument("empty tensor");
+    if ((size_t)(init_list.size()) == 0)
+        throw std::invalid_argument("empty tensor");
 
-    size_t indexer = 0;
-    rank = vs.begin()->rank + 1;
-    shape = std::make_unique<size_t[]>(rank);
-    shape[0] = static_cast<size_t>(vs.size());
-    for (size_t i = 0; i < vs.begin()->rank; i++) shape[i+1] = vs.begin()->shape[i];
+    m_rank = init_list.begin()->m_rank + 1;
+    m_shape = new size_t[m_rank];
+    m_shape[0] = (size_t)(init_list.size());
+    for (size_t i = 0; i < init_list.begin()->m_rank; i++)
+        m_shape[i + 1] = init_list.begin()->m_shape[i];
 
-    for (const Tensor& v : vs)
-    { 
-        size += v.size;
-        if (rank != v.rank + 1) throw std::invalid_argument("ragged tensor");
-        for (size_t i = 0; i < v.rank; i++) 
-        {
-            if (shape[i+1] != v.shape[i]) throw std::invalid_argument("ragged tensor");
-        }
+    for (const Tensor& tens : init_list)
+    {
+        m_size += tens.m_size;
+        if (m_rank != tens.m_rank + 1)
+            throw std::invalid_argument("ragged tensor");
+        for (size_t i = 0; i < tens.m_rank; i++) 
+            if (m_shape[i + 1] != tens.m_shape[i])
+                throw std::invalid_argument("ragged tensor");
     }
 
-    tensor = std::make_unique<float[]>(size);
-    for (const Tensor& v : vs)
+    size_t stride = 0;
+    m_tensor = new float[m_size];
+    for (const Tensor& tens : init_list)
     {
-        for (size_t j = 0; j < v.size; j++)
-        {
-            tensor[indexer + j] = v.tensor[j];
-        }
-        indexer += v.size;
+        for (size_t i = 0; i < tens.m_size; i++)
+            m_tensor[stride + i] = tens.m_tensor[i];
+        stride += tens.m_size;
     }
 }
 
 Tensor::Tensor(const std::initializer_list<float>& input)
 {   
     getRank(input);
-    if (rank == 0) throw std::invalid_argument("need at least one dim");
-    shape = std::make_unique<size_t[]>(rank);
+    if (m_rank == 0)
+        throw std::invalid_argument("need at least one dim");
+    m_shape = new size_t[m_rank];
 
     size_t level = 0;
     getShape(input, level);
 
     level = 0;
-    size = 1;
-    for (size_t i = 0; i < rank; i++) size *= shape[i];
-    tensor = std::make_unique<float[]>(size);
+    m_size = 1;
+    for (size_t i = 0; i < m_rank; i++) 
+        m_size *= m_shape[i];
+    m_tensor = new float[m_size];
     getArr(input, level);
-
 };
 
 Tensor::Tensor(const std::initializer_list<size_t>& in_shape, const char&)
 {   
-    rank = static_cast<size_t>(in_shape.size());
-    if (rank <= 0) throw std::invalid_argument("need at least one dimension");
+    m_rank = (size_t)(in_shape.size());
+    if (m_rank <= 0)
+        throw std::invalid_argument("need at least one dimension");
 
-    shape = std::make_unique<size_t[]>(rank);
-    {
-        size_t i = 0; for (int s : in_shape) shape[i++] = s;
-    }
+    m_shape = new size_t[m_rank];
+    
+    size_t ix = 0;
+    for (size_t s : in_shape)
+        m_shape[ix++] = s;
+    
+    m_size = 1;
+    for (size_t i = 0; i < m_rank; i++) // b/c init list does not allow indexing
+        m_size *= m_shape[i];
 
-    size = 1;
-    for (size_t i = 0; i < rank; i++) size *= shape[i];
-    tensor = std::make_unique<float[]>(size);
+    m_tensor = new float[m_size];
 
 }
 
 Tensor::Tensor(const size_t in_shape[], const char&, const size_t& carray_len)
 {   
     // this is added in cases where c-array is provided
-    rank = carray_len;
+    m_rank = carray_len;
 
-    if (rank <= 0) throw std::invalid_argument("need at least one dimension");
+    if (m_rank <= 0)
+        throw std::invalid_argument("need at least one dimension");
 
-    shape = std::make_unique<size_t[]>(rank);
-    {
-        // b/c init list does not allow indexing
-        for (size_t s = 0; s < rank; s++) shape[s] = in_shape[s];
-    }
+    m_shape = new size_t[m_rank];
 
-    size = 1;
-    for (size_t i = 0; i < rank; i++) size *= shape[i];
-    tensor = std::make_unique<float[]>(size);
+    memcpy(m_shape, in_shape, m_rank * sizeof(size_t));
+    
+    m_size = 1;
+    for (size_t i = 0; i < m_rank; i++) 
+        m_size *= m_shape[i];
+    m_tensor = new float[m_size];
 
-}
-
-float& Tensor::index(const size_t params[])
-{
-    // TODO: ADD CHECKS!!!!!
-    // if (sizeof(params)/sizeof(params[0]) != rank) throw std::invalid_argument("requested shape does not match tensor");
-    size_t val = 0;
-    for (size_t i = 0; i < rank; i++)
-        val = val * shape[i] + params[i];
-    return tensor[val];
-}
-
-float Tensor::index(const size_t params[]) const
-{
-    // if (sizeof(params)/sizeof(params[0]) != rank) throw std::invalid_argument("requested shape does not match tensor");
-    size_t val = 0;
-    for (size_t i = 0; i < rank; i++)
-        val = val * shape[i] + params[i];
-    return tensor[val];
 }
 
 float& Tensor::operator[](const std::initializer_list<size_t>& params)
 {
-    if ((size_t)params.size() != rank)
+    if ((size_t)params.size() != m_rank)
         throw std::invalid_argument("len(shape) must be == rank");
 
     size_t val = 0;
     size_t i = 0;
     for (const auto& index : params)
     {
-        val = val * shape[i] + index;
+        val = val * m_shape[i] + index;
         i++;
     }
-    return tensor[val];
+    return m_tensor[val];
 }
 
 float Tensor::operator[](const std::initializer_list<size_t>& params) const
 {
-    if ((size_t)params.size() != rank)
+    if ((size_t)params.size() != m_rank)
         throw std::invalid_argument("len(shape) must be == rank");
 
     size_t val = 0;
     size_t i = 0;
     for (const auto& index : params)
     {
-        val = val * shape[i] + index;
+        val = val * m_shape[i] + index;
         i++;
     }
-    return tensor[val];
+    return m_tensor[val];
+}
+
+float& Tensor::operator[](const size_t params[])
+{
+    // TODO: ADD CHECKS!!!!!
+    // if (sizeof(params)/sizeof(params[0]) != rank) throw std::invalid_argument("requested shape does not match tensor");
+    size_t val = 0;
+    for (size_t i = 0; i < m_rank; i++)
+        val = val * m_shape[i] + params[i];
+    return m_tensor[val];
+}
+
+float Tensor::operator[](const size_t params[]) const
+{
+    // if (sizeof(params)/sizeof(params[0]) != rank) throw std::invalid_argument("requested shape does not match tensor");
+    size_t val = 0;
+    for (size_t i = 0; i < m_rank; i++)
+        val = val * m_shape[i] + params[i];
+    return m_tensor[val];
 }
 
 Tensor Tensor::operator[](const size_t& index)
 {
-    if (index >= shape[0])
+    if (index >= m_shape[0])
         throw std::invalid_argument("index out of bounds");
 
-    std::unique_ptr<size_t[]> new_shape = std::make_unique<size_t[]>(rank - 1);
-    memcpy(new_shape.get(), shape.get() + 1, (rank - 1) * sizeof(size_t));
-    Tensor out = Tensor::create(new_shape.get(), rank - 1);
-    memcpy(out.tensor.get(), tensor.get() + index * size/shape[0], (size/shape[0]) * sizeof(float));
+    std::unique_ptr<size_t[]> new_shape = std::make_unique<size_t[]>(m_rank - 1);
+    memcpy(new_shape.get(), m_shape + 1, (m_rank - 1) * sizeof(size_t));
+    Tensor out = Tensor::create(new_shape.get(), m_rank - 1); // TODO : make new with loc same as og tensor
+    memcpy(out.m_tensor, m_tensor + index * m_size/m_shape[0], (m_size/m_shape[0]) * sizeof(float));
     return out;
 }
 
 void Tensor::print_shape()
 {
     std::cout << "[ ";
-    for (size_t i = 0; i < rank; i++) std::cout << shape[i] << " ";
+    for (size_t i = 0; i < m_rank; i++) std::cout << m_shape[i] << " ";
     std::cout << "]";
     std::cout << "\n";
 
@@ -157,84 +162,83 @@ void Tensor::print_shape()
 Tensor Tensor::ops(const Tensor& other, float (*f)(float&, float&)) const
 {   
     // if we should broadcast one of the tensors because its like [a, b, c] and [1, 1, c] then run ops_bcast
-    if (rank != other.rank)
+    if (m_rank != other.m_rank)
         return ops_bcast(other, f);
-    if (memcmp(shape.get(), other.shape.get(), rank * sizeof(size_t)))
+    if (memcmp(m_shape, other.m_shape, m_rank * sizeof(size_t)))
         return ops_bcast(other, f);
 
     // no need to broadcast...
     Tensor t = Tensor(*this);
-    float* a = (this->tensor).get();
-    float* b = (other.tensor).get();
-    float* c = (t.tensor).get();
+    float* a = this->m_tensor;
+    float* b = other.m_tensor;
+    float* c = t.m_tensor;
 
     #pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < size; i++) 
-    {   
+    for (size_t i = 0; i < m_size; i++) 
         c[i] = f(a[i], b[i]);
-    }
+    
     return t;
 }
 
 Tensor& Tensor::ops_eq(const Tensor& other, float (*f)(float&, float&))
 {   
 
-    if (rank != other.rank) // TODO : add ability to += with broadcast
+    if (m_rank != other.m_rank) // TODO : add ability to += with broadcast
         throw std::invalid_argument("[ERROR ] tensor shapes must match");
-    if (memcmp(shape.get(), other.shape.get(), rank * sizeof(size_t)))
+    if (memcmp(m_shape, other.m_shape, m_rank * sizeof(size_t)))
         throw std::invalid_argument("[ERROR ] tensor shapes must match");
 
     // no need to broadcast...
-    float* a = (this->tensor).get();
-    float* b = (other.tensor).get();
+    float* a = this->m_tensor;
+    float* b = other.m_tensor;
 
     #pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < size; i++) 
-    {   
+    for (size_t i = 0; i < m_size; i++) 
         a[i] = f(a[i], b[i]);
-    }
     return *this;
 }
 
 Tensor Tensor::ops_bcast(const Tensor& other, float (*f)(float&, float&)) const
 {
-    size_t out_rank = std::max(rank, other.rank);
-    std::unique_ptr<size_t[]> out = std::make_unique<size_t[]>(out_rank);
+    size_t out_rank = std::max(m_rank, other.m_rank);
+    size_t* out = new size_t[out_rank];
 
     // making new a and b shapes because we might need to pad the lower sized tensor
-    std::unique_ptr<size_t[]> shape_a = std::make_unique<size_t[]>(out_rank);
-    std::unique_ptr<size_t[]> shape_b = std::make_unique<size_t[]>(out_rank);
-    std::unique_ptr<size_t[]> stride_a = std::make_unique<size_t[]>(out_rank);
-    std::unique_ptr<size_t[]> stride_b = std::make_unique<size_t[]>(out_rank);
-    std::unique_ptr<size_t[]> pitch = std::make_unique<size_t[]>(out_rank);
+    size_t* shape_a     = new size_t[out_rank];
+    size_t* shape_b     = new size_t[out_rank];
+    size_t* stride_a    = new size_t[out_rank];
+    size_t* stride_b    = new size_t[out_rank];
+    size_t* pitch       = new size_t[out_rank];
 
     // 1 fill
-    std::fill(shape_a.get(), shape_a.get() + out_rank, 1);
-    std::fill(shape_b.get(), shape_b.get() + out_rank, 1);
-    std::fill(stride_a.get(), stride_a.get() + out_rank, 1);
-    std::fill(stride_b.get(), stride_b.get() + out_rank, 1);
-    std::fill(pitch.get(), pitch.get() + out_rank, 1);
+    std::fill(shape_a,  shape_a     + out_rank, 1);
+    std::fill(shape_b,  shape_b     + out_rank, 1);
+    std::fill(stride_a, stride_a    + out_rank, 1);
+    std::fill(stride_b, stride_b    + out_rank, 1);
+    std::fill(pitch,    pitch       + out_rank, 1);
 
     // if we need to pad other e.g. [2, 3, 4] and [3, 4] -> [2, 3, 4] and [1, 3, 4]
-    if (rank > other.rank)
+    if (m_rank > other.m_rank)
         for (size_t i = 0; i < out_rank; i++)
         {
-            shape_a[i] = shape[i];
-            if (i >= (rank - other.rank)) shape_b[i] = other.shape[i - (rank - other.rank)];
+            shape_a[i] = m_shape[i];
+            if (i >= (m_rank - other.m_rank))
+                shape_b[i] = other.m_shape[i - (m_rank - other.m_rank)];
         }
-    else if (rank < other.rank)
+    else if (m_rank < other.m_rank)
         for (size_t i = 0; i < out_rank; i++)
         {
-            shape_b[i] = other.shape[i];
-            if (i >= (other.rank - rank)) shape_a[i] = shape[i - (other.rank - rank)];
+            shape_b[i] = other.m_shape[i];
+            if (i >= (other.m_rank - m_rank))
+                shape_a[i] = m_shape[i - (other.m_rank - m_rank)];
         }
 
     // if no need to pad
     else
         for (size_t i = 0; i < out_rank; i++)
         {
-            shape_a[i] = shape[i];
-            shape_b[i] = other.shape[i];
+            shape_a[i] = m_shape[i];
+            shape_b[i] = other.m_shape[i];
         }
 
     // ensure shapes match
@@ -245,7 +249,7 @@ Tensor Tensor::ops_bcast(const Tensor& other, float (*f)(float&, float&)) const
     }
 
     // our out tensor
-    Tensor c = Tensor::create(out.get(), out_rank);
+    Tensor c = Tensor::create(out, out_rank);
 
     for (int i = out_rank-2; i >= 0; i--)
     {
@@ -256,30 +260,38 @@ Tensor Tensor::ops_bcast(const Tensor& other, float (*f)(float&, float&)) const
 
     // broadcasting: if size==1 on an axis that stride must be 0
     for (size_t i = 0; i < out_rank; i++)
-        {
-            if (shape_a[i] == 1) stride_a[i] = 0;
-            if (shape_b[i] == 1) stride_b[i] = 0;
-        }
+    {
+        if (shape_a[i] == 1) stride_a[i] = 0;
+        if (shape_b[i] == 1) stride_b[i] = 0;
+    }
 
-    float* p_a = tensor.get();
-    float* p_b = other.tensor.get();
-    float* p_c = c.tensor.get();
+    float* p_a = m_tensor;
+    float* p_b = other.m_tensor;
+    float* p_c = c.m_tensor;
 
     size_t total = 1;
-    for (size_t i = 0; i < out_rank; ++i) total *= out[i];
+    for (size_t i = 0; i < out_rank; ++i)
+        total *= out[i];
 
     #pragma omp parallel for schedule(static)
-    for (size_t lin = 0; lin < total; lin++)
+    for (size_t i = 0; i < total; i++)
     {
-        size_t offA = 0, offB = 0, rem = lin;
+        size_t offset_a = 0, offset_b = 0, rem = i;
         for (size_t ax = 0; ax < out_rank; ax++) {
             const size_t idx = rem / pitch[ax];
             rem %= pitch[ax];
-            offA += idx * stride_a[ax];
-            offB += idx * stride_b[ax];
+            offset_a += idx * stride_a[ax];
+            offset_b += idx * stride_b[ax];
         }
-        p_c[lin] = f(p_a[offA], p_b[offB]);
+        p_c[i] = f(p_a[offset_a], p_b[offset_b]);
     }
+
+    delete[] out;
+    delete[] shape_a;
+    delete[] shape_b;
+    delete[] stride_a;
+    delete[] stride_b;
+    delete[] pitch;
     return c;
 }
 
@@ -287,18 +299,18 @@ Tensor Tensor::ops(const float& scalar, float (*f)(float&, const float&)) const
 {   
     
     Tensor t = Tensor(*this);
-    float* a = (this->tensor).get();
-    float* c = (t.tensor).get();
+    float* a = this->m_tensor;
+    float* c = t.m_tensor;
 
-    for (size_t i = 0; i < size; i++)  c[i] = f(a[i], scalar);
+    for (size_t i = 0; i < m_size; i++)  c[i] = f(a[i], scalar);
     
     return t;
 }
 
 Tensor& Tensor::ops_eq(const float& scalar, float (*f)(float&, const float&))
 {   
-    float* a = (this->tensor).get();
-    for (size_t i = 0; i < size; i++)
+    float* a = this->m_tensor;
+    for (size_t i = 0; i < m_size; i++)
         a[i] = f(a[i], scalar);
     return *this;
 }
@@ -307,42 +319,57 @@ Tensor& Tensor::operator=(const Tensor& other)
 {
     if (this != &other) 
     {
-        rank = other.rank; size = other.size;
+        m_rank = other.m_rank; 
+        m_size = other.m_size;
 
-        shape = std::make_unique<size_t[]>(rank);
-        tensor = std::make_unique<float[]>(size);
+        delete[] m_shape;
+        delete[] m_tensor;
+        m_shape = new size_t[m_rank];
+        m_tensor = new float[m_size];
 
-        std::memcpy(shape.get(), other.shape.get(), sizeof(size_t)*rank);
-        std::memcpy(tensor.get(), other.tensor.get(), sizeof(float)*size);
+        std::memcpy(m_shape, other.m_shape, sizeof(size_t)*m_rank);
+        std::memcpy(m_tensor, other.m_tensor, sizeof(float)*m_size);
     }
+    return *this;
+}
+
+Tensor& Tensor::operator=(Tensor&& other) noexcept
+{
+    m_rank = other.m_rank;
+    m_size = other.m_size;
+
+    delete[] m_shape;
+    delete[] m_tensor;
+
+    m_shape = other.m_shape;
+    m_tensor = other.m_tensor;
+
+    other.m_shape = nullptr;
+    other.m_tensor = nullptr;
+    
     return *this;
 }
 
 Tensor::Tensor(Tensor&& other) noexcept
 {
-    rank = other.rank; size = other.size;
-    shape = std::move(other.shape);
-    tensor = std::move(other.tensor);
-}
+    m_rank = other.m_rank;
+    m_size = other.m_size;
+    m_shape = other.m_shape;
+    m_tensor = other.m_tensor;
 
-Tensor& Tensor::operator=(Tensor&& other)
-{
-    rank = other.rank; size = other.size;
-    shape = std::move(other.shape);
-    tensor = std::move(other.tensor);
-    
-    return *this;
+    other.m_shape = nullptr;
+    other.m_tensor = nullptr;
 }
 
 Tensor::Tensor(const Tensor& other) // copy constructor
     :
-        rank(other.rank),
-        size(other.size),
-        shape(std::make_unique<size_t[]>(other.rank)),
-        tensor(std::make_unique<float[]>(other.size))
+        m_rank(other.m_rank),
+        m_size(other.m_size),
+        m_shape(new size_t[other.m_rank]),
+        m_tensor(new float[other.m_size])
 {
-    std::memcpy(shape.get(), other.shape.get(), sizeof(size_t)*rank);
-    std::memcpy(tensor.get(), other.tensor.get(), sizeof(float)*size);
+    std::memcpy(m_shape, other.m_shape, sizeof(size_t)*m_rank);
+    std::memcpy(m_tensor, other.m_tensor, sizeof(float)*m_size);
 }
 
 // when the scalar is in front

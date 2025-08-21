@@ -32,7 +32,7 @@ Tensor load_mnist_images(const std::string& path, size_t max_items=1e19)
         uint8_t byte;
         f.read(reinterpret_cast<char*>(&byte), 1);
         if (!f) throw std::runtime_error("file truncated: " + path);
-        img.tensor[i] = float(byte) / 255.0f;
+        img.m_tensor[i] = float(byte) / 255.0f;
     }
 
     return img;
@@ -57,7 +57,7 @@ Tensor load_mnist_labels(const std::string& path, size_t max_items=1e19)
         uint8_t byte;
         f.read(reinterpret_cast<char*>(&byte), 1);
         if (!f) throw std::runtime_error("file truncated: " + path);
-        lab.tensor[i] = float(byte);
+        lab.m_tensor[i] = float(byte);
     }
 
     return lab;

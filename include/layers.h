@@ -4,7 +4,9 @@
 #include <iostream>
 #include <random>
 #include <cstring>
+#include <vector>
 #include "matrix_operations.h"
+
 
 class Layer {
 
@@ -18,7 +20,17 @@ class Layer {
 
         virtual Tensor* forward_pass(const Tensor& px, const bool training=true, void* gpu=nullptr) = 0;
         virtual Tensor* backward_pass(const Tensor& dy, const float lr, void* gpu=nullptr) = 0;
+        
+        
+        
         virtual ~Layer() = default;
+       
+
+        Tensor* call(std::vector<Layer*>& all_layers, const Tensor& px, const bool training=true, void* gpu=nullptr)
+        {
+            all_layers.push_back(this);
+            return forward_pass(px, training, gpu);
+        }
 };
 
 class Linear : public Layer {
@@ -106,9 +118,9 @@ class ReLU : public Layer {
 
             if (!init)
             {
-                m_out_rank = px.rank;
+                m_out_rank = px.m_rank;
                 m_out_shape = std::make_unique<size_t[]>(m_out_rank);
-                std::memcpy(m_out_shape.get(), px.shape.get(), m_out_rank * sizeof(size_t));
+                std::memcpy(m_out_shape.get(), px.m_shape, m_out_rank * sizeof(size_t));
                 init = true;
             }
 
@@ -134,9 +146,9 @@ class sigmoid : public Layer {
         override { 
             if (!init)
             {
-                m_out_rank = px.rank;
+                m_out_rank = px.m_rank;
                 m_out_shape = std::make_unique<size_t[]>(m_out_rank);
-                std::memcpy(m_out_shape.get(), px.shape.get(), m_out_rank * sizeof(size_t));
+                std::memcpy(m_out_shape.get(), px.m_shape, m_out_rank * sizeof(size_t));
                 init = true;
             }
 
@@ -247,10 +259,10 @@ class Flatten : public Layer {
         {
             if (!init)
             {
-                dx = Tensor::create(px.shape.get(), px.rank); // TODO : set shape only once, locked in after
+                dx = Tensor::create(px.m_shape, px.m_rank); // TODO : set shape only once, locked in after
                 
                 size_t flat = 1;
-                for (size_t i = 1; i < px.rank; i++) flat *= px.shape[i];
+                for (size_t i = 1; i < px.m_rank; i++) flat *= px.m_shape[i];
                 
                 m_out_rank = 2; // TODO : hard code??
                 m_out_shape = std::make_unique<size_t[]>(m_out_rank);
@@ -261,19 +273,19 @@ class Flatten : public Layer {
             {
                 // if trying to use (reuse) the layer on a different tensor
                 if (training)
-                    if (dx.size != px.size) // TODO : better to check shape but this is faster
+                    if (dx.m_size != px.m_size) // TODO : better to check shape but this is faster
                         throw std::invalid_argument("cannot reuse layer");
             }
 
-            m_out_shape[0] = px.shape[0];
+            m_out_shape[0] = px.m_shape[0];
             out = Tensor::create(m_out_shape.get(), 2);
-            memcpy(out.tensor.get(), px.tensor.get(), out.size * sizeof(float));
+            memcpy(out.m_tensor, px.m_tensor, out.m_size * sizeof(float));
 
             return &out;
         }
         Tensor* backward_pass(const Tensor& dy, float, void*) override 
         {
-            memcpy(dx.tensor.get(), dy.tensor.get(), dx.size * sizeof(float));
+            memcpy(dx.m_tensor, dy.m_tensor, dx.m_size * sizeof(float));
             return &dx;
         }
 };

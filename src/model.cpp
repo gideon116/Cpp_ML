@@ -3,21 +3,21 @@
 
 void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_real, const Tensor& valid_input, const int epochs, const float lr, size_t batch_size)
 {
-    if (!batch_size) batch_size = input.shape[0];
-    size_t num_batches = input.shape[0] / batch_size; // drop remainder
+    if (!batch_size) batch_size = input.m_shape[0];
+    size_t num_batches = input.m_shape[0] / batch_size; // drop remainder
 
     Tensor dy;
     
-    size_t* mini_batch_shape = new size_t[input.rank];
-    memcpy(mini_batch_shape, input.shape.get(), sizeof(size_t) * input.rank);
+    size_t* mini_batch_shape = new size_t[input.m_rank];
+    memcpy(mini_batch_shape, input.m_shape, sizeof(size_t) * input.m_rank);
     mini_batch_shape[0] = batch_size;
-    Tensor mini_input = Tensor::create(mini_batch_shape, input.rank);
+    Tensor mini_input = Tensor::create(mini_batch_shape, input.m_rank);
     delete[] mini_batch_shape;
 
-    size_t* r_mini_batch_shape = new size_t[real.rank];
-    memcpy(r_mini_batch_shape, real.shape.get(), sizeof(size_t) * real.rank);
+    size_t* r_mini_batch_shape = new size_t[real.m_rank];
+    memcpy(r_mini_batch_shape, real.m_shape, sizeof(size_t) * real.m_rank);
     r_mini_batch_shape[0] = batch_size;
-    Tensor mini_real = Tensor::create(r_mini_batch_shape, real.rank);
+    Tensor mini_real = Tensor::create(r_mini_batch_shape, real.m_rank);
     delete[] r_mini_batch_shape;
     
     Timer timer;
@@ -32,8 +32,8 @@ void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_rea
         double loss = 0.0;
         for (size_t b = 0; b < num_batches; b++)
         {
-            memcpy(mini_input.tensor.get(), input.tensor.get() + b * mini_input.size, sizeof(float) * mini_input.size);
-            memcpy(mini_real.tensor.get(), real.tensor.get() + b * mini_real.size, sizeof(float) * mini_real.size);
+            memcpy(mini_input.m_tensor, input.m_tensor + b * mini_input.m_size, sizeof(float) * mini_input.m_size);
+            memcpy(mini_real.m_tensor, real.m_tensor + b * mini_real.m_size, sizeof(float) * mini_real.m_size);
 
             // train
             const Tensor* y_ptr = &mini_input;
@@ -71,7 +71,7 @@ void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_rea
 
         // backprop
         Tensor* dy_ptr = &dy;
-        for (int i = (int)m_network.size() - 1; i >= 0; i--) {
+        for (int i = (int)m_network.m_size() - 1; i >= 0; i--) {
             dy_ptr = (*m_network[i]).backward_pass(*dy_ptr, lr, m_gpu);
         }
 
@@ -85,9 +85,9 @@ void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_rea
         std::cout << "\tvalid_loss = " << val_loss << "\n";
 
         float acc = 0;
-        for (int i = 0; i < valid_real.size; i++)
-            acc += wef::argmax(wef::softmax(*val_pred_ptr)).tensor[i] == valid_real.tensor[i];
-        acc /= valid_real.size;
+        for (int i = 0; i < valid_real.m_size; i++)
+            acc += wef::argmax(wef::softmax(*val_pred_ptr)).m_tensor[i] == valid_real.m_tensor[i];
+        acc /= valid_real.m_size;
         std::cout << "\tval_accuracy = " << acc << std::endl;
         std::cout << "\ttime per epoch = ";
 
