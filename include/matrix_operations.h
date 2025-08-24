@@ -21,7 +21,7 @@ namespace wef {
         Tensor argmax(const Tensor& m1);
         Tensor activation(const Tensor& m1, const char ops);
         Tensor softmax(const Tensor& m1);
-        Tensor reducesum(const Tensor& m1, const int ax);
+        Tensor reducesum(const Tensor& m1, const int ax, const bool keepdims=true);
         float l2(const Tensor& m1, const Tensor& m2);
         float binarycrossentropy(const Tensor& m1, const Tensor& m2);
         float categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m);

@@ -1,4 +1,4 @@
-#if 1
+#if 0
 #include "include/layers.h"
 #include "include/tensor.h"
 #include "include/model.h"
@@ -26,28 +26,35 @@ class functional_model
 {
 public:
     functional_model() {}
-    
+
 private:
     
     const size_t units1 = 16;
     const size_t units2 = 16;
     const size_t units5 = 10;
 
-    Conv2D_Fast cov1{size_t(3), size_t(3), units1, false, size_t(4)}, cov2{size_t(3), size_t(3), units2, true, size_t(1)}, cov3{size_t(3), size_t(3), units2, true, size_t(2)};
-    Linear_Fast out{units5, false, size_t(7)}, ffn1{size_t(16), true, size_t(8)}, ffn2{size_t(1024), true, size_t(8)}, ffn3{size_t(1024), true, size_t(8)};
+    Conv2D_Fast cov1{3, 3, units1, true, 4}, cov2{3, 3, units2, true, 1}, cov3{3, 3, units2, true, 2};
+    Linear out{units5, true, 7}, ffn1{16, true, 8};
     ReLU relu1, relu2, relu3;
-    ReduceSum r1{size_t(1)}, r2{size_t(1)};
+    ReduceSum r1{1}, r2{1};
     Flatten flat;
-    LayerNorm norm{size_t(1)};
-    MaxPool2D mp{size_t(2), size_t(2)}, mp2{size_t(2), size_t(2)};
+    LayerNorm norm{1};
+    MaxPool2D mp{2, 2}, mp2{2, 2};
+    
+    MHA mha{16, true, 1, true};
+
+    useGPU gpu;
+    
 
 private:
 
     Tensor* call(Tensor& input, const bool& training)
     {
         Tensor* x = &input;
-        x = flat.call(m_layers, *x, training, nullptr);
-        x = out.call(m_layers, *x, training, nullptr);
+        // x = cov1.call(m_layers, x, training, nullptr);
+        x = mha.call(m_layers, (Tensor[4]){*x, *x, *x, *x}, training, &gpu);
+        x = flat.call(m_layers, x, training, &gpu);
+        x = out.call(m_layers, x, training, &gpu);
 
         return x;
     }
@@ -57,7 +64,7 @@ private:
      
         m_y = &m_dy;
         for (auto it = m_layers.rbegin(); it != m_layers.rend() ; it++)
-           m_y = (*it)->backward_pass(*m_y, m_lr, nullptr);
+           m_y = (*it)->backward_pass(m_y, m_lr, &gpu);
     }
 
     void valid(Tensor& val_input, Tensor& val_real)
@@ -103,8 +110,8 @@ public:
 private:
     std::vector<Layer*> m_layers;
     Tensor* m_x;
-    float m_lr = 0.0;
-    float m_loss = 0.0;
+    float m_lr = 0.0f;
+    float m_loss = 0.0f;
     Tensor m_dy;
     Tensor* m_y = nullptr;
 
@@ -125,10 +132,13 @@ int main()
 
     Tensor test_im = load_mnist_images("mnist/t10k-images-idx3-ubyte", n_test);
     Tensor test_l = load_mnist_labels("mnist/t10k-labels-idx1-ubyte", n_test);
+
+    std::cout << "train image shape is: "; train_im.print_shape();
+    std::cout << "train label shape is: "; train_l.print_shape();
     
     
     functional_model model;
-    model.train(train_im, train_l, test_im, test_l, 3, 0.01);
+    model.train(train_im, train_l, test_im, test_l, 3, 0.01f);
   
 
     return 0;
@@ -166,13 +176,13 @@ int main() {
     int units2 = 16;
     int units5 = 10;
     
-    Conv2D cov1(3, 3, units1, true, 3), cov2(3, 3, units2, true, 4), cov3(3, 3, units2, true, 5);
-    Linear out(units5, true, 7), ffn1(16, true, 8), ffn2(512, true, 8), ffn3(512, true, 8);
+    Conv2D_GPU cov1(3, 3, units1, true, 3), cov2(3, 3, units2, true, 4), cov3(3, 3, units2, true, 5);
+    Linear_GPU out(units5, true, 7), ffn1(16, true, 8), ffn2(512, true, 8), ffn3(512, true, 8);
     ReLU relu1, relu2, relu3;
     ReduceSum r1(1), r2(1);
     Flatten flat;
     LayerNorm norm(1);
-    MaxPool2D mp(2, 2), mp2(2, 2);
+    MaxPool2D_GPU mp(2, 2), mp2(2, 2);
 
     std::vector<Layer*> network = {&cov1, &relu1, &mp, &cov2, &relu3, &mp2, &cov3, &relu2, &flat, &ffn1, &out};
     Model model(network, true);
@@ -188,9 +198,9 @@ int main() {
     Tensor pred = model.predict(test_im);
 
     std::cout << "\npred: { ";
-    for (int i = 0; i < 10; i++) std::cout << wef::argmax(wef::softmax(pred)).tensor[i] << " ";
+    for (int i = 0; i < 10; i++) std::cout << wef::argmax(wef::softmax(pred)).m_tensor[i] << " ";
     std::cout << "}\nreal: { ";
-    for (int i = 0; i < 10; i++) std::cout << test_l.tensor[i] << " ";
+    for (int i = 0; i < 10; i++) std::cout << test_l.m_tensor[i] << " ";
     std::cout << "} \n\n";
 
     model.summary();

@@ -34,6 +34,9 @@ class Tensor
         // create from nested init list
         Tensor(const std::initializer_list<Tensor>& vs);
         Tensor(const std::initializer_list<float>& input);
+
+        void print_shape();
+        void reshape(const size_t shape[], const size_t& rank);
      
         // change by index
         float& operator[](const std::initializer_list<size_t>& params);
@@ -45,9 +48,6 @@ class Tensor
 
         Tensor operator[](const size_t& index); // TODO : DONT EVEN THINK ABOUT SHIPPING THIS
 
-        void print_shape();
-
-        
         Tensor(Tensor&& other) noexcept; // move constructor
         Tensor(const Tensor& other); // copy constructor
         Tensor& operator=(Tensor&& other) noexcept; // move assignment

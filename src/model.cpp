@@ -38,7 +38,7 @@ void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_rea
             // train
             const Tensor* y_ptr = &mini_input;
             for (Layer* layer : m_network)
-                y_ptr = (*layer).forward_pass(*y_ptr, /*training=*/true, m_gpu);
+                y_ptr = (*layer).forward_pass(y_ptr, /*training=*/true, m_gpu);
             
             // loss calc
             if (epoch == 0 && b == 0) dy = *y_ptr;
@@ -48,7 +48,7 @@ void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_rea
             // backprop
             Tensor* dy_ptr = &dy;
             for (int i = (int)m_network.size() - 1; i >= 0; i--)
-                dy_ptr = (*m_network[i]).backward_pass(*dy_ptr, lr, m_gpu);
+                dy_ptr = (*m_network[i]).backward_pass(dy_ptr, lr, m_gpu);
 
         }
         
@@ -80,7 +80,7 @@ void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_rea
         // validation
         const Tensor* val_pred_ptr = &valid_input;
         for (Layer* layer : m_network)
-            val_pred_ptr = (*layer).forward_pass(*val_pred_ptr, false, m_gpu);
+            val_pred_ptr = (*layer).forward_pass(val_pred_ptr, false, m_gpu);
         float val_loss = wef::categoricalcrossentropy(valid_real, *val_pred_ptr);
         std::cout << "\tvalid_loss = " << val_loss << "\n";
 
@@ -115,7 +115,7 @@ void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const
         
         // train
         y_ptr = &input;
-        for (Layer* layer : m_network) y_ptr = (*layer).forward_pass(*y_ptr, true, m_gpu);
+        for (Layer* layer : m_network) y_ptr = (*layer).forward_pass(y_ptr, true, m_gpu);
 
         // loss calc
         if (!dy_ptr) dy = *y_ptr;
@@ -126,7 +126,7 @@ void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const
         // backprop
         dy_ptr = &dy;
         for (int i = (int)m_network.size() - 1; i >= 0; i--) {
-            dy_ptr = (*m_network[i]).backward_pass(*dy_ptr, lr, m_gpu);
+            dy_ptr = (*m_network[i]).backward_pass(dy_ptr, lr, m_gpu);
         }
 
         std::cout << "\ttime per epoch = ";
@@ -140,7 +140,7 @@ void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const
 Tensor Model::predict(const Tensor& input)
 { 
     const Tensor* y_ptr = &input;
-    for (Layer* layer : m_network) {y_ptr = (*layer).forward_pass(*y_ptr, false, m_gpu);}
+    for (Layer* layer : m_network) {y_ptr = (*layer).forward_pass(y_ptr, false, m_gpu);}
     return *y_ptr;
 }
 

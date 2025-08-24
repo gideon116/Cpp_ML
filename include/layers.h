@@ -4,6 +4,7 @@
 #include <iostream>
 #include <random>
 #include <cstring>
+#include <unordered_map>
 #include <vector>
 #include "matrix_operations.h"
 
@@ -18,15 +19,20 @@ class Layer {
 
         bool init = false;
 
-        virtual Tensor* forward_pass(const Tensor& px, const bool training=true, void* gpu=nullptr) = 0;
-        virtual Tensor* backward_pass(const Tensor& dy, const float lr, void* gpu=nullptr) = 0;
-        
-        
-        
+        virtual Tensor* forward_pass(const Tensor* px, const bool training=true, void* gpu=nullptr) = 0;
+        virtual Tensor* backward_pass(const Tensor* dy, const float lr, void* gpu=nullptr) = 0;
         virtual ~Layer() = default;
        
 
-        Tensor* call(std::vector<Layer*>& all_layers, const Tensor& px, const bool training=true, void* gpu=nullptr)
+        // Tensor* call(std::unordered_map<Layer*, std::vector<Layer*>>& layers, const std::vector<S>& s, const bool training=true, void* gpu=nullptr)
+        // {
+        //     for (const auto& input : s)
+        //         layers[this].push_back(input.parent);
+
+        //     return forward_pass(px, training, gpu);
+        // }
+
+        Tensor* call(std::vector<Layer*>& all_layers, const Tensor* px, const bool training=true, void* gpu=nullptr)
         {
             all_layers.push_back(this);
             return forward_pass(px, training, gpu);
@@ -48,65 +54,9 @@ class Linear : public Layer {
             : units(unit), m_use_bias(use_bias), g(rand)
             { m_name = "linear"; }
         
-        Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
-        Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
+        Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
+        Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 };
-
-class MHA : public Layer {
-
-    public:
-
-        bool m_use_bias = false;
-        bool m_self_attention = false;
-
-        size_t m_d_model, m_num_heads, m_depth, m_seq_len_q, m_seq_len_k, m_seq_len_v, m_batch;
-        std::unique_ptr<Linear> wq, wk, wv, out_layer;
-
-        Tensor m_aij, m_q, m_k, m_v, m_output;
-        float keys_dim;
-
-        // initilize weights
-        MHA(size_t d_model, bool self_attention=false, size_t num_heads=1, bool use_bias=false) 
-            : m_d_model(d_model), m_self_attention(self_attention), m_num_heads(num_heads), m_use_bias(use_bias)
-        {
-            m_name = "MHA"; 
-            if (m_d_model % m_num_heads != 0)
-                throw std::invalid_argument("tensor rank must be > 1");
-
-        m_depth = m_d_model / m_num_heads;}
-        
-        Tensor scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask);
-        void split_heads(Tensor& x, size_t seq_len);
-        void merge_heads(Tensor& x, size_t seq_len);
-
-        Tensor* forward_pass(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask, const bool training=true, void* gpu=nullptr);
-        Tensor* forward_pass(const Tensor& px, const bool training=true, void* gpu=nullptr) override
-        {
-            std::cout << R"([ERROR ] YOU SHOULD NOT BE SEEING THIS MESSAGE! It means you passed the wrong input to MHA. 
-                            Stop and make sure to pass 3 inputs (q, k, v) to MHA otherwise your model won't work)";
-            return &m_q;
-        };
-        Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
-};
-
-class Embedding : public Layer {
-
-    public:
-        size_t m_vocab_size;
-        size_t m_d_model;
-        std::normal_distribution<float> dist;
-        std::mt19937 g;
-        Tensor out, W, X, dx, dw;
-
-        // initilize weights
-        Embedding(size_t vocab_size, size_t d_model, size_t rand=3) 
-            : m_vocab_size(vocab_size), m_d_model(d_model), g(rand)
-            { m_name = "Embedding"; }
-        
-        Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
-        Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
-};
-
 
 class ReLU : public Layer {
 
@@ -114,23 +64,23 @@ class ReLU : public Layer {
         Tensor dx, X;
         ReLU() { m_name = "RelU"; }
 
-        Tensor* forward_pass(const Tensor& px, const bool training, void*) override {
+        Tensor* forward_pass(const Tensor* px, const bool training, void*) override {
 
             if (!init)
             {
-                m_out_rank = px.m_rank;
+                m_out_rank = px->m_rank;
                 m_out_shape = std::make_unique<size_t[]>(m_out_rank);
-                std::memcpy(m_out_shape.get(), px.m_shape, m_out_rank * sizeof(size_t));
+                std::memcpy(m_out_shape.get(), px->m_shape, m_out_rank * sizeof(size_t));
                 init = true;
             }
 
-            X = wef::relu(px);
+            X = wef::relu(*px);
             return &X;
         }
 
-        Tensor* backward_pass(const Tensor& dy, float, void*) override
+        Tensor* backward_pass(const Tensor* dy, float, void*) override
         {
-            dx = wef::d_relu(X) * dy;
+            dx = wef::d_relu(X) * (*dy);
             return &dx;
         }
 };
@@ -142,23 +92,23 @@ class sigmoid : public Layer {
 
         sigmoid() { m_name = "sigmoid"; }
 
-        Tensor* forward_pass(const Tensor& px, const bool training, void*) 
+        Tensor* forward_pass(const Tensor* px, const bool training, void*) 
         override { 
             if (!init)
             {
-                m_out_rank = px.m_rank;
+                m_out_rank = px->m_rank;
                 m_out_shape = std::make_unique<size_t[]>(m_out_rank);
-                std::memcpy(m_out_shape.get(), px.m_shape, m_out_rank * sizeof(size_t));
+                std::memcpy(m_out_shape.get(), px->m_shape, m_out_rank * sizeof(size_t));
                 init = true;
             }
 
-            X = wef::sigmoid(px);
+            X = wef::sigmoid(*px);
             return &X;
         }
 
-        Tensor* backward_pass(const Tensor& dy, float, void*) override
+        Tensor* backward_pass(const Tensor* dy, float, void*) override
         {
-            dx = wef::d_sigmoid(X) * dy;
+            dx = wef::d_sigmoid(X) * (*dy);
             return &dx;
         }
 };
@@ -182,8 +132,8 @@ class Conv2D : public Layer {
             : g(rand), w_height(w_h), w_width(w_w), units(u), m_use_bias(use_bias)
             { m_name = "Conv2D"; }
         
-        Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
-        Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
+        Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
+        Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
     };
 
 class MaxPool2D : public Layer {
@@ -205,8 +155,8 @@ class MaxPool2D : public Layer {
                 m_name = "MaxPool2D";
             }
         
-        Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
-        Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
+        Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
+        Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
     };
 
 class ReduceSum : public Layer {
@@ -222,8 +172,8 @@ class ReduceSum : public Layer {
                 m_name = "ReduceSum";
             }
 
-        Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
-        Tensor* backward_pass(const Tensor& dy, float, void*)  override;
+        Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
+        Tensor* backward_pass(const Tensor* dy, float, void*)  override;
     };
 
 class LayerNorm : public Layer {
@@ -244,8 +194,8 @@ class LayerNorm : public Layer {
                 m_name = "LayerNorm";
             }
         
-        Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
-        Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
+        Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
+        Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 };
 
 class Flatten : public Layer {
@@ -255,14 +205,14 @@ class Flatten : public Layer {
 
         Flatten() { m_name = "Flatten"; }
 
-        Tensor* forward_pass(const Tensor& px, const bool training, void*) override 
+        Tensor* forward_pass(const Tensor* px, const bool training, void*) override 
         {
             if (!init)
             {
-                dx = Tensor::create(px.m_shape, px.m_rank); // TODO : set shape only once, locked in after
+                dx = Tensor::create(px->m_shape, px->m_rank); // TODO : set shape only once, locked in after
                 
                 size_t flat = 1;
-                for (size_t i = 1; i < px.m_rank; i++) flat *= px.m_shape[i];
+                for (size_t i = 1; i < px->m_rank; i++) flat *= px->m_shape[i];
                 
                 m_out_rank = 2; // TODO : hard code??
                 m_out_shape = std::make_unique<size_t[]>(m_out_rank);
@@ -273,19 +223,19 @@ class Flatten : public Layer {
             {
                 // if trying to use (reuse) the layer on a different tensor
                 if (training)
-                    if (dx.m_size != px.m_size) // TODO : better to check shape but this is faster
+                    if (dx.m_size != px->m_size) // TODO : better to check shape but this is faster
                         throw std::invalid_argument("cannot reuse layer");
             }
 
-            m_out_shape[0] = px.m_shape[0];
+            m_out_shape[0] = px->m_shape[0];
             out = Tensor::create(m_out_shape.get(), 2);
-            memcpy(out.m_tensor, px.m_tensor, out.m_size * sizeof(float));
+            memcpy(out.m_tensor, px->m_tensor, out.m_size * sizeof(float));
 
             return &out;
         }
-        Tensor* backward_pass(const Tensor& dy, float, void*) override 
+        Tensor* backward_pass(const Tensor* dy, float, void*) override 
         {
-            memcpy(dx.m_tensor, dy.m_tensor, dx.m_size * sizeof(float));
+            memcpy(dx.m_tensor, dy->m_tensor, dx.m_size * sizeof(float));
             return &dx;
         }
 };
@@ -304,8 +254,8 @@ class Linear_Fast : public Layer {
             : units(unit), m_use_bias(use_bias), g(rand)
             { m_name = "Linear"; }
         
-        Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
-        Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
+        Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
+        Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 };
 
 class Conv2D_Fast : public Layer {
@@ -329,8 +279,8 @@ class Conv2D_Fast : public Layer {
                 m_name = "Conv2D";
             }
         
-        Tensor* forward_pass(const Tensor& px, const bool training, void*) override;
-        Tensor* backward_pass(const Tensor& dy, const float lr, void*) override;
+        Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
+        Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 };
 
 class Conv2D_legacy : public Layer {
@@ -352,8 +302,8 @@ class Conv2D_legacy : public Layer {
             : g(rand), w_height(w_h), w_width(w_w), units(u), m_use_bias(use_bias)
             { m_name = "Conv2D"; }
         
-        Tensor* forward_pass(const Tensor& px, const bool training, void*);
-        Tensor* backward_pass(const Tensor& dy, const float lr, void*);
+        Tensor* forward_pass(const Tensor* px, const bool training, void*);
+        Tensor* backward_pass(const Tensor* dy, const float lr, void*);
     };
 
 class Conv2D_NR : public Layer {
@@ -375,8 +325,8 @@ class Conv2D_NR : public Layer {
             : g(rand), w_height(w_h), w_width(w_w), units(u), m_use_bias(use_bias)
             { m_name = "Conv2D"; }
         
-        Tensor* forward_pass(const Tensor& px, const bool training, void*);
-        Tensor* backward_pass(const Tensor& dy, const float lr, void*);
+        Tensor* forward_pass(const Tensor* px, const bool training, void*);
+        Tensor* backward_pass(const Tensor* dy, const float lr, void*);
     };
 
 class Conv2D_GPU : public Layer {
@@ -402,8 +352,8 @@ class Conv2D_GPU : public Layer {
                 m_name = "Conv2D";
             }
         
-        Tensor* forward_pass(const Tensor& px, const bool training, void* gpu) override;
-        Tensor* backward_pass(const Tensor& dy, const float lr, void* gpu) override;
+        Tensor* forward_pass(const Tensor* px, const bool training, void* gpu) override;
+        Tensor* backward_pass(const Tensor* dy, const float lr, void* gpu) override;
 };
 
 class Linear_GPU : public Layer {
@@ -421,8 +371,8 @@ class Linear_GPU : public Layer {
             : units(unit), m_use_bias(use_bias), g(rand)
             { m_name = "linear"; }
         
-        Tensor* forward_pass(const Tensor& px, const bool training, void* gpu) override;
-        Tensor* backward_pass(const Tensor& dy, const float lr, void* gpu) override;
+        Tensor* forward_pass(const Tensor* px, const bool training, void* gpu) override;
+        Tensor* backward_pass(const Tensor* dy, const float lr, void* gpu) override;
 };
 
 class MaxPool2D_GPU : public Layer {
@@ -445,8 +395,70 @@ class MaxPool2D_GPU : public Layer {
                 m_name = "MaxPool2D";
             }
         
-        Tensor* forward_pass(const Tensor& px, const bool training, void* gpu) override;
-        Tensor* backward_pass(const Tensor& dy, const float lr, void* gpu) override;
+        Tensor* forward_pass(const Tensor* px, const bool training, void* gpu) override;
+        Tensor* backward_pass(const Tensor* dy, const float lr, void* gpu) override;
     };
+
+class MHA : public Layer 
+{
+
+public:
+
+    bool m_use_bias = false;
+    bool m_self_attention = false;
+
+    size_t m_d_model, m_num_heads, m_depth, m_seq_len_q, m_seq_len_k, m_seq_len_v, m_batch;
+    
+
+    Tensor m_aij, m_q, m_k, m_v, m_output;
+    float keys_dim;
+    Tensor q, k, v, mask;
+
+    std::unique_ptr<Layer> wq, wk, wv, out_layer;
+
+
+    Tensor dyy, daij, de, dq, dk, dv, temp;
+
+    // initilize weights
+    MHA(size_t d_model, bool self_attention=false, size_t num_heads=1, bool use_bias=false) 
+        : m_d_model(d_model), m_self_attention(self_attention), m_num_heads(num_heads), m_use_bias(use_bias)
+    {
+        m_name = "MHA"; 
+        if (m_d_model % m_num_heads != 0)
+            throw std::invalid_argument("tensor rank must be > 1");
+
+        m_depth = m_d_model / m_num_heads;
+        wq = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
+        wk = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
+        wv = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
+        out_layer = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
+
+    }
+    
+    Tensor scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask);
+    void split_heads(Tensor& x, size_t seq_len);
+    void merge_heads(Tensor& x, size_t seq_len);
+
+    Tensor* forward_pass(const Tensor* qkv_mask, const bool training=true, void* gpu=nullptr) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
+};
+
+class Embedding : public Layer
+{
+public:
+    size_t m_vocab_size;
+    size_t m_d_model;
+    std::normal_distribution<float> dist;
+    std::mt19937 g;
+    Tensor out, W, X, dx, dw;
+
+    // initilize weights
+    Embedding(size_t vocab_size, size_t d_model, size_t rand=3) 
+        : m_vocab_size(vocab_size), m_d_model(d_model), g(rand)
+        { m_name = "Embedding"; }
+    
+    Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
+};
 
 #endif

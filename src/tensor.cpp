@@ -89,6 +89,28 @@ Tensor::Tensor(const size_t in_shape[], const char&, const size_t& carray_len)
 
 }
 
+void Tensor::print_shape()
+{
+    std::cout << "[ ";
+    for (size_t i = 0; i < m_rank; i++) std::cout << m_shape[i] << " ";
+    std::cout << "]";
+    std::cout << "\n";
+}
+
+void Tensor::reshape(const size_t shape[], const size_t& rank)
+{
+    size_t temp = 1;
+    for (size_t i = 0; i < rank; i++)
+        temp *= shape[i];
+    if (temp != m_size)
+        throw std::invalid_argument("[ERROR ] requested shape does not match tensor dimensions");
+
+    m_rank = rank;
+    delete[] m_shape;
+    m_shape = new size_t[rank];
+    std::memcpy(m_shape, shape, sizeof(size_t) * rank);
+}
+
 float& Tensor::operator[](const std::initializer_list<size_t>& params)
 {
     if ((size_t)params.size() != m_rank)
@@ -148,15 +170,6 @@ Tensor Tensor::operator[](const size_t& index)
     Tensor out = Tensor::create(new_shape.get(), m_rank - 1); // TODO : make new with loc same as og tensor
     memcpy(out.m_tensor, m_tensor + index * m_size/m_shape[0], (m_size/m_shape[0]) * sizeof(float));
     return out;
-}
-
-void Tensor::print_shape()
-{
-    std::cout << "[ ";
-    for (size_t i = 0; i < m_rank; i++) std::cout << m_shape[i] << " ";
-    std::cout << "]";
-    std::cout << "\n";
-
 }
 
 Tensor Tensor::ops(const Tensor& other, float (*f)(float&, float&)) const
@@ -253,9 +266,9 @@ Tensor Tensor::ops_bcast(const Tensor& other, float (*f)(float&, float&)) const
 
     for (int i = out_rank-2; i >= 0; i--)
     {
-        stride_a[i] = stride_a[i + 1] * shape_a[i + 1];
-        stride_b[i] = stride_b[i + 1] * shape_b[i + 1];
-        pitch[i] = pitch[i + 1] * out[i + 1];
+        stride_a[i] = stride_a[i + 1]   * shape_a[i + 1];
+        stride_b[i] = stride_b[i + 1]   * shape_b[i + 1];
+        pitch[i]    = pitch[i + 1]      * out[i + 1];
     }
 
     // broadcasting: if size==1 on an axis that stride must be 0

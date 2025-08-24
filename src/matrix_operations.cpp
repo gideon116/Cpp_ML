@@ -178,7 +178,16 @@ Tensor wef::transpose(const Tensor& m1)
 {
     // TODO: make this a wrapper for the full perm below
     if (m1.m_rank < 2) throw std::invalid_argument("tensor rank must be > 1");
+
+    size_t* perm = new size_t[m1.m_rank];
+    for (size_t i = 0; i < m1.m_rank - 2; i++)
+        perm[i] = i;
+    perm[m1.m_rank - 1] = m1.m_rank - 2;
+    perm[m1.m_rank - 2] = m1.m_rank - 1;
+
+    return transpose(m1, perm);
     
+    /*
     size_t M = m1.m_shape[m1.m_rank - 2];
     size_t N = m1.m_shape[m1.m_rank - 1];
 
@@ -206,10 +215,11 @@ Tensor wef::transpose(const Tensor& m1)
                 pmtemp[j * M + i] = pm1temp[i * N + j];
     }
     return m;
+    */
 }
 
 void transpose_helper(const size_t* old_shape, size_t* new_shape, const size_t rank, const size_t* perm,
-                        size_t* old_stride, size_t*  new_stride, size_t* multi, size_t* p_inv)
+                        size_t* old_stride, size_t*  new_stride, size_t* p_inv)
 {
     old_stride[rank - 1] = 1;
     new_stride[rank - 1] = 1;
@@ -227,7 +237,8 @@ void transpose_helper(const size_t* old_shape, size_t* new_shape, const size_t r
         p_inv[perm[i]] = i; 
 }
 
-size_t transpose_index_mapper(size_t index, size_t rank, size_t* new_shape, size_t* multi, size_t* new_stride, size_t* old_stride, size_t* p_inv)
+size_t transpose_index_mapper(const size_t index, const size_t rank, const size_t* new_shape, 
+                                size_t* multi, const size_t* new_stride, const size_t* old_stride, const size_t* p_inv)
 {
     // dest linear to dest multi
     for (size_t i = 0; i < rank; i++) 
@@ -248,20 +259,26 @@ Tensor wef::transpose(const Tensor& m1, const size_t* perm)
     if (m1.m_rank < 2) throw std::invalid_argument("tensor rank must be > 1");
     
     std::unique_ptr<size_t[]> old_stride, new_stride, multi, p_inv;
-    old_stride = std::make_unique<size_t[]>(m1.m_rank);
-    new_stride = std::make_unique<size_t[]>(m1.m_rank);
-    multi = std::make_unique<size_t[]>(m1.m_rank);
-    p_inv = std::make_unique<size_t[]>(m1.m_rank);
+
+    old_stride  = std::make_unique<size_t[]>(m1.m_rank);
+    new_stride  = std::make_unique<size_t[]>(m1.m_rank);
+    multi       = std::make_unique<size_t[]>(m1.m_rank);
+    p_inv       = std::make_unique<size_t[]>(m1.m_rank);
 
     Tensor m = m1; // creating new tensor and value will be overwritten
-    transpose_helper(m1.m_shape, m.m_shape, m.m_rank, perm, old_stride.get(), new_stride.get(), multi.get(), p_inv.get());
+    transpose_helper(m1.m_shape, m.m_shape, m1.m_rank, perm, old_stride.get(), new_stride.get(), p_inv.get());
 
     const float* pm1 = m1.m_tensor;
     float* pm = m.m_tensor;
 
     for (size_t i = 0; i < m.m_size; i++)
-        pm[i] = pm1[transpose_index_mapper(i, m.m_rank, m.m_shape, multi.get(), new_stride.get(), old_stride.get(), p_inv.get())];
-    
+    {   
+        size_t index = transpose_index_mapper(i, m.m_rank, m.m_shape, multi.get(), new_stride.get(), old_stride.get(), p_inv.get());
+        // if (index >= m1.m_size)
+        //     throw std::invalid_argument("[ERROR ] SOMETHING WENT WRONG IN TRANSPOSE");
+        pm[i] = pm1[index];
+    }
+
     return m;
 }
 
@@ -351,31 +368,41 @@ Tensor wef::activation(const Tensor& m1, const char ops)
 
 }
 
-Tensor wef::reducesum(const Tensor& m1, const int ax)
+Tensor wef::reducesum(const Tensor& m1, const int ax, const bool keepdims)
 {   
-    if (ax >= m1.m_rank) throw std::invalid_argument("axis outside shape");
-    if (ax < 0) throw std::invalid_argument("axis connot be negative");
+    if (ax >= m1.m_rank)
+        throw std::invalid_argument("axis outside shape");
+    if (ax < 0)
+        throw std::invalid_argument("axis connot be negative");
 
-    std::unique_ptr<size_t[]> out_shape = std::make_unique<size_t[]>(m1.m_rank); // [b, 1, w, c]
+    size_t out_rank = keepdims ? m1.m_rank : m1.m_rank - 1;
+
+    std::unique_ptr<size_t[]> out_shape = std::make_unique<size_t[]>(out_rank); // [b, 1, w, c]
     
+    size_t j = 0;
     for (size_t i = 0; i < m1.m_rank; i++)
     {
-        if (i != ax) out_shape[i] = m1.m_shape[i];
-        else out_shape[i] = 1;
+        if (i != ax)
+            out_shape[j++] = m1.m_shape[i];
+        else
+            if (keepdims)
+                out_shape[j++] = 1;
     }
 
-    Tensor m = Tensor::create(out_shape.get(), m1.m_rank); 
+    Tensor m = Tensor::create(out_shape.get(), out_rank); 
     const float* pm1 = m1.m_tensor;
     float* pm = m.m_tensor;
     
     std::memset(pm, 0, (m.m_size) * sizeof(float));
 
     size_t eaa = 1; // everything after axis i.e. b, h w, axis, x1, x2 -> eaa = x1 * x2
-    for (size_t i = ax + 1; i < m1.m_rank; i++) eaa *= m1.m_shape[i];
+    for (size_t i = ax + 1; i < m1.m_rank; i++)
+        eaa *= m1.m_shape[i];
     size_t ax_help = m1.m_shape[ax]*eaa;
 
     #pragma omp parallel for schedule(static) // TODO : data races
-    for (size_t i = 0; i < m1.m_size; i++) pm[ (i % eaa) + eaa * (i / ax_help) ] += pm1[i];
+    for (size_t i = 0; i < m1.m_size; i++)
+        pm[ (i % eaa) + eaa * (i / ax_help) ] += pm1[i];
     
     return m;
 }
