@@ -1,4 +1,4 @@
-#if 0
+#if 1
 #include "include/layers.h"
 #include "include/tensor.h"
 #include "include/model.h"
@@ -40,8 +40,8 @@ private:
     Flatten flat;
     LayerNorm norm{1};
     MaxPool2D mp{2, 2}, mp2{2, 2};
-    
-    MHA mha{16, true, 1, true};
+
+    MHA mha{16, true, 1, true, false, false};
 
     useGPU gpu;
     
@@ -52,7 +52,10 @@ private:
     {
         Tensor* x = &input;
         // x = cov1.call(m_layers, x, training, nullptr);
-        x = mha.call(m_layers, (Tensor[4]){*x, *x, *x, *x}, training, &gpu);
+
+        x->reshape((size_t[3]){x->m_shape[0], x->m_shape[1], x->m_shape[2]}, 3);
+
+        x = mha.call(m_layers, (Tensor[4]){*x, *x, *x, Tensor()}, training, &gpu);
         x = flat.call(m_layers, x, training, &gpu);
         x = out.call(m_layers, x, training, &gpu);
 

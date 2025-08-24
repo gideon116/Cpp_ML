@@ -851,18 +851,28 @@ Tensor* Conv2D_NR::backward_pass(const Tensor* dy, const float lr, void*)
     return &dx;
 }
 
-Tensor MHA::scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask)
+Tensor MHA::scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask, void* gpu)
 {
-    Tensor product = wef::matmul(q, wef::transpose(k));
+    Tensor product;
+    if (gpu)
+        product = wef::matmul_GPU(gpu, q, wef::transpose(k));
+    else
+        product = wef::matmul(q, wef::transpose(k));
+
     keys_dim = (float)k.m_shape[k.m_rank-1];
 
     Tensor eij = product / sqrt(keys_dim);
 
-    if (0) // FIX TODO THIS IS TEMP
-        eij += (*mask * -1e9f); // TODO : add tensor += overload
+    if (m_use_mask) // TODO or mask->tensor == nullptr
+        eij += (*mask * -1e9f);
 
     m_aij = wef::softmax(eij);
-    Tensor z = wef::matmul(m_aij, v);
+    Tensor z;
+    if (gpu)
+        z = wef::matmul_GPU(gpu, m_aij, v);
+    else
+        z = wef::matmul_GPU(gpu, m_aij, v);
+     
     return z;
 }
 
@@ -879,27 +889,23 @@ Tensor* MHA::forward_pass(const Tensor* qkv_mask, const bool training, void* gpu
 {
     if (!init)
     {
-        
         init = true;
     }
+    else
+    {
+        // TODO : add shape check after init
+    }
 
-    // TODO : add shape check after init
     q = qkv_mask[0];
     k = qkv_mask[1];
     v = qkv_mask[2];
-    mask = qkv_mask[3];
+    mask = m_use_mask ? qkv_mask[3] : Tensor();
     
     m_batch = q.m_shape[0];
     m_seq_len_q = q.m_shape[1];
     m_seq_len_k = k.m_shape[1];
     m_seq_len_v = v.m_shape[1];
 
-    size_t shape[3] = {m_batch, m_seq_len_q, q.m_shape[2]};
-    q.reshape(shape, 3);
-    k.reshape(shape, 3);
-    v.reshape(shape, 3);
-    mask.reshape(shape, 3);
-    
     m_q = *wq->forward_pass(&q, training, gpu);  // (batch_size, seq_len, d_model)
     m_k = *wk->forward_pass(&k, training, gpu);  // (batch_size, seq_len, d_model)
     m_v = *wv->forward_pass(&v, training, gpu);  // (batch_size, seq_len, d_model)
@@ -908,7 +914,7 @@ Tensor* MHA::forward_pass(const Tensor* qkv_mask, const bool training, void* gpu
     split_heads(m_k, m_seq_len_k);  // (batch_size, num_heads, seq_len_k, depth)
     split_heads(m_v, m_seq_len_v);  // (batch_size, num_heads, seq_len_v, depth)
 
-    Tensor attention = scaled_dot_product_attention(m_q, m_k, m_v, &mask);
+    Tensor attention = scaled_dot_product_attention(m_q, m_k, m_v, &mask, gpu);
     
     size_t prem[4] = {0, 2, 1, 3};
     attention = wef::transpose(attention, prem); // (batch_size, seq_len_q, num_heads, depth)
@@ -939,17 +945,33 @@ Tensor* MHA::backward_pass(const Tensor* dy, const float lr, void* gpu)
     temp = wef::transpose(temp, prem);
 
     // undo "Tensor z = wef::matmul(aij, v);"
-    dv = wef::matmul(wef::transpose(m_aij), temp);
-    daij = wef::matmul(temp, wef::transpose(m_v));
+    if (gpu)
+    {
+        dv = wef::matmul_GPU(gpu, wef::transpose(m_aij), temp);
+        daij = wef::matmul_GPU(gpu, temp, wef::transpose(m_v));
+    }
+    else
+    {
+         dv = wef::matmul(wef::transpose(m_aij), temp);
+         daij = wef::matmul(temp, wef::transpose(m_v));
+    }
 
     // undo softmax
     de = (daij - wef::reducesum(daij * m_aij, 3)) * m_aij;
 
     // undo "product = wef::matmul(q, wef::transpose(k));"
     const float scale = 1.0f / std::sqrt(keys_dim);
-    dq = wef::matmul(de, m_k) * scale;
-    dk = wef::matmul(wef::transpose(de), m_q) * scale;
-    
+    if (gpu)
+    {
+        dq = wef::matmul_GPU(gpu, de, m_k) * scale;
+        dk = wef::matmul_GPU(gpu, wef::transpose(de), m_q) * scale;
+    }
+    else
+    {
+         dq = wef::matmul(de, m_k) * scale;
+         dk = wef::matmul(wef::transpose(de), m_q) * scale;
+    }
+
     // undo split
     merge_heads(dq, m_seq_len_q);
     merge_heads(dk, m_seq_len_k);

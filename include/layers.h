@@ -406,36 +406,44 @@ public:
 
     bool m_use_bias = false;
     bool m_self_attention = false;
+    bool m_use_gpu = false;
+    bool m_use_mask = false;
 
     size_t m_d_model, m_num_heads, m_depth, m_seq_len_q, m_seq_len_k, m_seq_len_v, m_batch;
     
-
     Tensor m_aij, m_q, m_k, m_v, m_output;
     float keys_dim;
     Tensor q, k, v, mask;
 
     std::unique_ptr<Layer> wq, wk, wv, out_layer;
-
-
     Tensor dyy, daij, de, dq, dk, dv, temp;
 
     // initilize weights
-    MHA(size_t d_model, bool self_attention=false, size_t num_heads=1, bool use_bias=false) 
-        : m_d_model(d_model), m_self_attention(self_attention), m_num_heads(num_heads), m_use_bias(use_bias)
+    MHA(size_t d_model, bool self_attention=false, size_t num_heads=1, bool use_bias=false, bool use_mask=false, bool use_gpu=false) 
+        : m_d_model(d_model), m_self_attention(self_attention), m_num_heads(num_heads), m_use_bias(use_bias), m_use_mask(use_mask), m_use_gpu(use_gpu)
     {
         m_name = "MHA"; 
         if (m_d_model % m_num_heads != 0)
             throw std::invalid_argument("tensor rank must be > 1");
 
         m_depth = m_d_model / m_num_heads;
-        wq = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
-        wk = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
-        wv = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
-        out_layer = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
-
+        if (use_gpu)
+        {
+            wq = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
+            wk = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
+            wv = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
+            out_layer = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
+        }
+        else
+        {
+            wq = std::make_unique<Linear_Fast>(m_d_model, m_use_bias, 3);
+            wk = std::make_unique<Linear_Fast>(m_d_model, m_use_bias, 3);
+            wv = std::make_unique<Linear_Fast>(m_d_model, m_use_bias, 3);
+            out_layer = std::make_unique<Linear_Fast>(m_d_model, m_use_bias, 3);
+        }
     }
     
-    Tensor scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask);
+    Tensor scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask, void* gpu);
     void split_heads(Tensor& x, size_t seq_len);
     void merge_heads(Tensor& x, size_t seq_len);
 
