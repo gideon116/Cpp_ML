@@ -30,27 +30,27 @@ class Timer
 
 class Model
 {
-    public:
-        Model(bool use_gpu=false) : m_use_gpu(use_gpu) {if (use_gpu) m_gpu = new useGPU;}
-        Model(std::vector<Layer*> inputNetwork, bool use_gpu=false) : m_network(inputNetwork), m_use_gpu(use_gpu) {if (use_gpu) m_gpu = new useGPU;}
-        ~Model() { if (m_use_gpu) delete (useGPU*)m_gpu; }
-        void add(Layer* i) { m_network.push_back(i); }
+public:
+    Model(bool use_gpu=false) : m_use_gpu(use_gpu) {if (use_gpu) m_gpu = new useGPU;}
+    Model(std::vector<Layer*> inputNetwork, bool use_gpu=false) : m_network(inputNetwork), m_use_gpu(use_gpu) {if (use_gpu) m_gpu = new useGPU;}
+    ~Model() { if (m_use_gpu) delete (useGPU*)m_gpu; }
+    void add(Layer* i) { m_network.push_back(i); }
 
-        // validation + training 
-        void fit(
-                const Tensor& real, const Tensor& input,
-                const Tensor& valid_real, const Tensor& valid_input,
-                const int epochs=10, const float lr=0.01f, size_t batch_size=0);
-        
-        // no validation
-        void fit(const Tensor& real, const Tensor& input, const int epochs=10, const float lr=0.01f);
-        Tensor predict(const Tensor& input);
-        void summary();
+    // validation + training 
+    void fit(
+            const Tensor& real, const Tensor& input,
+            const Tensor& valid_real, const Tensor& valid_input,
+            const int epochs=10, const float lr=0.01f, size_t batch_size=0);
+    
+    // no validation
+    void fit(const Tensor& real, const Tensor& input, const int epochs=10, const float lr=0.01f);
+    Tensor predict(const Tensor& input);
+    void summary();
 
-    private:
-        std::vector<Layer*> m_network;
-        void* m_gpu;
-        bool m_use_gpu;
+private:
+    std::vector<Layer*> m_network;
+    void* m_gpu;
+    bool m_use_gpu;
 };
 
 #endif

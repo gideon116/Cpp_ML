@@ -29,12 +29,12 @@ public:
 
 private:
     
-    const size_t units1 = 16;
-    const size_t units2 = 16;
-    const size_t units5 = 10;
+    const size_t m_units1 = 16;
+    const size_t m_units2 = 16;
+    const size_t m_units5 = 10;
 
-    Conv2D_Fast cov1{3, 3, units1, true, 4}, cov2{3, 3, units2, true, 1}, cov3{3, 3, units2, true, 2};
-    Linear out{units5, true, 7}, ffn1{16, true, 8};
+    Conv2D_Fast cov1{3, 3, m_units1, true, 4}, cov2{3, 3, m_units2, true, 1}, cov3{3, 3, m_units2, true, 2};
+    Linear out{m_units5, true, 7}, ffn1{16, true, 8};
     ReLU relu1, relu2, relu3;
     ReduceSum r1{1}, r2{1};
     Flatten flat;
@@ -175,12 +175,12 @@ int main() {
 
     float lr = 0.01f;
 
-    int units1 = 16;
-    int units2 = 16;
-    int units5 = 10;
+    int m_units1 = 16;
+    int m_units2 = 16;
+    int m_units5 = 10;
     
-    Conv2D_GPU cov1(3, 3, units1, true, 3), cov2(3, 3, units2, true, 4), cov3(3, 3, units2, true, 5);
-    Linear_GPU out(units5, true, 7), ffn1(16, true, 8), ffn2(512, true, 8), ffn3(512, true, 8);
+    Conv2D_GPU cov1(3, 3, m_units1, true, 3), cov2(3, 3, m_units2, true, 4), cov3(3, 3, m_units2, true, 5);
+    Linear_GPU out(m_units5, true, 7), ffn1(16, true, 8), ffn2(512, true, 8), ffn3(512, true, 8);
     ReLU relu1, relu2, relu3;
     ReduceSum r1(1), r2(1);
     Flatten flat;

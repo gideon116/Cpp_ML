@@ -27,7 +27,7 @@ namespace wef {
         float categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m);
         float categoricalcrossentropy(const Tensor& m1, const Tensor& m2);
         void print(const Tensor& m1, size_t* arr=nullptr, size_t num=0, bool allc=false);
-        
+
         // wrappers
         Tensor pow(const Tensor& m1, const float con);
         Tensor relu(const Tensor& m1);
