@@ -5,7 +5,7 @@
 
 Tensor* Conv2D_Fast::forward_pass(const Tensor* px, const bool training, void*) 
 {
-    if (!init) 
+    if (!m_init) 
     {   
         // initially initilize the shape of m_X later just copy the tensors
         m_X = Tensor(*px);
@@ -40,7 +40,7 @@ Tensor* Conv2D_Fast::forward_pass(const Tensor* px, const bool training, void*)
 
         m_num_param = m_W.m_size + (m_use_bias ? m_B.m_size : 0);
         
-        init = true;
+        m_init = true;
     }
     else
     {
@@ -240,7 +240,7 @@ Tensor* Conv2D_Fast::backward_pass(const Tensor* dy, const float lr, void*)
 
 Tensor* Linear_Fast::forward_pass(const Tensor* px, const bool training, void*) 
 {
-    if (!init) 
+    if (!m_init) 
     {   
         // initially initilize the shape of m_X later just copy the tensors
         m_X = Tensor(*px);
@@ -265,12 +265,13 @@ Tensor* Linear_Fast::forward_pass(const Tensor* px, const bool training, void*)
         // TODO: CATCH < 1 RANK
         m_out_shape[m_out_rank - 1] = m_units;
 
-        init = true;
+        m_init = true;
     }
     else
     {
         // if trying to use (reuse) the layer on a different tensor
-        if (m_W.m_shape[m_W.m_rank-2] != px->m_shape[px->m_rank-1]) throw std::invalid_argument("cannot reuse layer");
+        if (m_W.m_shape[m_W.m_rank-2] != px->m_shape[px->m_rank-1])
+            throw std::invalid_argument("cannot reuse layer");
     }
     
     // copy px into m_X

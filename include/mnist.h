@@ -1,3 +1,5 @@
+#pragma once
+
 #include <fstream>
 #include <cstdint>
 #include <stdexcept>
@@ -14,8 +16,8 @@ static inline uint32_t read_u32_be(std::ifstream& f)
 Tensor load_mnist_images(const std::string& path, size_t max_items=1e19)
 {
     std::ifstream f(path, std::ios::binary);
-    if (!f) throw
-        std::runtime_error("cannot open " + path);
+    if (!f)
+        throw std::runtime_error("cannot open " + path);
 
     uint32_t magic = read_u32_be(f); // 2051 = 0x00000803
     uint32_t count = read_u32_be(f);
@@ -65,7 +67,8 @@ Tensor load_mnist_labels(const std::string& path, size_t max_items=1e19)
     {
         uint8_t byte;
         f.read(reinterpret_cast<char*>(&byte), 1);
-        if (!f) throw std::runtime_error("file truncated: " + path);
+        if (!f)
+            throw std::runtime_error("file truncated: " + path);
         lab.m_tensor[i] = float(byte);
     }
 

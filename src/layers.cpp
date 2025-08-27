@@ -4,7 +4,7 @@
 
 Tensor* Linear::forward_pass(const Tensor* px, const bool training, void*) 
 {
-    if (!init) 
+    if (!m_init) 
     {   
         // initially initilize the shape of m_X later just copy the tensors
         m_X = Tensor(*px);
@@ -30,12 +30,13 @@ Tensor* Linear::forward_pass(const Tensor* px, const bool training, void*)
         // TODO: CATCH < 1 RANK
         m_out_shape[m_out_rank - 1] = m_units;
 
-        init = true;
+        m_init = true;
     }
     else
     {
         // if trying to use (reuse) the layer on a different tensor
-        if (m_W.m_shape[m_W.m_rank-2] != px->m_shape[px->m_rank-1]) throw std::invalid_argument("cannot reuse layer");
+        if (m_W.m_shape[m_W.m_rank-2] != px->m_shape[px->m_rank-1])
+            throw std::invalid_argument("cannot reuse layer");
     }
 
     // copy px into m_X
@@ -83,7 +84,7 @@ Tensor* Linear::backward_pass(const Tensor* dy, const float lr, void*)
 
 Tensor* Conv2D::forward_pass(const Tensor* px, const bool training, void*) 
 {
-    if (!init) 
+    if (!m_init) 
     {   
         // initially initilize the shape of m_X later just copy the tensors
         m_X = Tensor(*px);
@@ -118,14 +119,15 @@ Tensor* Conv2D::forward_pass(const Tensor* px, const bool training, void*)
         
         m_num_param = m_W.m_size + (m_use_bias ? m_B.m_size : 0);
         
-        init = true;
+        m_init = true;
     }
     else
     {
         // if trying to use (reuse) the layer on a different tensor
         if (px->m_shape[1] != m_height || 
             px->m_shape[2] != m_width ||
-            px->m_shape[3] != m_ch) throw std::invalid_argument("cannot reuse layer");
+            px->m_shape[3] != m_ch)
+                throw std::invalid_argument("cannot reuse layer");
     }
 
     // copy px into m_X
@@ -240,7 +242,7 @@ Tensor* Conv2D::backward_pass(const Tensor* dy, const float lr, void*)
 
 Tensor* Conv2D_legacy::forward_pass(const Tensor* px, const bool training, void*) 
 {
-    if (!init) 
+    if (!m_init) 
     {   
         // initially initilize the shape of m_X later just copy the tensors
         m_X = Tensor(*px);
@@ -275,14 +277,15 @@ Tensor* Conv2D_legacy::forward_pass(const Tensor* px, const bool training, void*
 
         m_num_param = m_W.m_size + (m_use_bias ? m_B.m_size : 0);
 
-        init = true;
+        m_init = true;
     }
     else
     {
         // if trying to use (reuse) the layer on a different tensor
         if (px->m_shape[1] != m_height || 
             px->m_shape[2] != m_width ||
-            px->m_shape[3] != m_ch) throw std::invalid_argument("cannot reuse layer");
+            px->m_shape[3] != m_ch)
+                throw std::invalid_argument("cannot reuse layer");
     }
 
     // copy px into m_X
@@ -388,7 +391,7 @@ Tensor* Conv2D_legacy::backward_pass(const Tensor* dy, const float lr, void*)
 
 Tensor* MaxPool2D::forward_pass(const Tensor* px, const bool training, void*) 
 {
-    if (!init)
+    if (!m_init)
     {   
         // initially initilize the shape of m_X later just copy the tensors
         m_X = Tensor(*px);
@@ -412,14 +415,15 @@ Tensor* MaxPool2D::forward_pass(const Tensor* px, const bool training, void*)
         // m_dx is gradient wrt the layer below
         m_dx = Tensor(*px);
 
-        init = true;
+        m_init = true;
     }
     else
     {
         // if trying to use (reuse) the layer on a different tensor
         if (px->m_shape[1] != m_height || 
             px->m_shape[2] != m_width ||
-            px->m_shape[3] != m_ch) throw std::invalid_argument("cannot reuse layer");
+            px->m_shape[3] != m_ch)
+                throw std::invalid_argument("cannot reuse layer");
     }
 
     // copy px into m_X
@@ -506,12 +510,13 @@ Tensor* MaxPool2D::backward_pass(const Tensor* dy, const float lr, void*)
 Tensor* ReduceSum::forward_pass(const Tensor* px, const bool training, void*) 
 { 
 
-    if (!init) 
+    if (!m_init) 
     {
         // initially initilize the shape of m_X later just copy the tensors
         m_X = Tensor(*px);
 
-        if (m_ax >= px->m_rank) throw std::invalid_argument("axis m_outside shape");
+        if (m_ax >= px->m_rank)
+            throw std::invalid_argument("axis m_outside shape");
         const size_t* shape = px->m_shape; // [b, h, w, c]
 
         m_out_rank = keepdims ? px->m_rank : px->m_rank - 1;
@@ -527,7 +532,7 @@ Tensor* ReduceSum::forward_pass(const Tensor* px, const bool training, void*)
 
         m_dx = Tensor(*px);
         
-        init = true;
+        m_init = true;
     }
 
     // copy px into m_X
@@ -562,7 +567,8 @@ Tensor* ReduceSum::forward_pass(const Tensor* px, const bool training, void*)
 
 Tensor* ReduceSum::backward_pass(const Tensor* dy, float, void*) 
 {
-    if (!init) throw std::invalid_argument("layer not initilized");
+    if (!m_init)
+        throw std::invalid_argument("layer not initilized");
 
     const float* pdy = dy->m_tensor;
     float* pm_dx = m_dx.m_tensor; // no need to zero fill cause we dont do +=
@@ -584,7 +590,7 @@ Tensor* ReduceSum::backward_pass(const Tensor* dy, float, void*)
 
 Tensor* LayerNorm::forward_pass(const Tensor* px, const bool training, void*)
 {
-    if (!init) 
+    if (!m_init) 
     {
         // initially initilize the shape of m_X later just copy the tensors
         m_X = Tensor(*px);
@@ -613,9 +619,10 @@ Tensor* LayerNorm::forward_pass(const Tensor* px, const bool training, void*)
         m_out_shape = std::make_unique<size_t[]>(m_out_rank);
         std::memcpy(m_out_shape.get(), px->m_shape, m_out_rank * sizeof(size_t));
         
-        init = true;
+        m_init = true;
     }
-    if (px->m_shape[m_axis] != m_ax_val) throw std::invalid_argument("cannot reuse layer [LayerNorm]");
+    if (px->m_shape[m_axis] != m_ax_val)
+        throw std::invalid_argument("cannot reuse layer [LayerNorm]");
 
     // copy px into m_X
     if (training) std::memcpy(m_X.m_tensor, px->m_tensor, m_X.m_size * sizeof(float));
@@ -633,7 +640,8 @@ Tensor* LayerNorm::forward_pass(const Tensor* px, const bool training, void*)
 
 Tensor* LayerNorm::backward_pass(const Tensor* dy, const float lr, void*)
 {
-    if (!init) throw std::invalid_argument("layer not initilized");
+    if (!m_init)
+        throw std::invalid_argument("layer not initilized");
 
     m_d_gamma = (*dy) * m_x_i_hat;
     m_d_beta = *dy;
@@ -661,7 +669,7 @@ Tensor* LayerNorm::backward_pass(const Tensor* dy, const float lr, void*)
 
 Tensor* Flatten::forward_pass(const Tensor* px, const bool training, void*) 
 {
-    if (!init)
+    if (!m_init)
     {
         m_dx = Tensor::create(px->m_shape, px->m_rank); // TODO : set shape only once, locked in after
         
@@ -671,7 +679,7 @@ Tensor* Flatten::forward_pass(const Tensor* px, const bool training, void*)
         m_out_rank = 2; // TODO : hard code??
         m_out_shape = std::make_unique<size_t[]>(m_out_rank);
         m_out_shape[1] = flat;
-        init = true;
+        m_init = true;
     }
     else
     {
@@ -688,15 +696,55 @@ Tensor* Flatten::forward_pass(const Tensor* px, const bool training, void*)
     return &m_out;
 }
 
-Tensor* Flatten::backward_pass(const Tensor* m_dy, float, void*) 
+Tensor* Flatten::backward_pass(const Tensor* dy, float, void*) 
 {
-    memcpy(m_dx.m_tensor, m_dy->m_tensor, m_dx.m_size * sizeof(float));
+    memcpy(m_dx.m_tensor, dy->m_tensor, m_dx.m_size * sizeof(float));
+    return &m_dx;
+}
+
+Tensor* ReLU::forward_pass(const Tensor* px, const bool training, void*)
+{
+    if (!m_init)
+    {
+        m_out_rank = px->m_rank;
+        m_out_shape = std::make_unique<size_t[]>(m_out_rank);
+        std::memcpy(m_out_shape.get(), px->m_shape, m_out_rank * sizeof(size_t));
+        m_init= true;
+    }
+
+    m_X = wef::relu(*px);
+    return &m_X;
+}
+
+Tensor* ReLU::backward_pass(const Tensor* dy, float, void*)
+{
+    m_dx = wef::d_relu(m_X) * (*dy);
+    return &m_dx;
+}
+
+Tensor* Sigmoid::forward_pass(const Tensor* px, const bool training, void*) 
+{ 
+    if (!m_init)
+    {
+        m_out_rank = px->m_rank;
+        m_out_shape = std::make_unique<size_t[]>(m_out_rank);
+        std::memcpy(m_out_shape.get(), px->m_shape, m_out_rank * sizeof(size_t));
+        m_init= true;
+    }
+
+    m_X = wef::sigmoid(*px);
+    return &m_X;
+}
+
+Tensor* Sigmoid::backward_pass(const Tensor* dy, float, void*)
+{
+    m_dx = wef::d_sigmoid(m_X) * (*dy);
     return &m_dx;
 }
 
 Tensor* Conv2D_NR::forward_pass(const Tensor* px, const bool training, void*) 
 {
-    if (!init) 
+    if (!m_init) 
     {   
         // initially initilize the shape of m_X later just copy the tensors
         m_X = Tensor(*px);
@@ -731,14 +779,15 @@ Tensor* Conv2D_NR::forward_pass(const Tensor* px, const bool training, void*)
 
         m_num_param = m_W.m_size + (m_use_bias ? m_B.m_size : 0);
 
-        init = true;
+        m_init = true;
     }
     else
     {
         // if trying to use (reuse) the layer on a different tensor
         if (px->m_shape[1] != m_height || 
             px->m_shape[2] != m_width ||
-            px->m_shape[3] != m_ch) throw std::invalid_argument("cannot reuse layer");
+            px->m_shape[3] != m_ch)
+                throw std::invalid_argument("cannot reuse layer");
     }
 
     // copy px into m_X
@@ -922,9 +971,9 @@ void MHA::split_heads(Tensor& x, size_t seq_len)
 
 Tensor* MHA::forward_pass(const Tensor* qkv_mask, const bool training, void* gpu)
 {
-    if (!init)
+    if (!m_init)
     {
-        init = true;
+        m_init = true;
     }
     else
     {
@@ -1030,7 +1079,7 @@ Tensor* MHA::backward_pass(const Tensor* dy, const float lr, void* gpu)
 
 Tensor* Embedding::forward_pass(const Tensor* px, const bool training, void*) 
 {
-    if (!init) 
+    if (!m_init) 
     {   
         // initially initilize the shape of m_X later just copy the tensors
         m_X = Tensor(*px);
@@ -1063,7 +1112,7 @@ Tensor* Embedding::forward_pass(const Tensor* px, const bool training, void*)
         // gradients wrt weight
         m_dw = Tensor(m_W);
 
-        init = true;
+        m_init = true;
     }
     else
     {

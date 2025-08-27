@@ -1,5 +1,4 @@
-#ifndef LAYERS_H
-#define LAYERS_H
+#pragma once
 
 #include <iostream>
 #include <random>
@@ -8,21 +7,26 @@
 #include <vector>
 #include "matrix_operations.h"
 
+struct ValLayer
+{
+    void* layer;
+    Tensor* val;
+};
 
 class Layer
 {
+
 public: // TODO : make these private and have getters
-    
     size_t m_num_param = 0;
     size_t m_out_rank = 0;
     const char* m_name;
     
-    bool init = false;
+    bool m_init= false;
     std::unique_ptr<size_t[]> m_out_shape;
 
 public:
     virtual Tensor* forward_pass(const Tensor* px, const bool training=true, void* gpu=nullptr) = 0;
-    virtual Tensor* backward_pass(const Tensor* m_dy, const float lr, void* gpu=nullptr) = 0;
+    virtual Tensor* backward_pass(const Tensor* dy, const float lr, void* gpu=nullptr) = 0;
     virtual ~Layer() = default;
     
     // Tensor* call(std::unordered_map<Layer*, std::vector<Layer*>>& layers, const std::vector<S>& s, const bool training=true, void* gpu=nullptr)
@@ -33,17 +37,34 @@ public:
     //     return forward_pass(px, training, gpu);
     // }
 
-    Tensor* call(std::vector<Layer*>& all_layers, const Tensor* px, const bool training=true, void* gpu=nullptr)
+    Layer* m_past;
+    ValLayer* call(ValLayer* px_l, const bool training=true, void* gpu=nullptr)
     {
-        all_layers.push_back(this);
-        return forward_pass(px, training, gpu);
+
+        // std::cout << "FORWARD: " << ((px_l->layer) ? ((Layer*)(px_l)->layer)->m_name : "None") << std::endl;
+        m_past = (Layer*)(px_l)->layer;
+        px_l->val = forward_pass(px_l->val, training, gpu);
+        px_l->layer = this;
+        return px_l;
+    }
+    void rev(Tensor* dy, const float lr, void* gpu=nullptr)
+    {
+        // std::cout << "BACKWARD: " << (m_past ? m_past->m_name : "None") << std::endl;
+        // if (m_past)
+        //     m_past->rev(dy, lr, gpu);
+
+        if (m_past)
+            m_past->rev(backward_pass(dy, lr, gpu), lr, gpu);
+        else
+            backward_pass(dy, lr, gpu);
+        
     }
 };
 
 class Linear : public Layer
 {
 
-public:
+private:
     size_t m_units;
     std::normal_distribution<float> m_dist;
     std::mt19937 m_g;
@@ -57,74 +78,39 @@ public:
         { m_name = "linear"; }
     
     Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void*) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 };
 
 class ReLU : public Layer
 {
 
-public:
+private:
     Tensor m_dx, m_X;
 
 public:
 
     ReLU() { m_name = "RelU"; }
-    Tensor* forward_pass(const Tensor* px, const bool training, void*) override
-    {
-        if (!init)
-        {
-            m_out_rank = px->m_rank;
-            m_out_shape = std::make_unique<size_t[]>(m_out_rank);
-            std::memcpy(m_out_shape.get(), px->m_shape, m_out_rank * sizeof(size_t));
-            init = true;
-        }
-
-        m_X = wef::relu(*px);
-        return &m_X;
-    }
-
-    Tensor* backward_pass(const Tensor* m_dy, float, void*) override
-    {
-        m_dx = wef::d_relu(m_X) * (*m_dy);
-        return &m_dx;
-    }
+    Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
+    Tensor* backward_pass(const Tensor* dy, float, void*) override;
 };
 
-class sigmoid : public Layer
+class Sigmoid : public Layer
 {
 
-public:
+private:
     Tensor m_dx, m_X;
 
 public:
-    sigmoid() { m_name = "sigmoid"; }
+    Sigmoid() { m_name = "sigmoid"; }
 
-    Tensor* forward_pass(const Tensor* px, const bool training, void*) override 
-    { 
-        if (!init)
-        {
-            m_out_rank = px->m_rank;
-            m_out_shape = std::make_unique<size_t[]>(m_out_rank);
-            std::memcpy(m_out_shape.get(), px->m_shape, m_out_rank * sizeof(size_t));
-            init = true;
-        }
-
-        m_X = wef::sigmoid(*px);
-        return &m_X;
-    }
-
-    Tensor* backward_pass(const Tensor* m_dy, float, void*) override
-    {
-        m_dx = wef::d_sigmoid(m_X) * (*m_dy);
-        return &m_dx;
-    }
+    Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
+    Tensor* backward_pass(const Tensor* dy, float, void*) override;
 };
 
 class Conv2D : public Layer
 {
 
-public:
-    
+private:
     std::mt19937 m_g;
     size_t m_k_height, m_k_width, m_units;
     size_t m_height, m_width, m_ch;
@@ -139,13 +125,13 @@ public:
         { m_name = "Conv2D"; }
     
     Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void*) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 };
 
 class MaxPool2D : public Layer
 {
     
-public:
+private:
     size_t k_height, k_width;
     size_t m_height, m_width, m_ch;
     std::unique_ptr<size_t[]> argmax;
@@ -161,12 +147,12 @@ public:
         }
     
     Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void*) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 };
 
 class ReduceSum : public Layer
 {
-public:
+private:
     Tensor m_X, m_out, m_dx;
     int m_ax;
     bool keepdims = false;
@@ -180,13 +166,13 @@ public:
         }
 
     Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
-    Tensor* backward_pass(const Tensor* m_dy, float, void*)  override;
+    Tensor* backward_pass(const Tensor* dy, float, void*)  override;
 };
 
 class LayerNorm : public Layer
 {
 
-public:
+private:
 
     Tensor m_X;
     int m_axis;
@@ -204,24 +190,24 @@ public:
         }
     
     Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void*) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 };
 
 class Flatten : public Layer
 {
-public:
+private:
     Tensor m_X, m_out, m_dx;
 
 public:
     Flatten() { m_name = "Flatten"; }
 
     Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
-    Tensor* backward_pass(const Tensor* m_dy, float, void*) override;
+    Tensor* backward_pass(const Tensor* dy, float, void*) override;
 };
 
 class Linear_Fast : public Layer
 {
-public:
+private:
     size_t m_units;
     std::normal_distribution<float> m_dist;
     std::mt19937 m_g;
@@ -235,13 +221,13 @@ public:
         { m_name = "Linear"; }
     
     Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void*) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 };
 
 class Conv2D_Fast : public Layer
 {
 
-public:
+private:
     std::mt19937 m_g;
     size_t m_k_height, m_k_width, m_units;
     size_t m_height, m_width, m_ch;
@@ -258,14 +244,13 @@ public:
         }
     
     Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void*) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 };
 
 class Conv2D_legacy : public Layer
 {
 
-public:
-    
+private:
     std::mt19937 m_g;
     size_t m_k_height, m_k_width, m_units;
     size_t m_height, m_width, m_ch;
@@ -280,12 +265,13 @@ public:
         { m_name = "Conv2D"; }
     
     Tensor* forward_pass(const Tensor* px, const bool training, void*);
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void*);
+    Tensor* backward_pass(const Tensor* dy, const float lr, void*);
 };
 
 class Conv2D_NR : public Layer
 {
-public:
+
+private:
     std::mt19937 m_g;
     size_t m_k_height, m_k_width, m_units;
     size_t m_height, m_width, m_ch;
@@ -300,13 +286,13 @@ public:
         { m_name = "Conv2D"; }
     
     Tensor* forward_pass(const Tensor* px, const bool training, void*);
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void*);
+    Tensor* backward_pass(const Tensor* dy, const float lr, void*);
 };
 
 class Conv2D_GPU : public Layer
 {
-public:
 
+private:
     std::mt19937 m_g;
     size_t m_k_height, m_k_width, m_units;
     size_t m_height, m_width, m_ch;
@@ -314,7 +300,6 @@ public:
     std::normal_distribution<float> m_dist;
     Tensor m_W, m_X, m_out, m_dx, m_dw, m_B, m_db;
     std::unique_ptr<float[]> m_WB;
-    bool m_use_bias = false;
     bool m_use_bias = false;
 
 public:  
@@ -326,12 +311,13 @@ public:
         }
     
     Tensor* forward_pass(const Tensor* px, const bool training, void* gpu) override;
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void* gpu) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void* gpu) override;
 };
 
 class Linear_GPU : public Layer
 {
-public:
+
+private:
     size_t m_units;
     std::normal_distribution<float> m_dist;
     std::mt19937 m_g;
@@ -345,13 +331,13 @@ public:
         { m_name = "linear"; }
     
     Tensor* forward_pass(const Tensor* px, const bool training, void* gpu) override;
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void* gpu) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void* gpu) override;
 };
 
 class MaxPool2D_GPU : public Layer
 {
     
-public:
+private:
     size_t k_height, k_width;
     size_t m_height, m_width, m_ch;
     std::unique_ptr<uint32_t[]> argmax;
@@ -368,14 +354,13 @@ public:
         }
     
     Tensor* forward_pass(const Tensor* px, const bool training, void* gpu) override;
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void* gpu) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void* gpu) override;
 };
 
 class MHA : public Layer 
 {
 
-public:
-
+private:
     bool m_use_bias = false;
     bool m_self_attention = false;
     bool m_use_gpu = false;
@@ -419,12 +404,13 @@ public:
     void merge_heads(Tensor& x, size_t seq_len);
 
     Tensor* forward_pass(const Tensor* qkv_mask, const bool training=true, void* gpu=nullptr) override;
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void*) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 };
 
 class Embedding : public Layer
 {
-public:
+
+private:
     size_t m_vocab_size;
     size_t m_d_model;
     std::normal_distribution<float> m_dist;
@@ -438,7 +424,6 @@ public:
         { m_name = "Embedding"; }
     
     Tensor* forward_pass(const Tensor* px, const bool training, void*) override;
-    Tensor* backward_pass(const Tensor* m_dy, const float lr, void*) override;
+    Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 };
 
-#endif

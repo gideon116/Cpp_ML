@@ -1,4 +1,5 @@
 #pragma once
+
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <set>
@@ -45,11 +46,11 @@ struct QueueFamilyIndices
     }
 };
 
-class useGPU
+class UseGPU
 {
     public:
-        useGPU();
-        ~useGPU();
+        UseGPU();
+        ~UseGPU();
         
         void program(std::vector<VkDeviceSize> input_sizes, std::vector<VkDeviceSize> output_sizes,
                         std::vector<void*> input_data, std::vector<void*> output_data, 

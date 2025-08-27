@@ -1,5 +1,4 @@
-#ifndef MATRIX_OPERATIONS_H
-#define MATRIX_OPERATIONS_H
+#pragma once
 
 #include <iostream>
 #include <cmath>
@@ -40,4 +39,4 @@ namespace wef {
         Tensor elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul*/);
 
 };
-#endif
+

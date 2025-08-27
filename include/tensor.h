@@ -1,5 +1,4 @@
-#ifndef TENSOR_H
-#define TENSOR_H
+#pragma once
 
 #include <iostream>
 #include <cstring>
@@ -24,8 +23,10 @@ public:
     }
 
     // create from scratch based on shape (init list or arr)
-    static Tensor create(const std::initializer_list<size_t>& shape) { return Tensor(shape, 'C'); }
-    static Tensor create(const size_t shape[], const size_t& a_len) { return Tensor(shape, 'C', a_len); }
+    static Tensor create(const std::initializer_list<size_t>& shape)
+        { return Tensor(shape, 'C'); }
+    static Tensor create(const size_t shape[], const size_t& a_len)
+        { return Tensor(shape, 'C', a_len); }
     
     Tensor(const std::initializer_list<size_t>& in_shape, const char&);
     // this is soooo repetetive, MAKE SURE to COMBINE it with the last method somehow
@@ -60,32 +61,48 @@ public:
     Tensor ops_bcast(const Tensor& other, float (*f)(float&, float&)) const;
 
     // Tensor overload operators
-    Tensor operator+(const Tensor& other) const { return ops(other, [](float& a, float& b){ return a + b; }); }
-    Tensor operator-(const Tensor& other) const { return ops(other, [](float& a, float& b){ return a - b; }); }
-    Tensor operator*(const Tensor& other) const { return ops(other, [](float& a, float& b){ return a * b; }); }
-    Tensor operator/(const Tensor& other) const { return ops(other, [](float& a, float& b){ return a / b; }); }
+    Tensor operator+(const Tensor& other) const
+        { return ops(other, [](float& a, float& b){ return a + b; }); }
+    Tensor operator-(const Tensor& other) const
+        { return ops(other, [](float& a, float& b){ return a - b; }); }
+    Tensor operator*(const Tensor& other) const
+        { return ops(other, [](float& a, float& b){ return a * b; }); }
+    Tensor operator/(const Tensor& other) const
+        { return ops(other, [](float& a, float& b){ return a / b; }); }
 
     // Tensor overload operators (+= etc are special)
-    Tensor& operator+=(const Tensor& other) { return ops_eq(other, [](float& a, float& b){ return a + b; }); }
-    Tensor& operator-=(const Tensor& other) { return ops_eq(other, [](float& a, float& b){ return a - b; }); }
-    Tensor& operator*=(const Tensor& other) { return ops_eq(other, [](float& a, float& b){ return a * b; }); }
-    Tensor& operator/=(const Tensor& other) { return ops_eq(other, [](float& a, float& b){ return a / b; }); }
+    Tensor& operator+=(const Tensor& other)
+        { return ops_eq(other, [](float& a, float& b){ return a + b; }); }
+    Tensor& operator-=(const Tensor& other)
+        { return ops_eq(other, [](float& a, float& b){ return a - b; }); }
+    Tensor& operator*=(const Tensor& other)
+        { return ops_eq(other, [](float& a, float& b){ return a * b; }); }
+    Tensor& operator/=(const Tensor& other)
+        { return ops_eq(other, [](float& a, float& b){ return a / b; }); }
 
     // scalar operator overload helper
     Tensor ops(const float& scalar, float (*f)(float&, const float&)) const;
     Tensor& ops_eq(const float& scalar, float (*f)(float&, const float&));
 
     // overload operators
-    Tensor operator+(const float& scalar) const { return ops(scalar, [](float& a, const float& b){ return a + b; }); }
-    Tensor operator-(const float& scalar) const { return ops(scalar, [](float& a, const float& b){ return a - b; }); }
-    Tensor operator*(const float& scalar) const { return ops(scalar, [](float& a, const float& b){ return a * b; }); }
-    Tensor operator/(const float& scalar) const { return ops(scalar, [](float& a, const float& b){ return a / b; }); }
+    Tensor operator+(const float& scalar) const
+        { return ops(scalar, [](float& a, const float& b){ return a + b; }); }
+    Tensor operator-(const float& scalar) const
+        { return ops(scalar, [](float& a, const float& b){ return a - b; }); }
+    Tensor operator*(const float& scalar) const
+        { return ops(scalar, [](float& a, const float& b){ return a * b; }); }
+    Tensor operator/(const float& scalar) const
+        { return ops(scalar, [](float& a, const float& b){ return a / b; }); }
 
     // += etc are special
-    Tensor& operator+=(const float& scalar) { return ops_eq(scalar, [](float& a, const float& b){ return a + b; }); }
-    Tensor& operator-=(const float& scalar) { return ops_eq(scalar, [](float& a, const float& b){ return a - b; }); }
-    Tensor& operator*=(const float& scalar) { return ops_eq(scalar, [](float& a, const float& b){ return a * b; }); }
-    Tensor& operator/=(const float& scalar) { return ops_eq(scalar, [](float& a, const float& b){ return a / b; }); }
+    Tensor& operator+=(const float& scalar)
+        { return ops_eq(scalar, [](float& a, const float& b){ return a + b; }); }
+    Tensor& operator-=(const float& scalar)
+        { return ops_eq(scalar, [](float& a, const float& b){ return a - b; }); }
+    Tensor& operator*=(const float& scalar)
+        { return ops_eq(scalar, [](float& a, const float& b){ return a * b; }); }
+    Tensor& operator/=(const float& scalar)
+        { return ops_eq(scalar, [](float& a, const float& b){ return a / b; }); }
 
 private:
 
@@ -116,4 +133,3 @@ Tensor operator-(float s, const Tensor& t);
 Tensor operator*(float s, const Tensor& t);
 Tensor operator/(float s, const Tensor& t);
 
-#endif

@@ -256,7 +256,8 @@ Tensor wef::transpose(const Tensor& m1, const size_t* perm)
 {
     // TODO : add prem check
 
-    if (m1.m_rank < 2) throw std::invalid_argument("tensor rank must be > 1");
+    if (m1.m_rank < 2)
+        throw std::invalid_argument("tensor rank must be > 1");
     
     std::unique_ptr<size_t[]> old_stride, new_stride, multi, p_inv;
 
@@ -284,7 +285,8 @@ Tensor wef::transpose(const Tensor& m1, const size_t* perm)
 
 Tensor wef::argmax(const Tensor& m1)
 {
-    if (m1.m_rank < 1) throw std::invalid_argument("tensor 1 rank must be > 0");
+    if (m1.m_rank < 1)
+        throw std::invalid_argument("tensor 1 rank must be > 0");
 
     // TODO : make it work with other axis not just -1
     std::unique_ptr<size_t[]> temp_shape = std::make_unique<size_t[]>(m1.m_rank - 1);
@@ -409,8 +411,10 @@ Tensor wef::reducesum(const Tensor& m1, const int ax, const bool keepdims)
 
 float wef::l2(const Tensor& m1, const Tensor& m2)
 {
-    if (m1.m_rank != m2.m_rank) throw std::invalid_argument("matrix rank mismatch [6]");
-    for (size_t i = 0; i < m1.m_rank; i++) if (m1.m_shape[i] != m2.m_shape[i]) throw std::invalid_argument("matrix size mismatch [7]");
+    if (m1.m_rank != m2.m_rank)
+        throw std::invalid_argument("matrix rank mismatch [6]");
+    for (size_t i = 0; i < m1.m_rank; i++) if (m1.m_shape[i] != m2.m_shape[i])
+        throw std::invalid_argument("matrix size mismatch [7]");
 
     const float* pm1 = m1.m_tensor; // grab raw pointers for speeeed
     const float* pm2 = m2.m_tensor;
@@ -567,7 +571,7 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
     if (m1.m_rank != m2.m_rank)
         throw std::invalid_argument("tensor 1 and tensor 2 must have the same shape");
     if (memcmp(m1.m_shape, m2.m_shape, sizeof(size_t) * m1.m_rank)) // compare shapes
-            throw std::invalid_argument("matrix size mismatch [4]");
+        throw std::invalid_argument("matrix size mismatch [4]");
 
     struct PC
     {
@@ -584,11 +588,11 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
     push_constant.size = m1.m_size;
 
     const uint32_t WG = 256;
-    uint32_t gx = useGPU::ceilDiv(m1.m_size, WG);
+    uint32_t gx = UseGPU::ceilDiv(m1.m_size, WG);
     uint32_t gy = 1;
     uint32_t gz = 1;
 
-    ((useGPU*)gpu)->program({bytes, bytes}, {bytes}, {m1.m_tensor, m2.m_tensor}, {m.m_tensor}, spvPath, (void*)&push_constant, sizeof(push_constant), gx, gy, gz);
+    ((UseGPU*)gpu)->program({bytes, bytes}, {bytes}, {m1.m_tensor, m2.m_tensor}, {m.m_tensor}, spvPath, (void*)&push_constant, sizeof(push_constant), gx, gy, gz);
     
     return m;
 }
@@ -640,11 +644,11 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
 
     const uint32_t WGX = 16;
     const uint32_t WGY = 16;
-    uint32_t gx = useGPU::ceilDiv(K, WGX);
-    uint32_t gy = useGPU::ceilDiv(M, WGY);
+    uint32_t gx = UseGPU::ceilDiv(K, WGX);
+    uint32_t gy = UseGPU::ceilDiv(M, WGY);
     uint32_t gz = m1.m_size/(M*N);
 
-    ((useGPU*)gpu)->program({sizeA, sizeB}, {sizeC}, {m1.m_tensor, m2.m_tensor}, {m.m_tensor}, spvPath, (void*)&push_constant, sizeof(push_constant), gx, gy, gz);
+    ((UseGPU*)gpu)->program({sizeA, sizeB}, {sizeC}, {m1.m_tensor, m2.m_tensor}, {m.m_tensor}, spvPath, (void*)&push_constant, sizeof(push_constant), gx, gy, gz);
     return m;
 }
 

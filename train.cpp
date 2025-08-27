@@ -21,7 +21,6 @@ public:
     }
 };
 
-
 class functional_model
 {
 public:
@@ -43,31 +42,34 @@ private:
 
     MHA mha{16, true, 1, true, false, false};
 
-    useGPU gpu;
-    
+    UseGPU gpu;
+
+    ValLayer m_xlr;
 
 private:
 
     Tensor* call(Tensor& input, const bool& training)
     {
         Tensor* x = &input;
-        // x = cov1.call(m_layers, x, training, nullptr);
-
         x->reshape((size_t[3]){x->m_shape[0], x->m_shape[1], x->m_shape[2]}, 3);
+        Tensor aa[4] = {*x, *x, *x,  Tensor()};
+        m_xlr = {nullptr, aa};
+        ValLayer* xl = &m_xlr;
+    
+        xl = mha.call(xl, training, &gpu);
+        xl = flat.call(xl, training, &gpu);
+        // xl = ffn1.call(xl, training, &gpu);
+        xl = out.call(xl, training, &gpu);
 
-        x = mha.call(m_layers, (Tensor[4]){*x, *x, *x, Tensor()}, training, &gpu);
-        x = flat.call(m_layers, x, training, &gpu);
-        x = out.call(m_layers, x, training, &gpu);
-
-        return x;
+        return xl->val;
     }
     void backward(const Tensor& real)
     {
         m_loss = wef::categoricalcrossentropy(real, *m_x, m_dy);
      
         m_y = &m_dy;
-        for (auto it = m_layers.rbegin(); it != m_layers.rend() ; it++)
-           m_y = (*it)->backward_pass(m_y, m_lr, &gpu);
+        ((Layer*)(m_xlr.layer))->rev(m_y, m_lr, &gpu);
+        
     }
 
     void valid(Tensor& val_input, Tensor& val_real)
@@ -84,10 +86,7 @@ private:
         std::cout << "\tval_accuracy = " << acc << std::endl;
         std::cout << "\ttime per epoch = ";
 
-        m_layers.clear();
     }
-
-    
 
 public:
     
@@ -102,7 +101,6 @@ public:
             m_x = call(input, true);
             if (!epoch) m_dy = *m_x; // only set m_dy during epoch 0
             backward(real);
-            m_layers.clear();
 
             std::cout << "epoch: " << epoch + 1 << "\n\tloss = " << m_loss << "\n";
             valid(val_input, val_real);
@@ -111,14 +109,11 @@ public:
     }
 
 private:
-    std::vector<Layer*> m_layers;
     Tensor* m_x;
     float m_lr = 0.0f;
     float m_loss = 0.0f;
     Tensor m_dy;
     Tensor* m_y = nullptr;
-
-
 
 };
 

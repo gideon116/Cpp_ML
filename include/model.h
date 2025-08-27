@@ -1,5 +1,4 @@
-#ifndef MODEL_H
-#define MODEL_H
+#pragma once
 
 #include <iostream>
 #include <chrono>
@@ -10,31 +9,41 @@
 
 class Timer
 {
-    public:
-        Timer() { m_start_point = std::chrono::high_resolution_clock::now(); }
-        ~Timer()
-        {
-            m_end_point = std::chrono::high_resolution_clock::now();
 
-            auto start = std::chrono::time_point_cast<std::chrono::milliseconds>(m_start_point);
-            auto end = std::chrono::time_point_cast<std::chrono::milliseconds>(m_end_point);
-            auto duration = end - start;
-            float sec = duration.count() * 0.001f;
-            std::cout << sec << " sec" << "\n";
-        }
-        
-    private:
-        std::chrono::time_point<std::chrono::high_resolution_clock> m_start_point;
-        std::chrono::time_point<std::chrono::high_resolution_clock> m_end_point;
+public:
+    Timer() { m_start_point = std::chrono::high_resolution_clock::now(); }
+    ~Timer()
+    {
+        m_end_point = std::chrono::high_resolution_clock::now();
+
+        auto start = std::chrono::time_point_cast<std::chrono::milliseconds>(m_start_point);
+        auto end = std::chrono::time_point_cast<std::chrono::milliseconds>(m_end_point);
+        auto duration = end - start;
+        float sec = duration.count() * 0.001f;
+        std::cout << sec << " sec" << "\n";
+    }
+    
+private:
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_start_point;
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_end_point;
 };
 
 class Model
 {
 public:
-    Model(bool use_gpu=false) : m_use_gpu(use_gpu) {if (use_gpu) m_gpu = new useGPU;}
-    Model(std::vector<Layer*> inputNetwork, bool use_gpu=false) : m_network(inputNetwork), m_use_gpu(use_gpu) {if (use_gpu) m_gpu = new useGPU;}
-    ~Model() { if (m_use_gpu) delete (useGPU*)m_gpu; }
-    void add(Layer* i) { m_network.push_back(i); }
+    Model(bool use_gpu=false)
+        : m_use_gpu(use_gpu)
+        { if (use_gpu) m_gpu = new UseGPU; }
+
+    Model(std::vector<Layer*> inputNetwork, bool use_gpu=false)
+        : m_network(inputNetwork), m_use_gpu(use_gpu)
+        { if (use_gpu) m_gpu = new UseGPU; }
+        
+    ~Model()
+        { if (m_use_gpu) delete (UseGPU*)m_gpu; }
+
+    void add(Layer* i)
+        { m_network.push_back(i); }
 
     // validation + training 
     void fit(
@@ -53,4 +62,3 @@ private:
     bool m_use_gpu;
 };
 
-#endif
