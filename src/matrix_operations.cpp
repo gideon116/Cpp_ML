@@ -579,7 +579,7 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
         uint32_t size;
     } push_constant;
 
-    const char* spvPath =  "shaders/binaries/elemwise.spv";
+    const char* spv_path =  "shaders/binaries/elemwise.spv";
     VkDeviceSize bytes = sizeof(float) * m1.m_size;
 
     Tensor m = m1;
@@ -592,7 +592,7 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
     uint32_t gy = 1;
     uint32_t gz = 1;
 
-    ((UseGPU*)gpu)->program({bytes, bytes}, {bytes}, {m1.m_tensor, m2.m_tensor}, {m.m_tensor}, spvPath, (void*)&push_constant, sizeof(push_constant), gx, gy, gz);
+    ((UseGPU*)gpu)->program({bytes, bytes}, {bytes}, {m1.m_tensor, m2.m_tensor}, {m.m_tensor}, spv_path, (void*)&push_constant, sizeof(push_constant), gx, gy, gz);
     
     return m;
 }
@@ -621,7 +621,7 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
 
     Tensor m = Tensor::create(temp_shape.get(), m1.m_rank);
 
-    const char* spvPath =  "shaders/binaries/matmul.spv";
+    const char* spv_path =  "shaders/binaries/matmul.spv";
 
     VkDeviceSize sizeA = sizeof(float) * m1.m_size;
     VkDeviceSize sizeB = sizeof(float) * m2.m_size;
@@ -648,10 +648,9 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
     uint32_t gy = UseGPU::ceilDiv(M, WGY);
     uint32_t gz = m1.m_size/(M*N);
 
-    ((UseGPU*)gpu)->program({sizeA, sizeB}, {sizeC}, {m1.m_tensor, m2.m_tensor}, {m.m_tensor}, spvPath, (void*)&push_constant, sizeof(push_constant), gx, gy, gz);
+    ((UseGPU*)gpu)->program({sizeA, sizeB}, {sizeC}, {m1.m_tensor, m2.m_tensor}, {m.m_tensor}, spv_path, (void*)&push_constant, sizeof(push_constant), gx, gy, gz);
     return m;
 }
-
 
 Tensor wef::pow(const Tensor& m1, const float con) { return cops(m1, con, [](float a, float b){ return std::pow(a, b); }); }
 Tensor wef::relu(const Tensor& m1) { return activation(m1, 'a'); }

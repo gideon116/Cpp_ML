@@ -33,18 +33,18 @@ private:
     const size_t m_units5 = 10;
 
     Conv2D_Fast cov1{3, 3, m_units1, true, 4}, cov2{3, 3, m_units2, true, 1}, cov3{3, 3, m_units2, true, 2};
-    Linear out{m_units5, true, 7}, ffn1{16, true, 8};
+    Linear out{m_units5, true, 7}, ffn1{16, true, 8}, ffn2{16, true, 8};
     ReLU relu1, relu2, relu3;
     ReduceSum r1{1}, r2{1};
     Flatten flat;
     LayerNorm norm{1};
     MaxPool2D mp{2, 2}, mp2{2, 2};
 
-    MHA mha{16, true, 1, true, false, false};
+    MHA mha{16, false, 1, true, false, false};
 
     UseGPU gpu;
 
-    ValLayer m_xlr;
+    ValLayer m_xlr1, m_xlr2;
 
 private:
 
@@ -52,13 +52,16 @@ private:
     {
         Tensor* x = &input;
         x->reshape((size_t[3]){x->m_shape[0], x->m_shape[1], x->m_shape[2]}, 3);
-        Tensor aa[4] = {*x, *x, *x,  Tensor()};
-        m_xlr = {nullptr, aa};
-        ValLayer* xl = &m_xlr;
-    
-        xl = mha.call(xl, training, &gpu);
+        m_xlr1 = {nullptr, x};
+        m_xlr2 = {nullptr, x};
+        ValLayer* xl = &m_xlr1;
+        ValLayer* xl2 = &m_xlr2;
+        xl = ffn1.call(xl, training, &gpu);
+        xl2 = ffn2.call(xl2, training, &gpu);
+
+        xl = mha.call(xl, xl2, xl2, training, &gpu);
         xl = flat.call(xl, training, &gpu);
-        // xl = ffn1.call(xl, training, &gpu);
+        
         xl = out.call(xl, training, &gpu);
 
         return xl->val;
@@ -68,7 +71,7 @@ private:
         m_loss = wef::categoricalcrossentropy(real, *m_x, m_dy);
      
         m_y = &m_dy;
-        ((Layer*)(m_xlr.layer))->rev(m_y, m_lr, &gpu);
+        ((Layer*)(m_xlr1.layer))->rev(m_y, m_lr, &gpu); // TODO : PLEASE CHECK
         
     }
 
@@ -153,6 +156,7 @@ int main()
 // TODO: make tensor class tempelatable
 // TODO: add shaders for reduce sum / layer normalization
 // TODO: use function pointers in shaders
+// TODO: GPU version of transpise (should be simple flat gx=256, gy=1, gz=1)
 
 int main() {
 

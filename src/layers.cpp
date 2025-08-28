@@ -1061,9 +1061,9 @@ Tensor* MHA::backward_pass(const Tensor* dy, const float lr, void* gpu)
     merge_heads(dk, m_seq_len_k);
     merge_heads(dv, m_seq_len_v);
 
-    Tensor* dq_in = wq->backward_pass(&dq, lr, gpu);
-    Tensor* dk_in = wk->backward_pass(&dk, lr, gpu);
-    Tensor* dv_in = wv->backward_pass(&dv, lr, gpu);
+    dq_in = wq->backward_pass(&dq, lr, gpu);
+    dk_in = wk->backward_pass(&dk, lr, gpu);
+    dv_in = wv->backward_pass(&dv, lr, gpu);
     
     if (m_self_attention)
     {
@@ -1072,7 +1072,7 @@ Tensor* MHA::backward_pass(const Tensor* dy, const float lr, void* gpu)
     }
     else
     {
-        m_output = *((Tensor[3]){*dq_in, *dk_in, *dv_in});// TODO CHECK
+        m_output = *((Tensor[3]){*dq_in, *dk_in, *dv_in}); // TODO CHECK
         return &m_output;
     }
 }

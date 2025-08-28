@@ -255,7 +255,8 @@ Tensor Tensor::ops_bcast(const Tensor& other, float (*f)(float&, float&)) const
         }
 
     // ensure shapes match
-    for (size_t i = 0; i < out_rank; i++) {
+    for (size_t i = 0; i < out_rank; i++)
+    {
         if (!(shape_a[i] == shape_b[i] || shape_a[i] == 1 || shape_b[i] == 1))
             throw std::invalid_argument("matrix size mismatch [T2]");
         out[i] = std::max(shape_a[i], shape_b[i]);
@@ -290,7 +291,8 @@ Tensor Tensor::ops_bcast(const Tensor& other, float (*f)(float&, float&)) const
     for (size_t i = 0; i < total; i++)
     {
         size_t offset_a = 0, offset_b = 0, rem = i;
-        for (size_t ax = 0; ax < out_rank; ax++) {
+        for (size_t ax = 0; ax < out_rank; ax++)
+        {
             const size_t idx = rem / pitch[ax];
             rem %= pitch[ax];
             offset_a += idx * stride_a[ax];

@@ -38,7 +38,7 @@ public:
     // }
 
     Layer* m_past;
-    ValLayer* call(ValLayer* px_l, const bool training=true, void* gpu=nullptr)
+    virtual ValLayer* call(ValLayer* px_l, const bool training=true, void* gpu=nullptr)
     {
 
         // std::cout << "FORWARD: " << ((px_l->layer) ? ((Layer*)(px_l)->layer)->m_name : "None") << std::endl;
@@ -47,11 +47,9 @@ public:
         px_l->layer = this;
         return px_l;
     }
-    void rev(Tensor* dy, const float lr, void* gpu=nullptr)
+    virtual void rev(Tensor* dy, const float lr, void* gpu=nullptr)
     {
         // std::cout << "BACKWARD: " << (m_past ? m_past->m_name : "None") << std::endl;
-        // if (m_past)
-        //     m_past->rev(dy, lr, gpu);
 
         if (m_past)
             m_past->rev(backward_pass(dy, lr, gpu), lr, gpu);
@@ -405,6 +403,82 @@ public:
 
     Tensor* forward_pass(const Tensor* qkv_mask, const bool training=true, void* gpu=nullptr) override;
     Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
+
+    ValLayer* call(ValLayer* px_l, const bool training=true, void* gpu=nullptr) override
+    { return nullptr; }; // print error?
+    
+    
+    Layer *m_past_k, *m_past_v;
+    Tensor *dq_in, *dk_in, *dv_in;
+
+    ValLayer* call(ValLayer* px_lq, ValLayer* px_lk, ValLayer* px_lv, const bool training=true, void* gpu=nullptr)
+    {
+        m_past = (Layer*)(px_lq)->layer;
+        m_past_k = (Layer*)(px_lk)->layer;
+        m_past_v = (Layer*)(px_lv)->layer;
+
+        px_lq->val = forward_pass((Tensor[3]){*px_lq->val, *px_lk->val, *px_lv->val}, training, gpu);
+        px_lq->layer = this;
+        return px_lq;
+    }
+
+    void rev(Tensor* dy, const float lr, void* gpu=nullptr) override
+    {
+        // std::cout << "BACKWARD: " << (m_past ? m_past->m_name : "None") << std::endl;
+
+        if (m_self_attention)
+            if (m_past)
+                m_past->rev(backward_pass(dy, lr, gpu), lr, gpu);
+            else
+                backward_pass(dy, lr, gpu);
+        
+        else
+        {
+            backward_pass(dy, lr, gpu);
+            if (m_past)
+            {
+                if (m_past == m_past_k && m_past == m_past_v)
+                {
+                    m_output = *dq_in + *dk_in + *dv_in;
+                    m_past->rev(&m_output, lr, gpu);
+                }
+                else if (m_past == m_past_k)
+                {
+                    if (m_past_v) m_past_v->rev(dv_in, lr, gpu);
+
+                    m_output = *dq_in + *dk_in;
+                    m_past->rev(&m_output, lr, gpu);
+                    
+                }
+                else if (m_past == m_past_v)
+                {
+                    if (m_past_k) m_past_k->rev(dk_in, lr, gpu);
+
+                    m_output = *dq_in + *dv_in;
+                    m_past->rev(&m_output, lr, gpu);
+                    
+                }
+                else if  (m_past_k == m_past_v)
+                {
+                    m_past->rev(dq_in, lr, gpu);
+                    
+                    m_output = *dk_in + *dv_in;
+                    if (m_past_k) m_past_k->rev(&m_output, lr, gpu);
+                }
+                else
+                {
+                    m_past->rev(dq_in, lr, gpu);
+                    if (m_past_k) m_past_k->rev(dk_in, lr, gpu);
+                    if (m_past_v) m_past_v->rev(dv_in, lr, gpu);
+                }
+            }
+            else 
+                backward_pass(dy, lr, gpu);
+        }
+            
+        
+    }
+
 };
 
 class Embedding : public Layer
