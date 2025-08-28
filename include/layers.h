@@ -363,13 +363,17 @@ private:
     bool m_self_attention = false;
     bool m_use_gpu = false;
     bool m_use_mask = false;
+    float m_keys_dim;
 
     size_t m_d_model, m_num_heads, m_depth, m_seq_len_q, m_seq_len_k, m_seq_len_v, m_batch;
-    Tensor m_aij, m_q, m_k, m_v, m_output;
-    float keys_dim;
-    Tensor q, k, v, mask;
-    std::unique_ptr<Layer> wq, wk, wv, m_out_layer;
-    Tensor m_dyy, daij, de, dq, dk, dv, temp;
+
+    Tensor m_aij, m_q, m_k, m_v, m_mask, m_output;
+    Tensor m_daij, m_de, m_dq, m_dk, m_dv;
+    
+    Tensor *m_dq_in, *m_dk_in, *m_dv_in, *m_temp;
+
+    Layer *m_past_k, *m_past_v;
+    std::unique_ptr<Layer> m_wq, m_wk, m_wv, m_out_layer;
 
 public:
     // initilize weights
@@ -383,16 +387,16 @@ public:
         m_depth = m_d_model / m_num_heads;
         if (use_gpu)
         {
-            wq = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
-            wk = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
-            wv = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
+            m_wq = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
+            m_wk = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
+            m_wv = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
             m_out_layer = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
         }
         else
         {
-            wq = std::make_unique<Linear_Fast>(m_d_model, m_use_bias, 3);
-            wk = std::make_unique<Linear_Fast>(m_d_model, m_use_bias, 3);
-            wv = std::make_unique<Linear_Fast>(m_d_model, m_use_bias, 3);
+            m_wq = std::make_unique<Linear_Fast>(m_d_model, m_use_bias, 3);
+            m_wk = std::make_unique<Linear_Fast>(m_d_model, m_use_bias, 3);
+            m_wv = std::make_unique<Linear_Fast>(m_d_model, m_use_bias, 3);
             m_out_layer = std::make_unique<Linear_Fast>(m_d_model, m_use_bias, 3);
         }
     }
@@ -405,12 +409,8 @@ public:
     Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 
     ValLayer* call(ValLayer* px_l, const bool training=true, void* gpu=nullptr) override
-    { return nullptr; }; // print error?
+    { return nullptr; }; // TODO : print error?
     
-    
-    Layer *m_past_k, *m_past_v;
-    Tensor *dq_in, *dk_in, *dv_in;
-
     ValLayer* call(ValLayer* px_lq, ValLayer* px_lk, ValLayer* px_lv, const bool training=true, void* gpu=nullptr)
     {
         m_past = (Layer*)(px_lq)->layer;
@@ -424,56 +424,52 @@ public:
 
     void rev(Tensor* dy, const float lr, void* gpu=nullptr) override
     {
-        // std::cout << "BACKWARD: " << (m_past ? m_past->m_name : "None") << std::endl;
+        backward_pass(dy, lr, gpu);
 
         if (m_self_attention)
+        {
             if (m_past)
-                m_past->rev(backward_pass(dy, lr, gpu), lr, gpu);
-            else
-                backward_pass(dy, lr, gpu);
-        
+                m_past->rev(&m_output, lr, gpu);
+        }
         else
         {
-            backward_pass(dy, lr, gpu);
             if (m_past)
             {
                 if (m_past == m_past_k && m_past == m_past_v)
                 {
-                    m_output = *dq_in + *dk_in + *dv_in;
+                    m_output = *m_dq_in + *m_dk_in + *m_dv_in;
                     m_past->rev(&m_output, lr, gpu);
                 }
                 else if (m_past == m_past_k)
                 {
-                    if (m_past_v) m_past_v->rev(dv_in, lr, gpu);
+                    if (m_past_v) m_past_v->rev(m_dv_in, lr, gpu);
 
-                    m_output = *dq_in + *dk_in;
+                    m_output = *m_dq_in + *m_dk_in;
                     m_past->rev(&m_output, lr, gpu);
                     
                 }
                 else if (m_past == m_past_v)
                 {
-                    if (m_past_k) m_past_k->rev(dk_in, lr, gpu);
+                    if (m_past_k) m_past_k->rev(m_dk_in, lr, gpu);
 
-                    m_output = *dq_in + *dv_in;
+                    m_output = *m_dq_in + *m_dv_in;
                     m_past->rev(&m_output, lr, gpu);
                     
                 }
                 else if  (m_past_k == m_past_v)
                 {
-                    m_past->rev(dq_in, lr, gpu);
+                    m_past->rev(m_dq_in, lr, gpu);
                     
-                    m_output = *dk_in + *dv_in;
+                    m_output = *m_dk_in + *m_dv_in;
                     if (m_past_k) m_past_k->rev(&m_output, lr, gpu);
                 }
                 else
                 {
-                    m_past->rev(dq_in, lr, gpu);
-                    if (m_past_k) m_past_k->rev(dk_in, lr, gpu);
-                    if (m_past_v) m_past_v->rev(dv_in, lr, gpu);
+                    m_past->rev(m_dq_in, lr, gpu);
+                    if (m_past_k) m_past_k->rev(m_dk_in, lr, gpu);
+                    if (m_past_v) m_past_v->rev(m_dv_in, lr, gpu);
                 }
             }
-            else 
-                backward_pass(dy, lr, gpu);
         }
             
         

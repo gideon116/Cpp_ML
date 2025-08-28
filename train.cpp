@@ -39,6 +39,7 @@ private:
     Flatten flat;
     LayerNorm norm{1};
     MaxPool2D mp{2, 2}, mp2{2, 2};
+    Embedding embd{16, 16};
 
     MHA mha{16, false, 1, true, false, false};
 
@@ -56,8 +57,8 @@ private:
         m_xlr2 = {nullptr, x};
         ValLayer* xl = &m_xlr1;
         ValLayer* xl2 = &m_xlr2;
-        xl = ffn1.call(xl, training, &gpu);
-        xl2 = ffn2.call(xl2, training, &gpu);
+        // xl = ffn1.call(xl, training, &gpu);
+        // xl2 = ffn2.call(xl2, training, &gpu);
 
         xl = mha.call(xl, xl2, xl2, training, &gpu);
         xl = flat.call(xl, training, &gpu);
@@ -156,7 +157,7 @@ int main()
 // TODO: make tensor class tempelatable
 // TODO: add shaders for reduce sum / layer normalization
 // TODO: use function pointers in shaders
-// TODO: GPU version of transpise (should be simple flat gx=256, gy=1, gz=1)
+// TODO: GPU version of transpose (should be simple flat gx=256, gy=1, gz=1)
 
 int main() {
 

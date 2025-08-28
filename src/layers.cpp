@@ -943,9 +943,9 @@ Tensor MHA::scaled_dot_product_attention(const Tensor& q, const Tensor& k, const
     else
         product = wef::matmul(q, wef::transpose(k));
 
-    keys_dim = (float)k.m_shape[k.m_rank-1];
+    m_keys_dim = (float)k.m_shape[k.m_rank-1];
 
-    Tensor eij = product / sqrt(keys_dim);
+    Tensor eij = product / sqrt(m_keys_dim);
 
     if (m_use_mask) // TODO or mask->tensor == nullptr
         eij += (*mask * -1e9f);
@@ -980,25 +980,25 @@ Tensor* MHA::forward_pass(const Tensor* qkv_mask, const bool training, void* gpu
         // TODO : add shape m_check after init
     }
 
-    q = qkv_mask[0];
-    k = qkv_mask[1];
-    v = qkv_mask[2];
-    mask = m_use_mask ? qkv_mask[3] : Tensor();
+    m_q = qkv_mask[0];
+    m_k = qkv_mask[1];
+    m_v = qkv_mask[2];
+    m_mask = m_use_mask ? qkv_mask[3] : Tensor();
     
-    m_batch = q.m_shape[0];
-    m_seq_len_q = q.m_shape[1];
-    m_seq_len_k = k.m_shape[1];
-    m_seq_len_v = v.m_shape[1];
+    m_batch = m_q.m_shape[0];
+    m_seq_len_q = m_q.m_shape[1];
+    m_seq_len_k = m_k.m_shape[1];
+    m_seq_len_v = m_v.m_shape[1];
 
-    m_q = *wq->forward_pass(&q, training, gpu);  // (batch_size, seq_len, d_model)
-    m_k = *wk->forward_pass(&k, training, gpu);  // (batch_size, seq_len, d_model)
-    m_v = *wv->forward_pass(&v, training, gpu);  // (batch_size, seq_len, d_model)
+    m_q = *m_wq->forward_pass(&m_q, training, gpu);  // (batch_size, seq_len, d_model)
+    m_k = *m_wk->forward_pass(&m_k, training, gpu);  // (batch_size, seq_len, d_model)
+    m_v = *m_wv->forward_pass(&m_v, training, gpu);  // (batch_size, seq_len, d_model)
 
     split_heads(m_q, m_seq_len_q);  // (batch_size, num_heads, seq_len_q, depth)
     split_heads(m_k, m_seq_len_k);  // (batch_size, num_heads, seq_len_k, depth)
     split_heads(m_v, m_seq_len_v);  // (batch_size, num_heads, seq_len_v, depth)
 
-    Tensor attention = scaled_dot_product_attention(m_q, m_k, m_v, &mask, gpu);
+    Tensor attention = scaled_dot_product_attention(m_q, m_k, m_v, &m_mask, gpu);
     
     size_t prem[4] = {0, 2, 1, 3};
     attention = wef::transpose(attention, prem); // (batch_size, seq_len_q, num_heads, depth)
@@ -1020,59 +1020,59 @@ void MHA::merge_heads(Tensor& x, size_t seq_len)
 
 Tensor* MHA::backward_pass(const Tensor* dy, const float lr, void* gpu)
 {
-    temp = *m_out_layer->backward_pass(dy, lr, gpu);
+    m_temp = m_out_layer->backward_pass(dy, lr, gpu);
     size_t shape[4] = {m_batch, m_seq_len_q, m_num_heads, m_depth};
-    temp.reshape(shape, 4);
+    m_temp->reshape(shape, 4);
 
 
     size_t prem[4] = {0, 2, 1, 3};
-    temp = wef::transpose(temp, prem);
+    *m_temp = wef::transpose(*m_temp, prem);
 
     // undo "Tensor z = wef::matmul(aij, v);"
     if (gpu)
     {
-        dv = wef::matmul_GPU(gpu, wef::transpose(m_aij), temp);
-        daij = wef::matmul_GPU(gpu, temp, wef::transpose(m_v));
+        m_dv = wef::matmul_GPU(gpu, wef::transpose(m_aij), *m_temp);
+        m_daij = wef::matmul_GPU(gpu, *m_temp, wef::transpose(m_v));
     }
     else
     {
-         dv = wef::matmul(wef::transpose(m_aij), temp);
-         daij = wef::matmul(temp, wef::transpose(m_v));
+         m_dv = wef::matmul(wef::transpose(m_aij), *m_temp);
+         m_daij = wef::matmul(*m_temp, wef::transpose(m_v));
     }
 
     // undo softmax
-    de = (daij - wef::reducesum(daij * m_aij, 3)) * m_aij;
+    m_de = (m_daij - wef::reducesum(m_daij * m_aij, 3)) * m_aij;
 
     // undo "product = wef::matmul(q, wef::transpose(k));"
-    const float scale = 1.0f / std::sqrt(keys_dim);
+    const float scale = 1.0f / std::sqrt(m_keys_dim);
     if (gpu)
     {
-        dq = wef::matmul_GPU(gpu, de, m_k) * scale;
-        dk = wef::matmul_GPU(gpu, wef::transpose(de), m_q) * scale;
+        m_dq = wef::matmul_GPU(gpu, m_de, m_k) * scale;
+        m_dk = wef::matmul_GPU(gpu, wef::transpose(m_de), m_q) * scale;
     }
     else
     {
-         dq = wef::matmul(de, m_k) * scale;
-         dk = wef::matmul(wef::transpose(de), m_q) * scale;
+         m_dq = wef::matmul(m_de, m_k) * scale;
+         m_dk = wef::matmul(wef::transpose(m_de), m_q) * scale;
     }
 
     // undo split
-    merge_heads(dq, m_seq_len_q);
-    merge_heads(dk, m_seq_len_k);
-    merge_heads(dv, m_seq_len_v);
+    merge_heads(m_dq, m_seq_len_q);
+    merge_heads(m_dk, m_seq_len_k);
+    merge_heads(m_dv, m_seq_len_v);
 
-    dq_in = wq->backward_pass(&dq, lr, gpu);
-    dk_in = wk->backward_pass(&dk, lr, gpu);
-    dv_in = wv->backward_pass(&dv, lr, gpu);
+    m_dq_in = m_wq->backward_pass(&m_dq, lr, gpu);
+    m_dk_in = m_wk->backward_pass(&m_dk, lr, gpu);
+    m_dv_in = m_wv->backward_pass(&m_dv, lr, gpu);
     
     if (m_self_attention)
     {
-        m_output = *dq_in + *dk_in + *dv_in;
+        m_output = *m_dq_in + *m_dk_in + *m_dv_in;
         return &m_output;
     }
     else
     {
-        m_output = *((Tensor[3]){*dq_in, *dk_in, *dv_in}); // TODO CHECK
+        m_output = *((Tensor[3]){*m_dq_in, *m_dk_in, *m_dv_in}); // TODO CHECK
         return &m_output;
     }
 }
@@ -1119,21 +1119,21 @@ Tensor* Embedding::forward_pass(const Tensor* px, const bool training, void*)
         // TODO : add resuse guard
     }
 
-    // copy px into m_X
     // TODO : catch if m_X shape m_changes during training
-    if (training) std::memcpy(m_X.m_tensor, px->m_tensor, m_X.m_size * sizeof(float));
+    
+    if (training)
+        std::memcpy(m_X.m_tensor, px->m_tensor, m_X.m_size * sizeof(float));
 
     m_out_shape[0] = px->m_shape[0]; // flexable batch
     m_out = Tensor::create(m_out_shape.get(), m_out_rank);
 
-
-    // cast the index (vocab) into an int and use it to index from the embedding table
     float* pin = px->m_tensor;
     float* pout = m_out.m_tensor;
     float* pm_W = m_W.m_tensor;
     size_t base;
     for (size_t i = 0; i < px->m_size; i++)
     {
+        // cast the index (vocab) into an int and use it to index from the embedding table
         // pin[i] is the embedding row we want to index m_out
         base = (size_t)pin[i] * m_d_model;
         // end = (size_t)pin[i] * m_d_model + m_d_model;
