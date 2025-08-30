@@ -652,6 +652,26 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
     return m;
 }
 
+Tensor wef::positional_encoding(const size_t& length, const size_t& depth)
+{
+    Tensor pos_encoding = Tensor::create((size_t[3]){1, length, depth}, 3);
+
+    for (size_t pos = 0; pos < length; pos++)
+    {
+        for (size_t dep = 0; dep < depth; dep+=2)
+        {
+            float angle_rates = 1 / std::pow(10000.0f, (float)dep / (float)depth);
+            float angle_rads = (float)pos * angle_rates;
+
+            pos_encoding.m_tensor[pos * depth + dep] = std::sin(angle_rads);
+
+            if (dep + 1 < depth) // odd
+                pos_encoding.m_tensor[pos * depth + dep + 1] = std::cos(angle_rads);
+        }
+    }
+    return pos_encoding;
+}
+
 Tensor wef::pow(const Tensor& m1, const float con) { return cops(m1, con, [](float a, float b){ return std::pow(a, b); }); }
 Tensor wef::relu(const Tensor& m1) { return activation(m1, 'a'); }
 Tensor wef::d_relu(const Tensor& m1) { return activation(m1, 'b'); }

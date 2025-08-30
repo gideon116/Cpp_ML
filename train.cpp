@@ -4,6 +4,21 @@
 #include "include/model.h"
 #include "include/mnist.h"
 
+
+Tensor create_padding_mask(const Tensor& seq)
+{
+    Tensor mask = seq;
+    for (size_t i = 0; i < mask.m_size; i++)
+        if (mask.m_tensor[i] == 0)
+            mask.m_tensor[i] == 1;
+        else
+            mask.m_tensor[i] == 0;
+    mask.reshape((size_t[4]){mask.m_shape[0], 1, 1, mask.m_shape[2]}, 4);
+    return mask;
+}
+
+
+
 class TrainingTimer
 {
 public:
@@ -37,74 +52,123 @@ private:
     ReLU relu1, relu2, relu3;
     ReduceSum r1{1}, r2{1};
     Flatten flat;
-    LayerNorm norm{1};
+    LayerNorm norm{1}, norm2{1}, norm3{1}, norm4{1}, norm5{1};
     MaxPool2D mp{2, 2}, mp2{2, 2};
-    Embedding embd{16, 16};
 
-    MHA mha{16, false, 1, true, false, false};
+
+    Embedding embedding{16, m_d_model}, embedding_out{16, m_d_model};
+
+    MHA mha_input{m_d_model, /*self_attention*/true, /*num_heads*/1, /*use_bias*/true, /*use_mask*/false, /*use_gpu*/false};
+    MHA mha_output{m_d_model, true, 1, true, true, false};
+    MHA mha_cross{m_d_model, false, 1, true, false, false};
 
     UseGPU gpu;
 
-    ValLayer m_xlr1, m_xlr2;
+
 
 private:
 
-    Tensor* call(Tensor& input, const bool& training)
+    ValLayer call(const Tensor& input, const bool& training)
     {
-        Tensor* x = &input;
-        x->reshape((size_t[3]){x->m_shape[0], x->m_shape[1], x->m_shape[2]}, 3);
-        m_xlr1 = {nullptr, x};
-        m_xlr2 = {nullptr, x};
-        ValLayer* xl = &m_xlr1;
-        ValLayer* xl2 = &m_xlr2;
-        // xl = ffn1.call(xl, training, &gpu);
-        // xl2 = ffn2.call(xl2, training, &gpu);
+        // input is of shape [batch, max_len]
+        size_t max_len = input.m_shape[1];
 
-        xl = mha.call(xl, xl2, xl2, training, &gpu);
-        xl = flat.call(xl, training, &gpu);
+        ValLayer x = {nullptr, &input};
+        x = embedding.call(x, training, &gpu);
+        // according to tensorflow : "This factor sets the relative scale of the embedding and positonal_encoding."
+        Tensor temp = *x.val;
+        temp *= std::sqrt(16);
+        temp += wef::positional_encoding(max_len, 16);
+        x.val = &temp;
+
+        // MHA
+        ValLayer c = mha_input.call(x, x, x, training, &gpu);
+
+        // Add and norm
+        temp = *c.val + *x.val;
+        x.val = &temp;
+        x = norm.call(x, training, &gpu);
+
+        // ffn then add and norm
+        c = ffn1.call(x, training, &gpu);
+        temp = *c.val + *x.val;
+        x.val = &temp;
+        x = norm2.call(x, training, &gpu);
+
+    
+
+
+        // output
+        ValLayer x_out = {nullptr, &input}; // imagine input is output shifted one to the right
+        x_out = embedding_out.call(x_out, training, &gpu);
+        temp = *x_out.val;
+        temp *= std::sqrt(16);
+        temp += wef::positional_encoding(max_len, 16);
+        x_out.val = &temp;
+
+        // masked MHA
+        ValLayer d = mha_output.call(x_out, x_out, x_out, training, &gpu, x_out); // last x_out should be mask
         
-        xl = out.call(xl, training, &gpu);
+        // Add and norm
+        temp = *d.val + *x_out.val;
+        x_out.val = &temp;
+        x_out = norm3.call(x_out, training, &gpu);
 
-        return xl->val;
+        // cross attn
+        ValLayer e = mha_cross.call(x, x, x_out, training, &gpu, x_out); // use another mask instead of last x_out
+
+        // Add and norm
+        temp = *e.val + *x_out.val;
+        x_out.val = &temp;
+        x_out = norm4.call(x_out, training, &gpu);
+
+        // ffn then add and norm
+        e = ffn1.call(x_out, training, &gpu);
+        temp = *e.val + *x_out.val;
+        x_out.val = &temp;
+        x_out = norm5.call(x_out, training, &gpu);
+
+        e = out.call(x_out, training, &gpu);
+
+        return e;
     }
-    void backward(const Tensor& real)
+    void backward(const Tensor& real, const ValLayer& pred)
     {
-        m_loss = wef::categoricalcrossentropy(real, *m_x, m_dy);
-     
-        m_y = &m_dy;
-        ((Layer*)(m_xlr1.layer))->rev(m_y, m_lr, &gpu); // TODO : PLEASE CHECK
-        
+        m_loss = wef::categoricalcrossentropy(real, *(pred.val), m_dy);
+        ((Layer*)pred.layer)->rev(&m_dy, m_lr, &gpu); // TODO : PLEASE CHECK
     }
 
-    void valid(Tensor& val_input, Tensor& val_real)
+    void valid(const Tensor& val_input, const Tensor& val_real)
     {
         // validation
-        Tensor* val_pred_ptr = call(val_input, false);
-        float val_loss = wef::categoricalcrossentropy(val_real, *val_pred_ptr);
+        ValLayer val_pred_ptr = call(val_input, false);
+        float val_loss = wef::categoricalcrossentropy(val_real, *(val_pred_ptr.val));
         std::cout << "\tvalid_loss = " << val_loss << "\n";
 
         float acc = 0;
         for (int i = 0; i < val_real.m_size; i++)
-            acc += wef::argmax(wef::softmax(*val_pred_ptr)).m_tensor[i] == val_real.m_tensor[i];
+            acc += wef::argmax(wef::softmax(*(val_pred_ptr.val))).m_tensor[i] == val_real.m_tensor[i];
         acc /= val_real.m_size;
         std::cout << "\tval_accuracy = " << acc << std::endl;
         std::cout << "\ttime per epoch = ";
-
     }
 
 public:
     
-    void train(Tensor& input, Tensor& real, Tensor& val_input, Tensor& val_real, int epochs, float lr)
+    void train(Tensor& input, const Tensor& real, Tensor& val_input, const Tensor& val_real, int epochs, float lr)
     {
         TrainingTimer a;
         m_lr = lr;
 
+        input.reshape((size_t[2]){input.m_shape[0], input.m_shape[1] * input.m_shape[2]}, 2); // remove and add const please
+        val_input.reshape((size_t[2]){val_input.m_shape[0], val_input.m_shape[1] * val_input.m_shape[2]}, 2);
+
         for (int epoch = 0; epoch < epochs; epoch++)
         {
             Timer timer;
-            m_x = call(input, true);
-            if (!epoch) m_dy = *m_x; // only set m_dy during epoch 0
-            backward(real);
+            ValLayer pred = call(input, true);
+            if (!epoch) m_dy = *(pred.val); // only set m_dy during epoch 0
+            backward(real, pred);
 
             std::cout << "epoch: " << epoch + 1 << "\n\tloss = " << m_loss << "\n";
             valid(val_input, val_real);
@@ -113,11 +177,10 @@ public:
     }
 
 private:
-    Tensor* m_x;
+    size_t m_d_model = 16;
     float m_lr = 0.0f;
     float m_loss = 0.0f;
     Tensor m_dy;
-    Tensor* m_y = nullptr;
 
 };
 

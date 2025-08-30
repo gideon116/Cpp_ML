@@ -9,8 +9,8 @@
 
 struct ValLayer
 {
-    void* layer;
-    Tensor* val;
+    void* layer = nullptr;
+    const Tensor* val = nullptr;
 };
 
 class Layer
@@ -38,13 +38,13 @@ public:
     // }
 
     Layer* m_past;
-    virtual ValLayer* call(ValLayer* px_l, const bool training=true, void* gpu=nullptr)
+    virtual ValLayer call(ValLayer px_l, const bool training=true, void* gpu=nullptr) // take px_l by value
     {
 
         // std::cout << "FORWARD: " << ((px_l->layer) ? ((Layer*)(px_l)->layer)->m_name : "None") << std::endl;
-        m_past = (Layer*)(px_l)->layer;
-        px_l->val = forward_pass(px_l->val, training, gpu);
-        px_l->layer = this;
+        m_past = (Layer*)(px_l).layer;
+        px_l.val = forward_pass(px_l.val, training, gpu);
+        px_l.layer = this;
         return px_l;
     }
     virtual void rev(Tensor* dy, const float lr, void* gpu=nullptr)
@@ -408,17 +408,17 @@ public:
     Tensor* forward_pass(const Tensor* qkv_mask, const bool training=true, void* gpu=nullptr) override;
     Tensor* backward_pass(const Tensor* dy, const float lr, void*) override;
 
-    ValLayer* call(ValLayer* px_l, const bool training=true, void* gpu=nullptr) override
-    { return nullptr; }; // TODO : print error?
+    ValLayer call(ValLayer px_l, const bool training=true, void* gpu=nullptr) override
+    { return px_l; }; // TODO : print error?
     
-    ValLayer* call(ValLayer* px_lq, ValLayer* px_lk, ValLayer* px_lv, const bool training=true, void* gpu=nullptr)
+    ValLayer call(ValLayer px_lq, ValLayer px_lk, ValLayer px_lv, const bool training=true, void* gpu=nullptr, ValLayer px_lm={})
     {
-        m_past = (Layer*)(px_lq)->layer;
-        m_past_k = (Layer*)(px_lk)->layer;
-        m_past_v = (Layer*)(px_lv)->layer;
+        m_past = (Layer*)px_lq.layer;
+        m_past_k = (Layer*)px_lk.layer;
+        m_past_v = (Layer*)px_lv.layer;
 
-        px_lq->val = forward_pass((Tensor[3]){*px_lq->val, *px_lk->val, *px_lv->val}, training, gpu);
-        px_lq->layer = this;
+        px_lq.val = forward_pass((Tensor[4]){*px_lq.val, *px_lk.val, *px_lv.val, *px_lm.val}, training, gpu);
+        px_lq.layer = this;
         return px_lq;
     }
 
