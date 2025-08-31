@@ -10,14 +10,47 @@ Tensor create_padding_mask(const Tensor& seq)
     Tensor mask = seq;
     for (size_t i = 0; i < mask.m_size; i++)
         if (mask.m_tensor[i] == 0)
-            mask.m_tensor[i] == 1;
+            mask.m_tensor[i] = 1;
         else
-            mask.m_tensor[i] == 0;
-    mask.reshape((size_t[4]){mask.m_shape[0], 1, 1, mask.m_shape[2]}, 4);
+            mask.m_tensor[i] = 0;
+    mask.reshape((size_t[4]){mask.m_shape[0], 1, 1, mask.m_shape[1]}, 4);
     return mask;
 }
 
+Tensor create_look_ahead_mask(const Tensor& seq)
+{
+    size_t seq_len = seq.m_shape[1];
+    Tensor look_ahead_mask = Tensor::create((size_t[4]){1, 1, seq_len, seq_len}, 4);
 
+    for (size_t i = 0; i < seq_len; i++)
+        for (size_t j = 0; j < seq_len; j++)
+            look_ahead_mask.m_tensor[i*seq_len + j] = (j > i) ? 1.0f : 0.0f;
+
+    return look_ahead_mask;
+}
+
+Tensor create_dec_mask(Tensor dec_inputs)
+{
+    Tensor dec_mask_1 = create_padding_mask(dec_inputs); // b, 1, 1, ml
+    Tensor dec_mask_2 = create_look_ahead_mask(dec_inputs); // 1, 1, ml, ml
+
+    size_t batch = dec_mask_1.m_shape[0];
+    size_t ml = dec_mask_1.m_shape[3];
+
+    Tensor dec_mask = Tensor::create((size_t[4]){batch, 1, ml, ml}, 4); // b, 1, ml, ml
+
+    for (size_t b = 0; b < batch; b++)
+    {
+        for (size_t i = 0; i < ml; i++)
+        {
+            for (size_t j = 0; j < ml; j++)
+            {
+                dec_mask.m_tensor[(b * ml + i) * ml + j] = std::max(dec_mask_1.m_tensor[b * ml + j], dec_mask_2.m_tensor[i * ml + j]);
+            }
+        }
+    }
+    return dec_mask;
+}
 
 class TrainingTimer
 {
@@ -55,20 +88,17 @@ private:
     LayerNorm norm{1}, norm2{1}, norm3{1}, norm4{1}, norm5{1};
     MaxPool2D mp{2, 2}, mp2{2, 2};
 
+    Embedding embedding{/*vocab*/16, m_d_model}, embedding_out{16, m_d_model};
 
-    Embedding embedding{16, m_d_model}, embedding_out{16, m_d_model};
-
-    MHA mha_input{m_d_model, /*self_attention*/true, /*num_heads*/1, /*use_bias*/true, /*use_mask*/false, /*use_gpu*/false};
+    MHA mha_input{m_d_model, /*self_attention*/true, /*num_heads*/1, /*use_bias*/true, /*use_mask*/true, /*use_gpu*/false};
     MHA mha_output{m_d_model, true, 1, true, true, false};
-    MHA mha_cross{m_d_model, false, 1, true, false, false};
+    MHA mha_cross{m_d_model, false, 1, true, true, false};
 
     UseGPU gpu;
 
-
-
 private:
 
-    ValLayer call(const Tensor& input, const bool& training)
+    ValLayer call(const Tensor& input, const bool& training, const Tensor& enc_mask, const Tensor& dec_mask)
     {
         // input is of shape [batch, max_len]
         size_t max_len = input.m_shape[1];
@@ -77,12 +107,12 @@ private:
         x = embedding.call(x, training, &gpu);
         // according to tensorflow : "This factor sets the relative scale of the embedding and positonal_encoding."
         Tensor temp = *x.val;
-        temp *= std::sqrt(16);
-        temp += wef::positional_encoding(max_len, 16);
+        temp *= std::sqrt((float)m_d_model);
+        temp += wef::positional_encoding(max_len, m_d_model);
         x.val = &temp;
 
         // MHA
-        ValLayer c = mha_input.call(x, x, x, training, &gpu);
+        ValLayer c = mha_input.call(x, x, x, training, &gpu, {nullptr, &enc_mask});
 
         // Add and norm
         temp = *c.val + *x.val;
@@ -95,19 +125,16 @@ private:
         x.val = &temp;
         x = norm2.call(x, training, &gpu);
 
-    
-
-
         // output
         ValLayer x_out = {nullptr, &input}; // imagine input is output shifted one to the right
         x_out = embedding_out.call(x_out, training, &gpu);
         temp = *x_out.val;
-        temp *= std::sqrt(16);
-        temp += wef::positional_encoding(max_len, 16);
+        temp *= std::sqrt((float)m_d_model);
+        temp += wef::positional_encoding(max_len, m_d_model);
         x_out.val = &temp;
 
         // masked MHA
-        ValLayer d = mha_output.call(x_out, x_out, x_out, training, &gpu, x_out); // last x_out should be mask
+        ValLayer d = mha_output.call(x_out, x_out, x_out, training, &gpu, {nullptr, &dec_mask});
         
         // Add and norm
         temp = *d.val + *x_out.val;
@@ -115,7 +142,7 @@ private:
         x_out = norm3.call(x_out, training, &gpu);
 
         // cross attn
-        ValLayer e = mha_cross.call(x, x, x_out, training, &gpu, x_out); // use another mask instead of last x_out
+        ValLayer e = mha_cross.call(x_out, x, x, training, &gpu, {nullptr, &enc_mask});
 
         // Add and norm
         temp = *e.val + *x_out.val;
@@ -138,10 +165,10 @@ private:
         ((Layer*)pred.layer)->rev(&m_dy, m_lr, &gpu); // TODO : PLEASE CHECK
     }
 
-    void valid(const Tensor& val_input, const Tensor& val_real)
+    void valid(const Tensor& val_input, const Tensor& val_real, const Tensor& val_enc_mask, const Tensor& val_dec_mask)
     {
         // validation
-        ValLayer val_pred_ptr = call(val_input, false);
+        ValLayer val_pred_ptr = call(val_input, false, val_enc_mask, val_dec_mask);
         float val_loss = wef::categoricalcrossentropy(val_real, *(val_pred_ptr.val));
         std::cout << "\tvalid_loss = " << val_loss << "\n";
 
@@ -163,15 +190,21 @@ public:
         input.reshape((size_t[2]){input.m_shape[0], input.m_shape[1] * input.m_shape[2]}, 2); // remove and add const please
         val_input.reshape((size_t[2]){val_input.m_shape[0], val_input.m_shape[1] * val_input.m_shape[2]}, 2);
 
+        Tensor enc_mask = create_padding_mask(input);
+        Tensor dec_mask = create_dec_mask(input);
+
+        Tensor val_enc_mask = create_padding_mask(val_input);
+        Tensor val_dec_mask = create_dec_mask(val_input);
+
         for (int epoch = 0; epoch < epochs; epoch++)
         {
             Timer timer;
-            ValLayer pred = call(input, true);
+            ValLayer pred = call(input, true, enc_mask, dec_mask);
             if (!epoch) m_dy = *(pred.val); // only set m_dy during epoch 0
             backward(real, pred);
 
             std::cout << "epoch: " << epoch + 1 << "\n\tloss = " << m_loss << "\n";
-            valid(val_input, val_real);
+            valid(val_input, val_real, val_enc_mask, val_dec_mask);
         }
 
     }
