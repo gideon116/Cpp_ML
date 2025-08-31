@@ -449,7 +449,7 @@ float wef::binarycrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real 
     return loss / m1.m_size;
 }
 
-float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m /*m is same as pred*/) // m1 is real and m2 pred !!
+float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m /*m is same as pred*/, Tensor* mask) // m1 is real and m2 pred !!
 {
     // Note m1 is actual labels and m2 is probabilities 
     // eg: m1 = {{1}, {2}}, m2 = {{0, 1, 0}, {0, 0, 1}}
@@ -459,23 +459,34 @@ float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m
     const float* pm1 = m1.m_tensor; // grab raw pointers for speeeed
     const float* pm2 = m2.m_tensor;
     float* pm = m.m_tensor;
+    memset(pm, 0, sizeof(float)*m.m_size);
     float loss = 0.0f;
     const float eps = 1e-19f;
     
     const size_t num_classes = m2.m_shape[m2.m_rank - 1];
 
-    #pragma omp parallel for reduction(+:loss) schedule(static)
+    float batch = 0.0f; // in case masking changes the "batch"
+
+    #pragma omp parallel for reduction(+:loss,batch) schedule(static)
     for (size_t i = 0; i < m1.m_size; i++) 
-    {   
+    {
+    
         size_t tempid = i * num_classes;
         size_t base = i * m.m_shape[m.m_rank - 1];
 
+        if (mask)
+            if (!(mask->m_tensor[i]))
+                continue;
+
         // find max per class and subtract to make stable
         float cur_max = pm2[tempid];
-        for (size_t j = 0; j < num_classes; j++) { if (pm2[tempid + j] > cur_max) cur_max = pm2[tempid + j]; }
+        for (size_t j = 0; j < num_classes; j++)
+            if (pm2[tempid + j] > cur_max)
+                cur_max = pm2[tempid + j];
     
-        float sum = 1e-19f;
-        for (size_t j = 0; j < num_classes; j++) sum += std::exp(pm2[tempid + j] - cur_max);
+        float sum = 1e-19f; // TODO : check this
+        for (size_t j = 0; j < num_classes; j++)
+            sum += std::exp(pm2[tempid + j] - cur_max);
         
         for (size_t j = 0; j < num_classes; j++)
         {
@@ -485,15 +496,17 @@ float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m
                 loss -= std::log(p + eps);
                 pm[base + j] = p - 1; // gradient
             }
-            else pm[base + j] = p;
+            else
+                pm[base + j] = p;
         }
         
+        batch += 1.0f;
     }
     
-    return loss / m1.m_size;
+    return loss / std::max(1.0f, batch);
 }
 
-float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2) // m1 is real and m2 pred !!
+float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor* mask) // m1 is real and m2 pred !!
 {
     // TODO: catch mismatch tensor
 
@@ -507,26 +520,40 @@ float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2) // m1 is 
     
     const size_t num_classes = m2.m_shape[m2.m_rank - 1];
 
-    #pragma omp parallel for reduction(+:loss) schedule(static) 
+    float batch = 0.0f; // in case masking changes the "batch"
+
+    #pragma omp parallel for reduction(+:loss,batch) schedule(static) 
     for (size_t i = 0; i < m1.m_size; i++) 
-    {   
+    {
         size_t tempid = i * num_classes;
+
+        if (mask)
+            if (!(mask->m_tensor[i]))
+                continue;
 
         // find max per class and subtract to make stable
         float cur_max = pm2[tempid];
-        for (size_t j = 0; j < num_classes; j++) { if (pm2[tempid + j] > cur_max) cur_max = pm2[tempid + j]; }
+        for (size_t j = 0; j < num_classes; j++)
+        {
+            if (pm2[tempid + j] > cur_max)
+                cur_max = pm2[tempid + j];
+        }
     
         float sum = 1e-19f;
-        for (size_t j = 0; j < num_classes; j++) sum += std::exp(pm2[tempid + j] - cur_max);
+        for (size_t j = 0; j < num_classes; j++)
+            sum += std::exp(pm2[tempid + j] - cur_max);
         
         for (size_t j = 0; j < num_classes; j++)
         {
             float p = std::exp(pm2[tempid + j] - cur_max) / sum;
-            if (j == (size_t)pm1[i]) loss -= std::log(p + eps);
+            if (j == (size_t)pm1[i])
+                loss -= std::log(p + eps);
         }
+
+        batch += 1.0f;
     }
     
-    return loss / m1.m_size;
+    return loss / batch;
 }
 
 void wef::print(const Tensor& m1, size_t* arr, size_t num, bool allc)

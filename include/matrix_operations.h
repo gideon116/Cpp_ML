@@ -23,8 +23,8 @@ namespace wef {
         Tensor reducesum(const Tensor& m1, const int ax, const bool keepdims=true);
         float l2(const Tensor& m1, const Tensor& m2);
         float binarycrossentropy(const Tensor& m1, const Tensor& m2);
-        float categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m);
-        float categoricalcrossentropy(const Tensor& m1, const Tensor& m2);
+        float categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor& m, Tensor* mask=nullptr);
+        float categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor* mask=nullptr);
         Tensor positional_encoding(const size_t& length, const size_t& depth);
         void print(const Tensor& m1, size_t* arr=nullptr, size_t num=0, bool allc=false);
 

@@ -938,7 +938,7 @@ Tensor* Conv2D_NR::backward_pass(const Tensor* dy, const float lr, void*)
 Tensor MHA::scaled_dot_product_attention(const Tensor& q, const Tensor& k, const Tensor& v, const Tensor* mask, void* gpu)
 {
     Tensor product;
-    if (gpu)
+    if (m_use_gpu)
         product = wef::matmul_GPU(gpu, q, wef::transpose(k));
     else
         product = wef::matmul(q, wef::transpose(k));
@@ -948,14 +948,14 @@ Tensor MHA::scaled_dot_product_attention(const Tensor& q, const Tensor& k, const
     Tensor eij = product / sqrt(m_keys_dim);
 
     if (m_use_mask) // TODO or mask->tensor == nullptr
-        eij += (*mask * -1e9f);
+        eij = eij + (*mask * -1e9f); // TODO : add += with broadcast
 
     m_aij = wef::softmax(eij);
     Tensor z;
-    if (gpu)
+    if (m_use_gpu)
         z = wef::matmul_GPU(gpu, m_aij, v);
     else
-        z = wef::matmul_GPU(gpu, m_aij, v);
+        z = wef::matmul(m_aij, v);
      
     return z;
 }
@@ -1029,7 +1029,7 @@ Tensor* MHA::backward_pass(const Tensor* dy, const float lr, void* gpu)
     *m_temp = wef::transpose(*m_temp, prem);
 
     // undo "Tensor z = wef::matmul(aij, v);"
-    if (gpu)
+    if (m_use_gpu)
     {
         m_dv = wef::matmul_GPU(gpu, wef::transpose(m_aij), *m_temp);
         m_daij = wef::matmul_GPU(gpu, *m_temp, wef::transpose(m_v));
@@ -1045,7 +1045,7 @@ Tensor* MHA::backward_pass(const Tensor* dy, const float lr, void* gpu)
 
     // undo "product = wef::matmul(q, wef::transpose(k));"
     const float scale = 1.0f / std::sqrt(m_keys_dim);
-    if (gpu)
+    if (m_use_gpu)
     {
         m_dq = wef::matmul_GPU(gpu, m_de, m_k) * scale;
         m_dk = wef::matmul_GPU(gpu, wef::transpose(m_de), m_q) * scale;
