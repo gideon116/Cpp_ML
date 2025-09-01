@@ -311,7 +311,7 @@ int main()
     }
 
     functional_model model(std::max(tokenizer.english_vsize, tokenizer.spanish_vsize));
-    model.train(val_inp, val_dec, val_tar, val_inp, val_dec, val_tar, 10, 0.1f);
+    model.train(val_inp, val_dec, val_tar, val_inp, val_dec, val_tar, 10, 0.01f);
 
     Tensor test_enc_input = Tensor::create((size_t[2]){1, (tokenizer.maxlen + 1)}, 2);
     memset(test_enc_input.m_tensor, 0, sizeof(float) * test_enc_input.m_size);
