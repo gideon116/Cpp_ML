@@ -1,8 +1,9 @@
 #if 1
+#include "include/tokenizer.h"
 #include "include/layers.h"
 #include "include/tensor.h"
 #include "include/model.h"
-#include "include/mnist.h"
+#include <iostream>
 
 
 Tensor create_padding_mask(const Tensor& seq)
@@ -52,76 +53,97 @@ Tensor create_dec_mask(Tensor dec_inputs)
     return dec_mask;
 }
 
-struct PaddedTensors
-{
-    Tensor enc_input, dec_input, dec_target;
-};
-
-PaddedTensors add_se_tokens(const Tensor& input, const Tensor& real, const size_t& start_token, const size_t& end_token)
-{
-    PaddedTensors outputs;
-    outputs.enc_input = Tensor::create((size_t[2]){input.m_shape[0], input.m_shape[1] + 1}, 2);
-    outputs.dec_input = Tensor::create((size_t[2]){real.m_shape[0], real.m_shape[1] + 1}, 2);
-    outputs.dec_target = Tensor::create((size_t[2]){real.m_shape[0], real.m_shape[1] + 1}, 2);
-
-    for (size_t b = 0; b < input.m_shape[0]; b++)
-    {
-        float* inp_temp = input.m_tensor + b * input.m_shape[1];
-        float* enc_temp = outputs.enc_input.m_tensor + b * (input.m_shape[1] + 1);
-        enc_temp[0] = start_token;
-
-        for (size_t i = 0; i < input.m_shape[1]; i++)
-        {
-            enc_temp[i + 1] = inp_temp[i];
-        }
-    }
-
-    for (size_t b = 0; b < real.m_shape[0]; b++)
-    {
-        float* real_temp = real.m_tensor + b * real.m_shape[1];
-        float* dec_in_temp = outputs.dec_input.m_tensor + b * (real.m_shape[1] + 1);
-        float* dec_ta_temp = outputs.dec_target.m_tensor + b * (real.m_shape[1] + 1);
-
-        dec_in_temp[0] = start_token;
-        dec_ta_temp[real.m_shape[1]] = end_token;
-
-        for (size_t i = 0; i < input.m_shape[1]; i++)
-        {
-            dec_in_temp[i + 1] = real_temp[i];
-            dec_ta_temp[i] = real_temp[i];
-        }
-    }
-
-    return outputs;
-}
-
 class functional_model
 {
 private:
-    size_t m_d_model = 16;
+    size_t m_d_model = 32;
     size_t m_vocab_size = 32;
     size_t m_max_len;
     float m_lr = 0.0f;
     float m_loss = 0.0f;
     Tensor m_dy;
-
+    
 public:
-    functional_model() {}
+
+    functional_model(size_t vocab_size) : m_vocab_size(vocab_size + 3) {}
+
+    void train(const Tensor& enc_input, const Tensor& dec_input, const Tensor& dec_target, const Tensor& val_enc_input, const Tensor& val_dec_input, const Tensor& val_dec_target, int epochs, float lr)
+    {
+        if (enc_input.m_rank != 2 || dec_target.m_rank != 2)
+            throw std::invalid_argument("encoder input and decoder input must be tensors of rank 2");
+
+        Timer timer;
+        std::cout << "\n____________________________________________";
+        std::cout << "\nBeginning training\n\n";
+
+        m_lr = lr;
+
+        Tensor enc_mask = create_padding_mask(enc_input);
+        Tensor dec_mask = create_dec_mask(dec_input);
+        Tensor target_mask = 1.0f - create_padding_mask(dec_target);
+
+        Tensor val_enc_mask = create_padding_mask(val_enc_input);
+        Tensor val_dec_mask = create_dec_mask(val_dec_input);
+        Tensor val_target_mask = 1.0f - create_padding_mask(val_dec_target);
+
+        // input is of shape [batch, max_len]
+        m_max_len = enc_input.m_shape[1];
+
+        for (int epoch = 0; epoch < epochs; epoch++)
+        {
+            Timer timer;
+            ValLayer pred = call(enc_input, dec_input, true, enc_mask, dec_mask);
+            
+            if (!epoch)
+                m_dy = *(pred.val); // only set m_dy during epoch 0
+            
+            backward(dec_target, pred, &target_mask);
+
+            std::cout << "epoch: " << epoch + 1 << "\n\tloss = " << m_loss << "\n";
+            valid(val_enc_input, val_dec_input, val_dec_target, val_enc_mask, val_dec_mask, &val_target_mask);
+        }
+
+        std::cout << "\n____________________________________________";
+        std::cout << "\nTraining complete";
+        std::cout << "\nTotal training time = ";
+    }
+
+    Tensor generate(const Tensor& enc_input, const size_t& start_token, const size_t& end_token)
+    {
+        if (enc_input.m_rank != 2 && enc_input.m_shape[0] != 1)
+            throw std::invalid_argument("generates only takes in one sample of shape [1, max_len]");
+
+        Tensor dec_input = enc_input;
+        memset(dec_input.m_tensor, 0, sizeof(float) * dec_input.m_size);
+        dec_input.m_tensor[0] = start_token;
+
+        Tensor enc_mask = create_padding_mask(enc_input);
+
+        for (size_t i = 0; i < 10; i++) // generate 10 only
+        {
+            Tensor dec_mask = create_dec_mask(dec_input);
+
+            ValLayer curr_pred = call(enc_input, dec_input, false, enc_mask, dec_mask);
+            dec_input.m_tensor[i + 1] = wef::argmax(wef::softmax(*(curr_pred.val))).m_tensor[i];
+            if (dec_input.m_tensor[i + 1] == (float)end_token)
+                break;
+        }
+        return dec_input;
+    }
 
 private:
     
-    Linear out{m_vocab_size, true, 7}, ffn1{m_d_model, true, 8}, ffn2{m_d_model, true, 8};
+    Linear_GPU out{m_vocab_size, true, 7}, ffn1{m_d_model, true, 8}, ffn2{m_d_model, true, 8};
     ReLU relu1, relu2, relu3;
     LayerNorm norm{1}, norm2{1}, norm3{1}, norm4{1}, norm5{1};
     
     Embedding embedding{/*vocab*/m_vocab_size, m_d_model}, embedding_out{m_vocab_size, m_d_model};
 
-    MHA mha_input{m_d_model, /*self_attention*/true, /*num_heads*/1, /*use_bias*/true, /*use_mask*/true, /*use_gpu*/false};
-    MHA mha_output{m_d_model, true, 1, true, true, false};
-    MHA mha_cross{m_d_model, false, 1, true, true, false};
+    MHA mha_input{m_d_model, /*self_attention*/true, /*num_heads*/2, /*use_bias*/true, /*use_mask*/true, /*use_gpu*/true};
+    MHA mha_output{m_d_model, true, 2, true, true, true};
+    MHA mha_cross{m_d_model, false, 2, true, true, true};
 
-    // UseGPU gpu;
-    int gpu;
+    UseGPU gpu;
 
 
 private:
@@ -205,110 +227,108 @@ private:
         std::cout << "\ttime per epoch = ";
     }
 
-public:
-    
-    void train(const Tensor& input, const Tensor& real, const Tensor& val_input, const Tensor& val_real, int epochs, float lr)
-    {
-        if (input.m_rank != 2 || real.m_rank != 2)
-            throw std::invalid_argument("encoder input and decoder input must be tensors of rank 2");
-
-        Timer timer;
-        std::cout << "\n____________________________________________";
-        std::cout << "\nBeginning training\n\n";
-
-        float start_token = 20;
-        float end_token = 21;
-
-        m_lr = lr;
-
-        PaddedTensors enc_dec_tar = std::move(add_se_tokens(input, real, start_token, end_token));
-        Tensor enc_mask = create_padding_mask(enc_dec_tar.enc_input);
-        Tensor dec_mask = create_dec_mask(enc_dec_tar.dec_input);
-        Tensor target_mask = 1.0f - create_padding_mask(enc_dec_tar.dec_target);
-
-        PaddedTensors val_enc_dec_tar = std::move(add_se_tokens(val_input, val_real, start_token, end_token));
-        Tensor val_enc_mask = create_padding_mask(val_enc_dec_tar.enc_input);
-        Tensor val_dec_mask = create_dec_mask(val_enc_dec_tar.dec_input);
-        Tensor val_target_mask = 1.0f - create_padding_mask(val_enc_dec_tar.dec_target);
-
-        // input is of shape [batch, max_len]
-        m_max_len = val_enc_dec_tar.enc_input.m_shape[1];
-
-        for (int epoch = 0; epoch < epochs; epoch++)
-        {
-            Timer timer;
-            ValLayer pred = call(val_enc_dec_tar.enc_input, val_enc_dec_tar.dec_input, true, enc_mask, dec_mask);
-            
-            if (!epoch)
-                m_dy = *(pred.val); // only set m_dy during epoch 0
-            
-            backward(val_enc_dec_tar.dec_target, pred, &target_mask);
-
-            std::cout << "epoch: " << epoch + 1 << "\n\tloss = " << m_loss << "\n";
-            valid(val_enc_dec_tar.enc_input, val_enc_dec_tar.dec_input, val_enc_dec_tar.dec_target, val_enc_mask, val_dec_mask, &val_target_mask);
-        }
-
-        Tensor test_enc_input = { {start_token, 2, 1, 1, 2, 3, 4, 9, 3, 5, end_token} };
-
-        generate(test_enc_input, start_token, end_token);
-
-        std::cout << "\n____________________________________________";
-        std::cout << "\nTraining complete";
-        std::cout << "\nTotal training time = ";
-    }
-
-    void generate(const Tensor& enc_input, const size_t& start_token, const size_t& end_token)
-    {
-        if (enc_input.m_rank != 2 && enc_input.m_shape[0] != 1)
-            throw std::invalid_argument("generates only takes in one sample of shape [1, max_len]");
-
-        Tensor dec_input = enc_input;
-        memset(dec_input.m_tensor, 0, sizeof(float) * dec_input.m_size);
-        dec_input.m_tensor[0] = start_token;
-
-        Tensor enc_mask = create_padding_mask(enc_input);
-
-        for (size_t i = 0; i < 10; i++) // generate 10 only
-        {
-            Tensor dec_mask = create_dec_mask(dec_input);
-
-            ValLayer curr_pred = call(enc_input, dec_input, false, enc_mask, dec_mask);
-            dec_input.m_tensor[i + 1] = wef::argmax(wef::softmax(*(curr_pred.val))).m_tensor[i];
-            if (dec_input.m_tensor[i + 1] == (float)end_token)
-                break;
-        }
-        wef::print(dec_input);
-    }
 };
 
 
 int main()
 {
-    Tensor inp = {
-        {1, 2, 1, 1, 2, 3, 4, 9, 3, 5},
-        {1, 2, 1, 1, 2, 3, 4, 9, 0, 0},
-        {1, 2, 1, 1, 2, 3, 4, 0, 0, 0},
-        {1, 2, 1, 1, 2, 3, 4, 9, 3, 5},
-        {1, 2, 1, 1, 2, 3, 4, 9, 3, 5},
-    }; // batch, max_len
-
-    Tensor tar = {
-        {2, 1, 1, 2, 3, 0, 0, 0, 0, 0},
-        {2, 1, 1, 2, 3, 4, 9, 3, 5, 0},
-        {2, 1, 1, 2, 3, 4, 9, 3, 5, 8},
-        {2, 1, 1, 2, 3, 4, 9, 3, 5, 8},
-        {2, 1, 1, 2, 3, 4, 9, 3, 5, 8},
-    }; // batch, max_len
-
+    Tokenizer tokenizer;
+    tokenizer.process();
     
-    functional_model model;
-    model.train(inp, tar, inp, tar, 3, 0.01f);
+    size_t batch = (size_t)tokenizer.english_sen.size();
+    size_t de_batch = (size_t)tokenizer.spanish_sen.size();
+    size_t val_share = 100;
+
+    if (batch != de_batch)
+        throw std::invalid_argument("enc and dec batchs must match");
+
+    float start_token = std::max(tokenizer.english_vsize, tokenizer.spanish_vsize) + 1;
+    float end_token = start_token + 1;
+
+
+    Tensor inp = Tensor::create((size_t[2]){batch - val_share, tokenizer.maxlen + 1}, 2);
+    memset(inp.m_tensor, 0, sizeof(float) * inp.m_size);
+
+    Tensor dec = Tensor::create((size_t[2]){batch - val_share, tokenizer.maxlen + 1}, 2);
+    memset(dec.m_tensor, 0, sizeof(float) * dec.m_size);
+
+    Tensor tar = Tensor::create((size_t[2]){batch - val_share, tokenizer.maxlen + 1}, 2);
+    memset(tar.m_tensor, 0, sizeof(float) * tar.m_size);
+
+   for (size_t i = 0; i < batch - val_share; i++)
+    {
+        float* temp = inp.m_tensor + i * (tokenizer.maxlen + 1);
+        temp[tokenizer.english_sen[i].size()] = end_token;
+        for (size_t j = 0; j < tokenizer.english_sen[i].size(); j++)
+            temp[j] = (float)(tokenizer.english_sen[i][j]);
+    }
+
+    for (size_t i = 0; i < batch - val_share; i++)
+    {
+        float* inp_temp = dec.m_tensor + i * (tokenizer.maxlen + 1);
+        float* tar_temp = tar.m_tensor + i * (tokenizer.maxlen + 1);
+
+        inp_temp[0] = start_token;
+        tar_temp[tokenizer.spanish_sen[i].size()] = end_token;
+
+        for (size_t j = 0; j < tokenizer.spanish_sen[i].size(); j++)
+        {
+            inp_temp[j + 1] = (float)(tokenizer.spanish_sen[i][j]);
+            tar_temp[j] = (float)(tokenizer.spanish_sen[i ][j]);
+        }
+    }
+
+    Tensor val_inp = Tensor::create((size_t[2]){val_share, tokenizer.maxlen + 1}, 2);
+    memset(val_inp.m_tensor, 0, sizeof(float) * val_inp.m_size);
+
+    Tensor val_dec = Tensor::create((size_t[2]){val_share, tokenizer.maxlen + 1}, 2);
+    memset(val_dec.m_tensor, 0, sizeof(float) * val_dec.m_size);
+
+    Tensor val_tar = Tensor::create((size_t[2]){val_share, tokenizer.maxlen + 1}, 2);
+    memset(val_tar.m_tensor, 0, sizeof(float) * val_tar.m_size);
+
+    for (size_t i = 0; i < val_share; i++)
+    {
+        float* temp = val_inp.m_tensor + i * (tokenizer.maxlen + 1);
+        temp[tokenizer.english_sen[i + (batch - val_share)].size()] = end_token;
+        for (size_t j = 0; j < tokenizer.english_sen[i + (batch - val_share)].size(); j++)
+            temp[j] = (float)(tokenizer.english_sen[i + (batch - val_share)][j]);
+    }
+
+    for (size_t i = 0; i < val_share; i++)
+    {
+        float* inp_temp = val_dec.m_tensor + i * (tokenizer.maxlen + 1);
+        float* tar_temp = val_tar.m_tensor + i * (tokenizer.maxlen + 1);
+
+        inp_temp[0] = start_token;
+        tar_temp[tokenizer.spanish_sen[i + (batch - val_share)].size()] = end_token;
+
+        for (size_t j = 0; j < tokenizer.spanish_sen[i + (batch - val_share)].size(); j++)
+        {
+            inp_temp[j + 1] = (float)(tokenizer.spanish_sen[i + (batch - val_share)][j]);
+            tar_temp[j] = (float)(tokenizer.spanish_sen[i + (batch - val_share)][j]);
+        }
+    }
+
+    functional_model model(std::max(tokenizer.english_vsize, tokenizer.spanish_vsize));
+    model.train(val_inp, val_dec, val_tar, val_inp, val_dec, val_tar, 10, 0.1f);
+
+    Tensor test_enc_input = Tensor::create((size_t[2]){1, (tokenizer.maxlen + 1)}, 2);
+    memset(test_enc_input.m_tensor, 0, sizeof(float) * test_enc_input.m_size);
+    for (size_t i = 0; i < test_enc_input.m_size; i++)
+        test_enc_input.m_tensor[i] = val_inp.m_tensor[i];
+    
+    Tensor gen = model.generate(test_enc_input, start_token, end_token);
+    
+    tokenizer.tok_to_eng(test_enc_input.m_tensor, test_enc_input.m_size);
+    tokenizer.tok_to_spa(gen.m_tensor, gen.m_size);
     
   
 
     return 0;
 }
-#else
+#endif
+#if 0
 #include "include/layers.h"
 #include "include/tensor.h"
 #include "include/model.h"
