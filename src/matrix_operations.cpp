@@ -592,7 +592,7 @@ void wef::print(const Tensor& m1, size_t* arr, size_t num, bool allc)
 
 }
 
-Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul*/)
+Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul, 3 div*/)
 {
     // TODO : add broadcast ability
     if (m1.m_rank != m2.m_rank)
@@ -602,7 +602,7 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
 
     struct PC
     {
-        uint32_t operation; // 0 add, 1 sub, 2 mul
+        uint32_t operation; // 0 add, 1 sub, 2 mul, 3 div
         uint32_t size;
     } push_constant;
 
@@ -623,6 +623,36 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
     
     return m;
 }
+
+Tensor wef::c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& constant, const int operation/* 0 add, 1 sub, 2 mul, 3 div, 4 pow*/)
+{
+    
+    // TODO : add += capability
+    struct PC
+    {
+        uint32_t operation; // 0 add, 1 sub, 2 mul, 3 div, 4 pow
+        uint32_t size;
+        float constant;
+    } push_constant;
+
+    const char* spv_path =  "shaders/binaries/c_elemwise.spv";
+    VkDeviceSize bytes = sizeof(float) * m1.m_size;
+
+    Tensor m = m1;
+
+    push_constant.operation = operation;
+    push_constant.size = m1.m_size;
+
+    const uint32_t WG = 256;
+    uint32_t gx = UseGPU::ceilDiv(m1.m_size, WG);
+    uint32_t gy = 1;
+    uint32_t gz = 1;
+
+    ((UseGPU*)gpu)->program({bytes, bytes}, {bytes}, {m1.m_tensor}, {m.m_tensor}, spv_path, (void*)&push_constant, sizeof(push_constant), gx, gy, gz);
+    
+    return m;
+}
+
 
 Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
 {

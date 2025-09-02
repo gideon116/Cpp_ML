@@ -233,7 +233,7 @@ Tensor* Conv2D::backward_pass(const Tensor* dy, const float lr, void*)
     {
         m_db = *dy;
         for (size_t i = 0; i < m_db.m_rank - 1; i++)
-            m_db = wef::reducesum(m_db, i);
+            m_db = wef::reducesum(m_db, i, /*keepkims*/true);
         m_B -= m_db * lr / dy->m_shape[0];
     }
 
@@ -382,7 +382,7 @@ Tensor* Conv2D_legacy::backward_pass(const Tensor* dy, const float lr, void*)
     if (m_use_bias)
     {
         m_db = *dy;
-        for (size_t i = 0; i < m_db.m_rank - 1; i++) m_db = wef::reducesum(m_db, i);
+        for (size_t i = 0; i < m_db.m_rank - 1; i++) m_db = wef::reducesum(m_db, i, /*keepkims*/true);
         m_B -= m_db * lr / dy->m_shape[0];
     }
 
@@ -595,7 +595,7 @@ Tensor* LayerNorm::forward_pass(const Tensor* px, const bool training, void*)
         // initially initilize the shape of m_X later just copy the tensors
         m_X = Tensor(*px);
 
-        m_ax_val = px->m_shape[m_axis];
+        m_ax_val = (float)(px->m_shape[m_axis]);
         std::unique_ptr<size_t[]> beta_shape = std::make_unique<size_t[]>(px->m_rank);
         std::unique_ptr<size_t[]> gamma_shape = std::make_unique<size_t[]>(px->m_rank);
 
@@ -610,8 +610,9 @@ Tensor* LayerNorm::forward_pass(const Tensor* px, const bool training, void*)
         m_gamma = Tensor::create(gamma_shape.get(), px->m_rank);
 
         // initilize beta and gamma
-        std::fill_n(m_beta.m_tensor, m_ax_val, 0.01f);
-        std::fill_n(m_gamma.m_tensor, m_ax_val, 0.99f);
+        memset(m_beta.m_tensor, 0, m_beta.m_size * sizeof(float));
+        memset(m_gamma.m_tensor, 0, m_gamma.m_size * sizeof(float));
+        m_gamma += 1;
 
         m_num_param = m_beta.m_size + m_gamma.m_size;
 
@@ -621,16 +622,17 @@ Tensor* LayerNorm::forward_pass(const Tensor* px, const bool training, void*)
         
         m_init = true;
     }
-    if (px->m_shape[m_axis] != m_ax_val)
+    if (px->m_shape[m_axis] != (size_t)m_ax_val)
         throw std::invalid_argument("cannot reuse layer [LayerNorm]");
 
     // copy px into m_X
-    if (training) std::memcpy(m_X.m_tensor, px->m_tensor, m_X.m_size * sizeof(float));
+    if (training)
+        std::memcpy(m_X.m_tensor, px->m_tensor, m_X.m_size * sizeof(float));
 
-    // follwoing m_Ba et al. 2016
-    m_mu = wef::reducesum(*px, /*axis=*/m_axis) / m_ax_val;
+    // following m_Ba et al. 2016
+    m_mu = wef::reducesum(*px, /*axis=*/m_axis, /*keepkims*/true) / m_ax_val;
     m_x_mu = (*px) - m_mu;
-    m_var = wef::reducesum(m_x_mu * m_x_mu, /*axis=*/m_axis) / m_ax_val;
+    m_var = wef::reducesum(m_x_mu * m_x_mu, /*axis=*/m_axis, /*keepkims*/true) / m_ax_val;
     m_inv_std = wef::pow(m_var + m_eps, -0.5f);
     m_x_i_hat = m_x_mu * m_inv_std;
     m_y_i = m_x_i_hat * m_gamma + m_beta;
@@ -649,16 +651,16 @@ Tensor* LayerNorm::backward_pass(const Tensor* dy, const float lr, void*)
     {
         if (i != m_axis)
         {
-            m_d_gamma = wef::reducesum(m_d_gamma, i);
-            m_d_beta = wef::reducesum(m_d_beta, i);
+            m_d_gamma = wef::reducesum(m_d_gamma, i, /*keepkims*/true);
+            m_d_beta = wef::reducesum(m_d_beta, i, /*keepkims*/true);
         }
     }
 
     m_dx = m_inv_std * (1.0 / m_ax_val) * 
     (
         m_gamma * (*dy) * m_ax_val 
-        - wef::reducesum(m_gamma * (*dy), m_axis)
-        - m_x_i_hat * (wef::reducesum(m_gamma * (*dy) * m_x_i_hat, m_axis))
+        - wef::reducesum(m_gamma * (*dy), m_axis, /*keepkims*/true)
+        - m_x_i_hat * (wef::reducesum(m_gamma * (*dy) * m_x_i_hat, m_axis, /*keepkims*/true))
     );
 
     m_gamma -= m_d_gamma * lr / dy->m_shape[0];
@@ -928,7 +930,7 @@ Tensor* Conv2D_NR::backward_pass(const Tensor* dy, const float lr, void*)
     {
         m_db = *dy;
         for (size_t i = 0; i < m_db.m_rank - 1; i++)
-            m_db = wef::reducesum(m_db, i);
+            m_db = wef::reducesum(m_db, i, /*keepkims*/true);
         m_B -= m_db * lr / dy->m_shape[0];
     }
 
@@ -1041,7 +1043,7 @@ Tensor* MHA::backward_pass(const Tensor* dy, const float lr, void* gpu)
     }
 
     // undo softmax
-    m_de = (m_daij - wef::reducesum(m_daij * m_aij, 3)) * m_aij;
+    m_de = (m_daij - wef::reducesum(m_daij * m_aij, 3, /*keepkims*/true)) * m_aij;
 
     // undo "product = wef::matmul(q, wef::transpose(k));"
     const float scale = 1.0f / std::sqrt(m_keys_dim);

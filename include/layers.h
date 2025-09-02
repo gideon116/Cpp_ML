@@ -175,15 +175,16 @@ private:
     Tensor m_X;
     int m_axis;
     float m_ax_val;
-    float m_eps = 0.01f;
+    float m_eps =  1e-5f;
     Tensor m_beta, m_gamma, m_mu, m_x_mu, m_var, m_inv_std, m_x_i_hat, m_y_i, m_d_gamma, m_d_beta, m_dx;
 
 public:
     // initilize weights
-    LayerNorm(const int ax, const float ep=0.01f) 
+    LayerNorm(const int ax, const float ep=1e-5f) 
         : m_axis(ax), m_eps(ep)
         {
-            if (m_axis < 0) throw std::invalid_argument("axis connot be negative");
+            if (m_axis < 0)
+                throw std::invalid_argument("axis connot be negative");
             m_name = "LayerNorm";
         }
     

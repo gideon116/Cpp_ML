@@ -56,7 +56,7 @@ Tensor create_dec_mask(Tensor dec_inputs)
 class functional_model
 {
 private:
-    size_t m_d_model = 32;
+    size_t m_d_model = 128;
     size_t m_vocab_size = 32;
     size_t m_max_len;
     float m_lr = 0.0f;
@@ -135,7 +135,7 @@ private:
     
     Linear_GPU out{m_vocab_size, true, 7}, ffn1{m_d_model, true, 8}, ffn2{m_d_model, true, 8};
     ReLU relu1, relu2, relu3;
-    LayerNorm norm{1}, norm2{1}, norm3{1}, norm4{1}, norm5{1};
+    LayerNorm norm{2}, norm2{2}, norm3{2}, norm4{2}, norm5{2};
     
     Embedding embedding{/*vocab*/m_vocab_size, m_d_model}, embedding_out{m_vocab_size, m_d_model};
 
@@ -229,15 +229,16 @@ private:
 
 };
 
-
 int main()
 {
     Tokenizer tokenizer;
-    tokenizer.process();
+    tokenizer.process("english_spanish_tab.txt", 1000);
+    std::cout << tokenizer.english_sen.size() << std::endl;
+    std::cout << tokenizer.spanish_sen.size() << std::endl;
     
     size_t batch = (size_t)tokenizer.english_sen.size();
     size_t de_batch = (size_t)tokenizer.spanish_sen.size();
-    size_t val_share = 100;
+    size_t val_share = 50;
 
     if (batch != de_batch)
         throw std::invalid_argument("enc and dec batchs must match");
@@ -311,7 +312,7 @@ int main()
     }
 
     functional_model model(std::max(tokenizer.english_vsize, tokenizer.spanish_vsize));
-    model.train(val_inp, val_dec, val_tar, val_inp, val_dec, val_tar, 10, 0.01f);
+    model.train(inp, dec, tar, val_inp, val_dec, val_tar, 5, 0.01f);
 
     Tensor test_enc_input = Tensor::create((size_t[2]){1, (tokenizer.maxlen + 1)}, 2);
     memset(test_enc_input.m_tensor, 0, sizeof(float) * test_enc_input.m_size);
@@ -322,6 +323,8 @@ int main()
     
     tokenizer.tok_to_eng(test_enc_input.m_tensor, test_enc_input.m_size);
     tokenizer.tok_to_spa(gen.m_tensor, gen.m_size);
+    wef::print(gen);
+
     
   
 

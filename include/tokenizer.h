@@ -22,7 +22,7 @@ struct Tokenizer
     std::vector<std::vector<size_t>>* sen;
     size_t* vsize;
     
-    void process(const std::string& filepath="english_spanish_tab.txt")
+    void process(const std::string& filepath="english_spanish_tab.txt", const size_t& early_stop=0)
     {
         std::ifstream file(filepath);
         while (std::getline(file, line, '\t'))
@@ -39,7 +39,6 @@ struct Tokenizer
                 sen = &spanish_sen;
                 vsize = &spanish_vsize;
             }
-
             for (size_t ch = 0; ch < line.size() + 1; ch++)
             {
                 if (line[ch] == '\n')
@@ -72,11 +71,14 @@ struct Tokenizer
                 else
                     prev += line[ch];
             }
+            
+            if (early_stop)
+                if ((english_sen.size() == spanish_sen.size()) && english_sen.size() >= early_stop)
+                    break;
 
             maxlen = temp_sen.size() > maxlen ? temp_sen.size() : maxlen;
             sen->push_back(temp_sen);
             temp_sen.clear();
-
             switch_vocab = !switch_vocab;
         }
 
@@ -87,9 +89,7 @@ struct Tokenizer
         for (const auto& kv : spanish)
             tok_to_spanish[kv.second] = kv.first;
 
-
         shuffle(english_sen, spanish_sen);
-
     }
 
     void shuffle(std::vector<std::vector<size_t>>& m1, std::vector<std::vector<size_t>>& m2)
@@ -113,7 +113,6 @@ struct Tokenizer
             m2[ran_in] = std::move(temp);
         }
     }
-
 
     void tok_to_eng(const float* buffer, const size_t& len)
     {

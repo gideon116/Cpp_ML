@@ -37,7 +37,8 @@ namespace wef {
 
         // GPU
         Tensor matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2);
-        Tensor elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul*/);
+        Tensor elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul, 3 div*/);
+        Tensor c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& constant, const int operation/* 0 add, 1 sub, 2 mul, 3 div, 4 pow*/);
 
 };
 

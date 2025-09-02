@@ -243,7 +243,7 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
     {
         m_db = *dy;
         for (size_t i = 0; i < m_db.m_rank - 1; i++)
-            m_db = wef::reducesum(m_db, i);
+            m_db = wef::reducesum(m_db, i, /*keepkims*/true);
         m_B = wef::elemwise_GPU(gpu, m_B, m_db * lr / dy->m_shape[0], 1);
         // m_B -= m_db * lr / dy->m_shape[0];
     }
