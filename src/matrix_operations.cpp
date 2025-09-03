@@ -653,7 +653,6 @@ Tensor wef::c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& const
     return m;
 }
 
-
 Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
 {
     if (m1.m_rank < 2 || m2.m_rank < 2)

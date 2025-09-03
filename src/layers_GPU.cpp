@@ -174,7 +174,7 @@ Tensor* Conv2D_GPU::forward_pass(const Tensor* px, const bool training, void* gp
     VkDeviceSize sizem_B = sizeof(float) * m_WB_size;
     VkDeviceSize sizeC = sizeof(float) * m_out.m_size;
 
-    const char* spv_path = "../shaders/binaries/conv2d_f.spv";
+    const char* spv_path = "shaders/binaries/conv2d_f.spv";
     ((UseGPU*)gpu)->program({sizeA, sizem_B}, {sizeC}, {px->m_tensor, m_WB.get()}, {m_out.m_tensor}, spv_path, &push_constant, sizeof(push_constant), gx, gy, gz);
 
     return &m_out;
@@ -219,7 +219,7 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
     VkDeviceSize sizeC = sizeof(float) * dy->m_size;
     VkDeviceSize sizeA = sizeof(float) * m_dx.m_size;
 
-    const char* spv_path = "shaders/binaries/conv2d_b_m_dw.spv";
+    const char* spv_path = "shaders/binaries/conv2d_b_dw.spv";
     ((UseGPU*)gpu)->program({sizem_B, sizeC}, {/*output=*/sizeA}, {m_W.m_tensor, dy->m_tensor}, {/*output=*/m_dx.m_tensor}, spv_path, &push_constant, sizeof(push_constant), gx, gy, gz);
 
     gx = UseGPU::ceilDiv(m_dw.m_shape[3], m_WGm_X);
@@ -230,7 +230,7 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
     sizeA = sizeof(float) * m_X.m_size;
     sizem_B = sizeof(float) * m_dw.m_size;
     
-    spv_path = "shaders/binaries/conv2d_b_m_dw.spv";
+    spv_path = "shaders/binaries/conv2d_b_dw.spv";
     ((UseGPU*)gpu)->program({sizeC, sizeA}, {/*output=*/sizem_B}, {dy->m_tensor, m_X.m_tensor}, {/*output=*/m_dw.m_tensor}, spv_path, &push_constant, sizeof(push_constant), gx, gy, gz);
 
     float* pm_w = m_W.m_tensor;
