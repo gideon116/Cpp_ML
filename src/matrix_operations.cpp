@@ -1,5 +1,5 @@
 #include <iostream>
-#include "../include/matrix_operations.h"
+#include "matrix_operations.h"
 
 Tensor wef::matmul(const Tensor& m1, const Tensor& m2)
 {
@@ -606,7 +606,7 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
         uint32_t size;
     } push_constant;
 
-    const char* spv_path =  "shaders/binaries/elemwise.spv";
+    const char* spv_path =  "../shaders/binaries/elemwise.spv";
     VkDeviceSize bytes = sizeof(float) * m1.m_size;
 
     Tensor m = m1;
@@ -635,7 +635,7 @@ Tensor wef::c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& const
         float constant;
     } push_constant;
 
-    const char* spv_path =  "shaders/binaries/c_elemwise.spv";
+    const char* spv_path =  "../shaders/binaries/c_elemwise.spv";
     VkDeviceSize bytes = sizeof(float) * m1.m_size;
 
     Tensor m = m1;
@@ -677,7 +677,7 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
 
     Tensor m = Tensor::create(temp_shape.get(), m1.m_rank);
 
-    const char* spv_path =  "shaders/binaries/matmul.spv";
+    const char* spv_path =  "../shaders/binaries/matmul.spv";
 
     VkDeviceSize sizeA = sizeof(float) * m1.m_size;
     VkDeviceSize sizeB = sizeof(float) * m2.m_size;
@@ -710,7 +710,8 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
 
 Tensor wef::positional_encoding(const size_t& length, const size_t& depth)
 {
-    Tensor pos_encoding = Tensor::create((size_t[3]){1, length, depth}, 3);
+    size_t newshape[3] = {1, length, depth};
+    Tensor pos_encoding = Tensor::create(newshape, 3);
 
     for (size_t pos = 0; pos < length; pos++)
     {

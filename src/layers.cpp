@@ -1,6 +1,6 @@
 #include <iostream>
 #include <random>
-#include "../include/layers.h"
+#include "layers.h"
 
 Tensor* Linear::forward_pass(const Tensor* px, const bool training, void*) 
 {

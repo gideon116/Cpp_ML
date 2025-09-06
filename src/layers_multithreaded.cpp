@@ -1,7 +1,7 @@
 
 #include <iostream>
 #include <random>
-#include "../include/layers.h"
+#include "layers.h"
 
 Tensor* Conv2D_Fast::forward_pass(const Tensor* px, const bool training, void*) 
 {

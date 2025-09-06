@@ -6,7 +6,7 @@
 // TODO: use function pointers in shaders
 // TODO: GPU version of transpose (should be simple flat gx=256, gy=1, gz=1)
 
-#include "./include/example_models.h"
+#include "example_models.h"
 
 int main()
 {

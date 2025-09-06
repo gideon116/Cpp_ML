@@ -1,4 +1,4 @@
-#include "../include/model.h"
+#include "model.h"
 #include <thread>
 
 void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_real, const Tensor& valid_input, const int epochs, const float lr, size_t batch_size)

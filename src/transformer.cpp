@@ -1,10 +1,9 @@
-#include "../include/example_models.h"
-#include "../include/tokenizer.h"
-#include "../include/layers.h"
-#include "../include/tensor.h"
-#include "../include/model.h"
+#include "example_models.h"
+#include "tokenizer.h"
+#include "layers.h"
+#include "tensor.h"
+#include "model.h"
 #include <iostream>
-
 
 Tensor create_padding_mask(const Tensor& seq)
 {
@@ -14,14 +13,17 @@ Tensor create_padding_mask(const Tensor& seq)
             mask.m_tensor[i] = 1;
         else
             mask.m_tensor[i] = 0;
-    mask.reshape((size_t[4]){mask.m_shape[0], 1, 1, mask.m_shape[1]}, 4);
+
+    size_t newshape[4] = {mask.m_shape[0], 1, 1, mask.m_shape[1]};
+    mask.reshape(newshape, 4);
     return mask;
 }
 
 Tensor create_look_ahead_mask(const Tensor& seq)
 {
     size_t seq_len = seq.m_shape[1];
-    Tensor look_ahead_mask = Tensor::create((size_t[4]){1, 1, seq_len, seq_len}, 4);
+    size_t newshape[4] = {1, 1, seq_len, seq_len};
+    Tensor look_ahead_mask = Tensor::create(newshape, 4);
 
     for (size_t i = 0; i < seq_len; i++)
         for (size_t j = 0; j < seq_len; j++)
@@ -38,7 +40,8 @@ Tensor create_dec_mask(Tensor dec_inputs)
     size_t batch = dec_mask_1.m_shape[0];
     size_t ml = dec_mask_1.m_shape[3];
 
-    Tensor dec_mask = Tensor::create((size_t[4]){batch, 1, ml, ml}, 4); // b, 1, ml, ml
+    size_t newshape[4] = {batch, 1, ml, ml};
+    Tensor dec_mask = Tensor::create(newshape, 4); // b, 1, ml, ml
 
     for (size_t b = 0; b < batch; b++)
     {
@@ -232,7 +235,7 @@ private:
 void transformer()
 {
     Tokenizer tokenizer;
-    tokenizer.process("english_spanish_tab.txt", 1000);
+    tokenizer.process("../english_spanish_tab.txt", 1000);
     std::cout << tokenizer.english_sen.size() << std::endl;
     std::cout << tokenizer.spanish_sen.size() << std::endl;
     
@@ -246,14 +249,15 @@ void transformer()
     float start_token = std::max(tokenizer.english_vsize, tokenizer.spanish_vsize) + 1;
     float end_token = start_token + 1;
 
+    size_t newshape[2] = {batch - val_share, tokenizer.maxlen + 1};
 
-    Tensor inp = Tensor::create((size_t[2]){batch - val_share, tokenizer.maxlen + 1}, 2);
+    Tensor inp = Tensor::create(newshape, 2);
     memset(inp.m_tensor, 0, sizeof(float) * inp.m_size);
 
-    Tensor dec = Tensor::create((size_t[2]){batch - val_share, tokenizer.maxlen + 1}, 2);
+    Tensor dec = Tensor::create(newshape, 2);
     memset(dec.m_tensor, 0, sizeof(float) * dec.m_size);
 
-    Tensor tar = Tensor::create((size_t[2]){batch - val_share, tokenizer.maxlen + 1}, 2);
+    Tensor tar = Tensor::create(newshape, 2);
     memset(tar.m_tensor, 0, sizeof(float) * tar.m_size);
 
    for (size_t i = 0; i < batch - val_share; i++)
@@ -279,13 +283,15 @@ void transformer()
         }
     }
 
-    Tensor val_inp = Tensor::create((size_t[2]){val_share, tokenizer.maxlen + 1}, 2);
+    size_t val_newshape[2] = {val_share, tokenizer.maxlen + 1};
+
+    Tensor val_inp = Tensor::create(val_newshape, 2);
     memset(val_inp.m_tensor, 0, sizeof(float) * val_inp.m_size);
 
-    Tensor val_dec = Tensor::create((size_t[2]){val_share, tokenizer.maxlen + 1}, 2);
+    Tensor val_dec = Tensor::create(val_newshape, 2);
     memset(val_dec.m_tensor, 0, sizeof(float) * val_dec.m_size);
 
-    Tensor val_tar = Tensor::create((size_t[2]){val_share, tokenizer.maxlen + 1}, 2);
+    Tensor val_tar = Tensor::create(val_newshape, 2);
     memset(val_tar.m_tensor, 0, sizeof(float) * val_tar.m_size);
 
     for (size_t i = 0; i < val_share; i++)
@@ -314,7 +320,9 @@ void transformer()
     functional_model model(std::max(tokenizer.english_vsize, tokenizer.spanish_vsize));
     model.train(inp, dec, tar, val_inp, val_dec, val_tar, 5, 0.01f);
 
-    Tensor test_enc_input = Tensor::create((size_t[2]){1, (tokenizer.maxlen + 1)}, 2);
+    size_t tein_newshape[2] = {1, (tokenizer.maxlen + 1)};
+
+    Tensor test_enc_input = Tensor::create(tein_newshape, 2);
     memset(test_enc_input.m_tensor, 0, sizeof(float) * test_enc_input.m_size);
     for (size_t i = 0; i < test_enc_input.m_size; i++)
         test_enc_input.m_tensor[i] = val_inp.m_tensor[i];

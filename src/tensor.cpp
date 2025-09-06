@@ -1,5 +1,5 @@
 #include <iostream>
-#include "../include/tensor.h"
+#include "tensor.h"
 
 Tensor::Tensor(const std::initializer_list<Tensor>& init_list) // CONST??
 {   

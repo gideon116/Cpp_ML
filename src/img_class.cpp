@@ -1,19 +1,19 @@
-#include "../include/example_models.h"
-#include "../include/layers.h"
-#include "../include/tensor.h"
-#include "../include/model.h"
-#include "../include/mnist.h"
+#include "example_models.h"
+#include "layers.h"
+#include "tensor.h"
+#include "model.h"
+#include "mnist.h"
 
 void img_class() {
 
     int n_test = 100;
     int n_train = 1000;
 
-    Tensor train_im = load_mnist_images("mnist/train-images-idx3-ubyte", n_train);
-    Tensor train_l = load_mnist_labels("mnist/train-labels-idx1-ubyte", n_train);
+    Tensor train_im = load_mnist_images("../mnist/train-images-idx3-ubyte", n_train);
+    Tensor train_l = load_mnist_labels("../mnist/train-labels-idx1-ubyte", n_train);
 
-    Tensor test_im = load_mnist_images("mnist/t10k-images-idx3-ubyte", n_test);
-    Tensor test_l = load_mnist_labels("mnist/t10k-labels-idx1-ubyte", n_test);
+    Tensor test_im = load_mnist_images("../mnist/t10k-images-idx3-ubyte", n_test);
+    Tensor test_l = load_mnist_labels("../mnist/t10k-labels-idx1-ubyte", n_test);
 
     std::cout << "train image shape is: "; train_im.print_shape();
     std::cout << "train label shape is: "; train_l.print_shape();
