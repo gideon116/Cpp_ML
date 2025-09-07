@@ -418,7 +418,8 @@ public:
         m_past_k = (Layer*)px_lk.layer;
         m_past_v = (Layer*)px_lv.layer;
 
-        px_lq.val = forward_pass((Tensor[4]){*px_lq.val, *px_lk.val, *px_lv.val, *px_lm.val}, training, gpu);
+        Tensor newtensor[4] = {*px_lq.val, *px_lk.val, *px_lv.val, *px_lm.val};
+        px_lq.val = forward_pass(newtensor, training, gpu);
         px_lq.layer = this;
         return px_lq;
     }

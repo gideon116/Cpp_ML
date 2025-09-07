@@ -10,6 +10,6 @@
 
 int main()
 {
-    img_class();
+    transformer();
     return 0;
 }

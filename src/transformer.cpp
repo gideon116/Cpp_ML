@@ -92,16 +92,37 @@ public:
         // input is of shape [batch, max_len]
         m_max_len = enc_input.m_shape[1];
 
+        // batching stuff
+        size_t batch_size = 50;
+        if (!batch_size)
+            batch_size = enc_input.m_shape[0];
+        size_t num_batches = enc_input.m_shape[0] / batch_size; // drop remainder
+        Tensor min_enc_input = create_minibatch(enc_input, batch_size);
+        Tensor min_dec_input = create_minibatch(dec_input, batch_size);
+        Tensor min_dec_target = create_minibatch(dec_target, batch_size);
+        Tensor min_enc_mask = create_minibatch(enc_mask, batch_size);
+        Tensor min_dec_mask = create_minibatch(dec_mask, batch_size);
+        Tensor min_target_mask = create_minibatch(target_mask, batch_size);
+
         for (int epoch = 0; epoch < epochs; epoch++)
         {
             Timer timer;
-            ValLayer pred = call(enc_input, dec_input, true, enc_mask, dec_mask);
-            
-            if (!epoch)
-                m_dy = *(pred.val); // only set m_dy during epoch 0
-            
-            backward(dec_target, pred, &target_mask);
 
+            for (size_t b = 0; b < num_batches; b++)
+            {
+                memcpy(min_enc_input.m_tensor, enc_input.m_tensor + b * min_enc_input.m_size, sizeof(float) * min_enc_input.m_size);
+                memcpy(min_dec_input.m_tensor, dec_input.m_tensor + b * min_dec_input.m_size, sizeof(float) * min_dec_input.m_size);
+                memcpy(min_dec_target.m_tensor, dec_target.m_tensor + b * min_dec_target.m_size, sizeof(float) * min_dec_target.m_size);
+                memcpy(min_enc_mask.m_tensor, enc_mask.m_tensor + b * min_enc_mask.m_size, sizeof(float) * min_enc_mask.m_size);
+                memcpy(min_dec_mask.m_tensor, dec_mask.m_tensor + b * min_dec_mask.m_size, sizeof(float) * min_dec_mask.m_size);
+                memcpy(min_target_mask.m_tensor, target_mask.m_tensor + b * min_target_mask.m_size, sizeof(float) * min_target_mask.m_size);
+
+                ValLayer pred = call(min_enc_input, min_dec_input, true, min_enc_mask, min_dec_mask);
+                if (!epoch)
+                    m_dy = *(pred.val); // only set m_dy during epoch 0
+                backward(min_dec_target, pred, &min_target_mask);
+            }
+            
             std::cout << "epoch: " << epoch + 1 << "\n\tloss = " << m_loss << "\n";
             valid(val_enc_input, val_dec_input, val_dec_target, val_enc_mask, val_dec_mask, &val_target_mask);
         }
@@ -147,7 +168,6 @@ private:
     MHA mha_cross{m_d_model, false, 2, true, true, true};
 
     UseGPU gpu;
-
 
 private:
 
@@ -230,12 +250,22 @@ private:
         std::cout << "\ttime per epoch = ";
     }
 
+    Tensor create_minibatch(const Tensor& original, const size_t& mini_batch_size)
+    {
+        size_t* mini_batch_shape = new size_t[original.m_rank];
+        memcpy(mini_batch_shape, original.m_shape, sizeof(size_t) * original.m_rank);
+        mini_batch_shape[0] = mini_batch_size;
+        Tensor mini_batch = Tensor::create(mini_batch_shape, original.m_rank);
+        delete[] mini_batch_shape;
+        return mini_batch;
+    }
+
 };
 
 void transformer()
 {
     Tokenizer tokenizer;
-    tokenizer.process("../english_spanish_tab.txt", 1000);
+    tokenizer.process("../english_spanish_tab.txt", 200);
     std::cout << tokenizer.english_sen.size() << std::endl;
     std::cout << tokenizer.spanish_sen.size() << std::endl;
     
@@ -279,7 +309,7 @@ void transformer()
         for (size_t j = 0; j < tokenizer.spanish_sen[i].size(); j++)
         {
             inp_temp[j + 1] = (float)(tokenizer.spanish_sen[i][j]);
-            tar_temp[j] = (float)(tokenizer.spanish_sen[i ][j]);
+            tar_temp[j] = (float)(tokenizer.spanish_sen[i][j]);
         }
     }
 
@@ -318,7 +348,7 @@ void transformer()
     }
 
     functional_model model(std::max(tokenizer.english_vsize, tokenizer.spanish_vsize));
-    model.train(inp, dec, tar, val_inp, val_dec, val_tar, 5, 0.01f);
+    model.train(inp, dec, tar, val_inp, val_dec, val_tar, 10, 0.05f);
 
     size_t tein_newshape[2] = {1, (tokenizer.maxlen + 1)};
 

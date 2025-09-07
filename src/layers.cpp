@@ -16,7 +16,6 @@ Tensor* Linear::forward_pass(const Tensor* px, const bool training, void*)
         m_W = Tensor::create(w_shape, 2);
         m_B = Tensor::create(b_shape, 2);
 
-        float* m_B_ptr = m_B.m_tensor;
         std::fill_n(m_B.m_tensor, m_B.m_size, 0.0f); // zero fill
 
         float* pm = m_W.m_tensor;
@@ -374,8 +373,6 @@ Tensor* Conv2D_legacy::backward_pass(const Tensor* dy, const float lr, void*)
         }
     }
     
-    float* pm_w = m_W.m_tensor;
-    float* pm_m_dw = m_dw.m_tensor;
     // divide lr by batch size
     m_W -= m_dw * lr / dy->m_shape[0];
 
@@ -920,9 +917,6 @@ Tensor* Conv2D_NR::backward_pass(const Tensor* dy, const float lr, void*)
         }
     }
 
-
-    float* pm_w = m_W.m_tensor;
-    float* pm_m_dw = m_dw.m_tensor;
     // divide lr by batch size
     m_W -= m_dw * lr / dy->m_shape[0];
 
@@ -1074,7 +1068,8 @@ Tensor* MHA::backward_pass(const Tensor* dy, const float lr, void* gpu)
     }
     else
     {
-        m_output = *((Tensor[3]){*m_dq_in, *m_dk_in, *m_dv_in}); // TODO CHECK
+        Tensor newtensor[4] = {*m_dq_in, *m_dk_in, *m_dv_in};
+        m_output = *newtensor; // TODO CHECK
         return &m_output;
     }
 }
