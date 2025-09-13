@@ -20,17 +20,17 @@ void img_class() {
 
     float lr = 0.01f;
 
-    int m_units1 = 16;
+    int m_units1 = 128;
     int m_units2 = 16;
     int m_units5 = 10;
     
-    Conv2D_GPU cov1(3, 3, m_units1, true, 3), cov2(3, 3, m_units2, true, 4), cov3(3, 3, m_units2, true, 5);
-    Linear_GPU out(m_units5, true, 7), ffn1(16, true, 8), ffn2(512, true, 8), ffn3(512, true, 8);
+    Conv2D cov1(3, 3, m_units1, true, 3), cov2(3, 3, m_units2, true, 4), cov3(3, 3, m_units2, true, 5);
+    Linear out(m_units5, true, 7), ffn1(16, true, 8), ffn2(512, true, 8), ffn3(512, true, 8);
     ReLU relu1, relu2, relu3;
     ReduceSum r1(1), r2(1);
     Flatten flat;
     LayerNorm norm(1);
-    MaxPool2D_GPU mp(2, 2), mp2(2, 2);
+    MaxPool2D mp(2, 2), mp2(2, 2);
 
     std::vector<Layer*> network = {&cov1, &relu1, &mp, &cov2, &relu3, &mp2, &cov3, &relu2, &flat, &ffn1, &out};
     Model model(network, true);
@@ -41,7 +41,7 @@ void img_class() {
     model.add(&cov1); model.add(&relu1); model.add(&cov2); model.add(&r1); model.add(&r2); model.add(&layer);
     */
     
-    model.fit(train_l, train_im, test_l, test_im, 10, lr);
+    model.fit(train_l, train_im, test_l, test_im, 10, lr, 50);
 
     Tensor pred = model.predict(test_im);
 

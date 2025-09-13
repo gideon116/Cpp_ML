@@ -61,7 +61,7 @@ int k()
     // operation on gpu
     kernel<<<dimGrid, dimBlock>>>(a_gpu, b_gpu, c_gpu, nums, push_constant);
 
-    cudaDeviceSynchronize();
+    // cudaDeviceSynchronize();
 
     // copy res to cpu
     cudaMemcpy(c, c_gpu, m.m_size * sizeof(float), cudaMemcpyDeviceToHost);

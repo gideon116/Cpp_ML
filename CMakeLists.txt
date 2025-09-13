@@ -9,10 +9,13 @@ add_executable(
     train.cpp
     src/kernel.cu
     src/img_class.cpp
+
     src/layers_GPU.cpp
     # src/layers_CUDA.cu
+
     src/matrix_ops_GPU.cpp
     # src/matrix_ops_CUDA.cu
+    
     src/matrix_ops.cpp
     src/tensor.cpp
     src/useGPU.cpp

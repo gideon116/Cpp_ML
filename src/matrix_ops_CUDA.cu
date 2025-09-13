@@ -136,7 +136,7 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
         
         k_elem<<<dimGrid, dimBlock>>>(a_gpu, b_gpu, c_gpu, push_constant);
         
-        cudaDeviceSynchronize();
+        // cudaDeviceSynchronize();
         cudaMemcpy(c, c_gpu, bytes, cudaMemcpyDeviceToHost);
 
         cudaFree(a_gpu);
@@ -184,7 +184,7 @@ Tensor wef::c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& const
         
         k_c_elem<<<dimGrid, dimBlock>>>(a_gpu, constant, c_gpu, push_constant);
         
-        cudaDeviceSynchronize();
+        // cudaDeviceSynchronize();
         cudaMemcpy(c, c_gpu, bytes, cudaMemcpyDeviceToHost);
 
         cudaFree(a_gpu);
@@ -259,7 +259,7 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
         
         k_matmul<<<dimGrid, dimBlock>>>(a_gpu, b_gpu, c_gpu, push_constant);
         
-        cudaDeviceSynchronize();
+        // cudaDeviceSynchronize();
         cudaMemcpy(c, c_gpu, sizeC, cudaMemcpyDeviceToHost);
 
         cudaFree(a_gpu);

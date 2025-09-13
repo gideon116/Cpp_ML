@@ -218,7 +218,7 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
     VkDeviceSize sizeC = sizeof(float) * dy->m_size;
     VkDeviceSize sizeA = sizeof(float) * m_dx.m_size;
 
-    const char* spv_path = "../shaders/binaries/conv2d_b_dw.spv";
+    const char* spv_path = "../shaders/binaries/conv2d_b_dx.spv";
     ((UseGPU*)gpu)->program({sizeB, sizeC}, {/*output=*/sizeA}, {m_W.m_tensor, dy->m_tensor}, {/*output=*/m_dx.m_tensor}, spv_path, &push_constant, sizeof(push_constant), gx, gy, gz);
 
     gx = UseGPU::ceilDiv(m_dw.m_shape[3], WGX);
@@ -229,7 +229,7 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
     sizeA = sizeof(float) * m_X.m_size;
     sizeB = sizeof(float) * m_dw.m_size;
     
-    spv_path = "../shaders/binaries/conv2d_b_dx.spv";
+    spv_path = "../shaders/binaries/conv2d_b_dw.spv";
     ((UseGPU*)gpu)->program({sizeC, sizeA}, {/*output=*/sizeB}, {dy->m_tensor, m_X.m_tensor}, {/*output=*/m_dw.m_tensor}, spv_path, &push_constant, sizeof(push_constant), gx, gy, gz);
 
     // divide lr by batch size
@@ -328,6 +328,11 @@ Tensor* MaxPool2D_GPU::forward_pass(const Tensor* px, const bool training, void*
 
 
     return &m_out;
+}
+
+Conv2D_GPU::~Conv2D_GPU()
+{
+    // only implimented in the CUDA version
 }
 
 Tensor* MaxPool2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu) 

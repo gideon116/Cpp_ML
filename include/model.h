@@ -49,7 +49,7 @@ public:
     void fit(
             const Tensor& real, const Tensor& input,
             const Tensor& valid_real, const Tensor& valid_input,
-            const int epochs=10, const float lr=0.01f, size_t batch_size=0);
+            const int epochs=10, const float lr=0.01f, size_t batch_size=0, std::vector<float>* logging=nullptr, std::vector<float>* val_logging=nullptr);
     
     // no validation
     void fit(const Tensor& real, const Tensor& input, const int epochs=10, const float lr=0.01f);

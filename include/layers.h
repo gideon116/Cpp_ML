@@ -19,7 +19,7 @@ class Layer
 public: // TODO : make these private and have getters
     size_t m_num_param = 0;
     size_t m_out_rank = 0;
-    const char* m_name;
+    const char* m_name = "layer";
     
     bool m_init= false;
     std::unique_ptr<size_t[]> m_out_shape;
@@ -301,6 +301,9 @@ private:
     std::unique_ptr<float[]> m_WB;
     bool m_use_bias = false;
 
+    size_t sizeA, sizeB, sizeC;
+    float *a, *b, *c, *a_gpu, *b_gpu, *c_gpu;
+
 public:  
     // initilize weights
     Conv2D_GPU(size_t w_h, size_t w_w, size_t u, bool use_bias=false, size_t rand=3)
@@ -308,7 +311,7 @@ public:
         {
             m_name = "Conv2D";
         }
-    
+    ~Conv2D_GPU();
     Tensor* forward_pass(const Tensor* px, const bool training, void* gpu) override;
     Tensor* backward_pass(const Tensor* dy, const float lr, void* gpu) override;
 };

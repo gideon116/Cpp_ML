@@ -1,7 +1,7 @@
 #include "model.h"
 #include <thread>
 
-void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_real, const Tensor& valid_input, const int epochs, const float lr, size_t batch_size)
+void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_real, const Tensor& valid_input, const int epochs, const float lr, size_t batch_size, std::vector<float>* logging, std::vector<float>* val_logging)
 {
     if (!batch_size) batch_size = input.m_shape[0];
     size_t num_batches = input.m_shape[0] / batch_size; // drop remainder
@@ -53,6 +53,7 @@ void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_rea
         }
         
         std::cout << "epoch: " << epoch + 1 << "\n\ttrain_loss = " << loss/num_batches << "\n";
+        logging->push_back(loss/num_batches);
 
         #else
 
@@ -83,6 +84,7 @@ void Model::fit(const Tensor& real, const Tensor& input, const Tensor& valid_rea
             val_pred_ptr = (*layer).forward_pass(val_pred_ptr, false, m_gpu);
         float val_loss = wef::categoricalcrossentropy(valid_real, *val_pred_ptr);
         std::cout << "\tvalid_loss = " << val_loss << "\n";
+        val_logging->push_back(val_loss);
 
         float acc = 0;
         for (int i = 0; i < valid_real.m_size; i++)
