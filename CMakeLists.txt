@@ -18,7 +18,7 @@ add_executable(
     
     src/matrix_ops.cpp
     src/tensor.cpp
-    src/useGPU.cpp
+    src/use_GPU.cpp
     src/layers.cpp
     src/layers_multithreaded.cpp
     src/model.cpp

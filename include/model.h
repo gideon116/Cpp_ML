@@ -5,7 +5,7 @@
 #include "layers.h"
 #include "tensor.h"
 #include "matrix_operations.h"
-#include "useGPU.h"
+#include "use_GPU.h"
 #include <mutex>
 
 class Timer

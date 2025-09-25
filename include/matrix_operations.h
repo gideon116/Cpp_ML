@@ -7,7 +7,7 @@
 #include <thread>
 
 #include "tensor.h"
-#include "useGPU.h"
+#include "use_GPU.h"
 
 namespace wef {
 

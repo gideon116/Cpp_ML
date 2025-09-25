@@ -1,4 +1,4 @@
-#include "useGPU.h"
+#include "use_GPU.h"
 #include "layers.h"
 
 Tensor* Linear_GPU::forward_pass(const Tensor* px, const bool training, void* gpu) 
