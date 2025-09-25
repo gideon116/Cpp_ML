@@ -122,7 +122,7 @@ class UseGPU
         VkCommandBuffer m_commandBuffer;
 
     public:
-        static uint32_t ceilDiv(uint32_t a, uint32_t b) { return (a + b - 1) / b; }
+        static uint32_t ceil_div(uint32_t a, uint32_t b) { return (a + b - 1) / b; }
         static std::vector<char> readFile(const char* filename)
         {
             std::ifstream file(filename, std::ios::ate | std::ios::binary);

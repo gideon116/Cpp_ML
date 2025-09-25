@@ -3,7 +3,7 @@
 #include "kernel.h"
 #include <iostream>
 
-static uint32_t ceilDiv(uint32_t a, uint32_t b) { return (a + b - 1) / b; }
+static uint32_t ceil_div(uint32_t a, uint32_t b) { return (a + b - 1) / b; }
 
 struct PC
 {
@@ -33,7 +33,7 @@ int k()
 
     size_t nums = m.m_size;
     dim3 dimBlock(16, 16, 1);
-    dim3 dimGrid(ceilDiv(2, dimBlock.x), ceilDiv(3, dimBlock.y), 1);
+    dim3 dimGrid(ceil_div(2, dimBlock.x), ceil_div(3, dimBlock.y), 1);
 
 
     float* a = m1.m_tensor;

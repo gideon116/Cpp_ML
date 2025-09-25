@@ -265,7 +265,7 @@ private:
 void transformer()
 {
     Tokenizer tokenizer;
-    tokenizer.process("../english_spanish_tab.txt", 200);
+    tokenizer.process("../english_spanish_tab.txt", 3000);
     std::cout << tokenizer.english_sen.size() << std::endl;
     std::cout << tokenizer.spanish_sen.size() << std::endl;
     

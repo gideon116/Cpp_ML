@@ -23,7 +23,7 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
     push_constant.size = m1.m_size;
 
     const uint32_t WG = 256;
-    uint32_t gx = UseGPU::ceilDiv(m1.m_size, WG);
+    uint32_t gx = UseGPU::ceil_div(m1.m_size, WG);
     uint32_t gy = 1;
     uint32_t gz = 1;
 
@@ -52,7 +52,7 @@ Tensor wef::c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& const
     push_constant.size = m1.m_size;
 
     const uint32_t WG = 256;
-    uint32_t gx = UseGPU::ceilDiv(m1.m_size, WG);
+    uint32_t gx = UseGPU::ceil_div(m1.m_size, WG);
     uint32_t gy = 1;
     uint32_t gz = 1;
 
@@ -108,8 +108,8 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
 
     const uint32_t WGX = 16;
     const uint32_t WGY = 16;
-    uint32_t gx = UseGPU::ceilDiv(K, WGX);
-    uint32_t gy = UseGPU::ceilDiv(M, WGY);
+    uint32_t gx = UseGPU::ceil_div(K, WGX);
+    uint32_t gy = UseGPU::ceil_div(M, WGY);
     uint32_t gz = m1.m_size/(M*N);
 
     ((UseGPU*)gpu)->program({sizeA, sizeB}, {sizeC}, {m1.m_tensor, m2.m_tensor}, {m.m_tensor}, spv_path, (void*)&push_constant, sizeof(push_constant), gx, gy, gz);

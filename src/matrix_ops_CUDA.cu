@@ -1,6 +1,6 @@
 #include "matrix_operations.h"
 
-static uint32_t s_ceilDiv(uint32_t a, uint32_t b) { return (a + b - 1) / b; }
+static uint32_t s_ceil_div(uint32_t a, uint32_t b) { return (a + b - 1) / b; }
 
 struct PC_E
 {
@@ -118,7 +118,7 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
         float* b_gpu = nullptr;
         float* c_gpu = nullptr;
 
-        uint32_t gx = s_ceilDiv(m1.m_size, WGX);
+        uint32_t gx = s_ceil_div(m1.m_size, WGX);
         uint32_t gy = 1;
         uint32_t gz = 1;
 
@@ -168,7 +168,7 @@ Tensor wef::c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& const
         float* a_gpu = nullptr;
         float* c_gpu = nullptr;
 
-        uint32_t gx = s_ceilDiv(m1.m_size, WGX);
+        uint32_t gx = s_ceil_div(m1.m_size, WGX);
         uint32_t gy = 1;
         uint32_t gz = 1;
 
@@ -239,8 +239,8 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
         float* b_gpu = nullptr;
         float* c_gpu = nullptr;
 
-        uint32_t gx = s_ceilDiv(K, WGX);
-        uint32_t gy = s_ceilDiv(M, WGY);
+        uint32_t gx = s_ceil_div(K, WGX);
+        uint32_t gy = s_ceil_div(M, WGY);
         uint32_t gz = m1.m_size/(M*N);
 
         dim3 dimBlock(WGX, WGY, WGZ);

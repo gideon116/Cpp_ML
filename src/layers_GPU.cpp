@@ -165,9 +165,9 @@ Tensor* Conv2D_GPU::forward_pass(const Tensor* px, const bool training, void* gp
     const uint32_t WGY = 16;
     const uint32_t WGZ = 1;
 
-    uint32_t gx = UseGPU::ceilDiv(push_constant.outW * push_constant.outC, WGX);
-    uint32_t gy = UseGPU::ceilDiv(push_constant.outH, WGY);
-    uint32_t gz = UseGPU::ceilDiv(push_constant.batch, WGZ);
+    uint32_t gx = UseGPU::ceil_div(push_constant.outW * push_constant.outC, WGX);
+    uint32_t gy = UseGPU::ceil_div(push_constant.outH, WGY);
+    uint32_t gz = UseGPU::ceil_div(push_constant.batch, WGZ);
 
     VkDeviceSize sizeA = sizeof(float) * px->m_size;
     VkDeviceSize sizeB = sizeof(float) * m_WB_size;
@@ -210,9 +210,9 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
     const uint32_t WGY = 16;
     const uint32_t WGZ = 1;
 
-    uint32_t gx = UseGPU::ceilDiv(m_dx.m_shape[0], WGX);
-    uint32_t gy = UseGPU::ceilDiv(m_dx.m_shape[2] * m_dx.m_shape[3], WGY);
-    uint32_t gz = UseGPU::ceilDiv(m_dx.m_shape[1], WGZ);
+    uint32_t gx = UseGPU::ceil_div(m_dx.m_shape[0], WGX);
+    uint32_t gy = UseGPU::ceil_div(m_dx.m_shape[2] * m_dx.m_shape[3], WGY);
+    uint32_t gz = UseGPU::ceil_div(m_dx.m_shape[1], WGZ);
     
     VkDeviceSize sizeB = sizeof(float) * m_W.m_size;
     VkDeviceSize sizeC = sizeof(float) * dy->m_size;
@@ -221,9 +221,9 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
     const char* spv_path = "../shaders/binaries/conv2d_b_dx.spv";
     ((UseGPU*)gpu)->program({sizeB, sizeC}, {/*output=*/sizeA}, {m_W.m_tensor, dy->m_tensor}, {/*output=*/m_dx.m_tensor}, spv_path, &push_constant, sizeof(push_constant), gx, gy, gz);
 
-    gx = UseGPU::ceilDiv(m_dw.m_shape[3], WGX);
-    gy = UseGPU::ceilDiv(m_dw.m_shape[2], WGY);
-    gz = UseGPU::ceilDiv(m_dw.m_shape[0] * m_dw.m_shape[1], WGZ);
+    gx = UseGPU::ceil_div(m_dw.m_shape[3], WGX);
+    gy = UseGPU::ceil_div(m_dw.m_shape[2], WGY);
+    gz = UseGPU::ceil_div(m_dw.m_shape[0] * m_dw.m_shape[1], WGZ);
 
     sizeC = sizeof(float) * dy->m_size;
     sizeA = sizeof(float) * m_X.m_size;
@@ -316,9 +316,9 @@ Tensor* MaxPool2D_GPU::forward_pass(const Tensor* px, const bool training, void*
     const uint32_t WGY = 16;
     const uint32_t WGZ = 1;
 
-    uint32_t gx = UseGPU::ceilDiv(push_constant.outW * push_constant.outC, WGX);
-    uint32_t gy = UseGPU::ceilDiv(push_constant.outH, WGY);
-    uint32_t gz = UseGPU::ceilDiv(push_constant.batch, WGZ);
+    uint32_t gx = UseGPU::ceil_div(push_constant.outW * push_constant.outC, WGX);
+    uint32_t gy = UseGPU::ceil_div(push_constant.outH, WGY);
+    uint32_t gz = UseGPU::ceil_div(push_constant.batch, WGZ);
 
     VkDeviceSize sizePx = sizeof(float) * px->m_size;
     VkDeviceSize sizeOut = sizeof(float) * m_out.m_size;
@@ -359,9 +359,9 @@ Tensor* MaxPool2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu
     const uint32_t WGY = 16;
     const uint32_t WGZ = 1;
 
-    uint32_t gx = UseGPU::ceilDiv(push_constant.outW * push_constant.outC, WGX);
-    uint32_t gy = UseGPU::ceilDiv(push_constant.outH, WGY);
-    uint32_t gz = UseGPU::ceilDiv(push_constant.batch, WGZ);
+    uint32_t gx = UseGPU::ceil_div(push_constant.outW * push_constant.outC, WGX);
+    uint32_t gy = UseGPU::ceil_div(push_constant.outH, WGY);
+    uint32_t gz = UseGPU::ceil_div(push_constant.batch, WGZ);
 
     VkDeviceSize sizedy = sizeof(float) * dy->m_size;
     VkDeviceSize sizem_dx = sizeof(float) * m_dx.m_size;

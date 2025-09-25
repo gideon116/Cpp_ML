@@ -58,12 +58,6 @@ void Model::fit(
         
         std::cout << "epoch: " << epoch + 1 << "\n\ttrain_loss = " << loss/num_batches << "\n";
 
-        if (m_)
-        {
-            m_->lock();
-            logging->push_back(loss/num_batches);
-            m_->unlock();
-        }
 
         #else
 
@@ -98,6 +92,7 @@ void Model::fit(
         if (m_)
         {
             m_->lock();
+            logging->push_back(loss/num_batches);
             val_logging->push_back(val_loss);
             m_->unlock();
         }

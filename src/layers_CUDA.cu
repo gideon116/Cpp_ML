@@ -1,6 +1,6 @@
 #include "layers.h"
 
-static uint32_t s_ceilDiv(uint32_t a, uint32_t b) { return (a + b - 1) / b; }
+static uint32_t s_ceil_div(uint32_t a, uint32_t b) { return (a + b - 1) / b; }
 
 struct PC_C2DF
 {
@@ -411,9 +411,9 @@ Tensor* Conv2D_GPU::forward_pass(const Tensor* px, const bool training, void*)
     const uint32_t WGY = 16;
     const uint32_t WGZ = 1;
 
-    uint32_t gx = s_ceilDiv(push_constant.outW * push_constant.outC, WGX);
-    uint32_t gy = s_ceilDiv(push_constant.outH, WGY);
-    uint32_t gz = s_ceilDiv(push_constant.batch, WGZ);
+    uint32_t gx = s_ceil_div(push_constant.outW * push_constant.outC, WGX);
+    uint32_t gy = s_ceil_div(push_constant.outH, WGY);
+    uint32_t gz = s_ceil_div(push_constant.batch, WGZ);
 
     dim3 dimBlock(WGX, WGY, WGZ);
     dim3 dimGrid(gx, gy, gz);
@@ -507,9 +507,9 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
         float* c_gpu = nullptr;
         float* a_gpu = nullptr;
 
-        uint32_t gx = s_ceilDiv(m_dx.m_shape[0], WGX);
-        uint32_t gy = s_ceilDiv(m_dx.m_shape[2] * m_dx.m_shape[3], WGY);
-        uint32_t gz = s_ceilDiv(m_dx.m_shape[1], WGZ);
+        uint32_t gx = s_ceil_div(m_dx.m_shape[0], WGX);
+        uint32_t gy = s_ceil_div(m_dx.m_shape[2] * m_dx.m_shape[3], WGY);
+        uint32_t gz = s_ceil_div(m_dx.m_shape[1], WGZ);
 
         dim3 dimBlock(WGX, WGY, WGZ);
         dim3 dimGrid(gx, gy, gz);
@@ -544,9 +544,9 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
         float* a_gpu = nullptr;
         float* b_gpu = nullptr;
 
-        uint32_t gx = s_ceilDiv(m_dw.m_shape[3], WGX);
-        uint32_t gy = s_ceilDiv(m_dw.m_shape[2], WGY);
-        uint32_t gz = s_ceilDiv(m_dw.m_shape[0] * m_dw.m_shape[1], WGZ);
+        uint32_t gx = s_ceil_div(m_dw.m_shape[3], WGX);
+        uint32_t gy = s_ceil_div(m_dw.m_shape[2], WGY);
+        uint32_t gz = s_ceil_div(m_dw.m_shape[0] * m_dw.m_shape[1], WGZ);
 
         dim3 dimBlock(WGX, WGY, WGZ);
         dim3 dimGrid(gx, gy, gz);
@@ -657,9 +657,9 @@ Tensor* MaxPool2D_GPU::forward_pass(const Tensor* px, const bool training, void*
         uint32_t* b_gpu = nullptr;
         float* c_gpu = nullptr;
 
-        uint32_t gx = s_ceilDiv(push_constant.outW * push_constant.outC, WGX);
-        uint32_t gy = s_ceilDiv(push_constant.outH, WGY);
-        uint32_t gz = s_ceilDiv(push_constant.batch, WGZ);
+        uint32_t gx = s_ceil_div(push_constant.outW * push_constant.outC, WGX);
+        uint32_t gy = s_ceil_div(push_constant.outH, WGY);
+        uint32_t gz = s_ceil_div(push_constant.batch, WGZ);
 
         dim3 dimBlock(WGX, WGY, WGZ);
         dim3 dimGrid(gx, gy, gz);
@@ -716,9 +716,9 @@ Tensor* MaxPool2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu
         float* b_gpu = nullptr;
         float* c_gpu = nullptr;
 
-        uint32_t gx = s_ceilDiv(push_constant.outW * push_constant.outC, WGX);
-        uint32_t gy = s_ceilDiv(push_constant.outH, WGY);
-        uint32_t gz = s_ceilDiv(push_constant.batch, WGZ);
+        uint32_t gx = s_ceil_div(push_constant.outW * push_constant.outC, WGX);
+        uint32_t gy = s_ceil_div(push_constant.outH, WGY);
+        uint32_t gz = s_ceil_div(push_constant.batch, WGZ);
 
         dim3 dimBlock(WGX, WGY, WGZ);
         dim3 dimGrid(gx, gy, gz);
