@@ -91,7 +91,7 @@ __global__ void k_matmul(float* m1, float* m2, float* m, PC_M pc)
     }
 }
 
-Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul, 3 div*/)
+Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul, 3 div*/, float* a_gpu, float* b_gpu, float* c_gpu)
 {
     // TODO : add broadcast ability
     if (m1.m_rank != m2.m_rank)
@@ -99,6 +99,7 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
     if (memcmp(m1.m_shape, m2.m_shape, sizeof(size_t) * m1.m_rank)) // compare shapes
         throw std::invalid_argument("matrix size mismatch [4]");
 
+    bool preallocated = true;
     PC_E push_constant;
     push_constant.operation = operation;
     push_constant.size = m1.m_size;
@@ -109,56 +110,61 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
     const uint32_t WGY = 1;
     const uint32_t WGZ = 1;
 
+    float* a = m1.m_tensor;
+    float* b = m2.m_tensor;
+    float* c = m.m_tensor;
+
+    uint32_t gx = s_ceilDiv(m1.m_size, WGX);
+    uint32_t gy = 1;
+    uint32_t gz = 1;
+
+    dim3 dimBlock(WGX, WGY, WGZ);
+    dim3 dimGrid(gx, gy, gz);
+
+    size_t bytes = sizeof(float) * m1.m_size;
+
+    if (!a_gpu) // if GPU memory was not preallocated
     {
-        float* a = m1.m_tensor;
-        float* b = m2.m_tensor;
-        float* c = m.m_tensor;
+        if (b_gpu || c_gpu)
+            throw std::invalid_argument("[ERROR ] a_gpu is not preallocated while b_gpu or c_gpu are preallocated in wef::elemwise_GPU CUDA");
 
-        float* a_gpu = nullptr;
-        float* b_gpu = nullptr;
-        float* c_gpu = nullptr;
+        preallocated = false;
 
-        uint32_t gx = s_ceilDiv(m1.m_size, WGX);
-        uint32_t gy = 1;
-        uint32_t gz = 1;
-
-        dim3 dimBlock(WGX, WGY, WGZ);
-        dim3 dimGrid(gx, gy, gz);
-
-        size_t bytes = sizeof(float) * m1.m_size;
-        
         cudaMalloc(&a_gpu, bytes);
-        cudaMemset(a_gpu, 0, bytes);
-
         cudaMalloc(&b_gpu, bytes);
-        cudaMemset(b_gpu, 0, bytes);
-
         cudaMalloc(&c_gpu, bytes);
-        cudaMemset(c_gpu, 0, bytes);
+    }
 
-        cudaMemcpy(a_gpu, a, bytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(b_gpu, b, bytes, cudaMemcpyHostToDevice);
-        
-        k_elem<<<dimGrid, dimBlock>>>(a_gpu, b_gpu, c_gpu, push_constant);
-        
-        cudaDeviceSynchronize();
-        cudaMemcpy(c, c_gpu, bytes, cudaMemcpyDeviceToHost);
+    cudaMemset(a_gpu, 0, bytes);
+    cudaMemset(b_gpu, 0, bytes);
+    cudaMemset(c_gpu, 0, bytes);
 
+    cudaMemcpy(a_gpu, a, bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(b_gpu, b, bytes, cudaMemcpyHostToDevice);
+    
+    k_elem<<<dimGrid, dimBlock>>>(a_gpu, b_gpu, c_gpu, push_constant);
+    
+    // cudaDeviceSynchronize();
+    cudaMemcpy(c, c_gpu, bytes, cudaMemcpyDeviceToHost);
+
+    if (!preallocated)
+    {
         cudaFree(a_gpu);
         cudaFree(b_gpu);
         cudaFree(c_gpu);
     }
+    
     return m;
 }
 
-Tensor wef::c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& constant, const int operation/* 0 add, 1 sub, 2 mul, 3 div, 4 pow*/)
+Tensor wef::c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& constant, const int operation/* 0 add, 1 sub, 2 mul, 3 div, 4 pow*/, float* a_gpu, float* c_gpu)
 {
     
     // TODO : add += capability
-    PC_E push_constant;
-    
     Tensor m = m1;
+    bool preallocated = true;
 
+    PC_E push_constant;
     push_constant.operation = operation;
     push_constant.size = m1.m_size;
 
@@ -166,43 +172,49 @@ Tensor wef::c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& const
     const uint32_t WGY = 1;
     const uint32_t WGZ = 1;
 
+    float* a = m1.m_tensor;
+    float* c = m.m_tensor;
+
+    uint32_t gx = s_ceilDiv(m1.m_size, WGX);
+    uint32_t gy = 1;
+    uint32_t gz = 1;
+
+    dim3 dimBlock(WGX, WGY, WGZ);
+    dim3 dimGrid(gx, gy, gz);
+
+    size_t bytes = sizeof(float) * m1.m_size;
+
+    if (!a_gpu) // if GPU memory was not preallocated
     {
-        float* a = m1.m_tensor;
-        float* c = m.m_tensor;
+        if (c_gpu)
+            throw std::invalid_argument("[ERROR ] a_gpu is not preallocated while b_gpu or c_gpu are preallocated in wef::elemwise_GPU CUDA");
 
-        float* a_gpu = nullptr;
-        float* c_gpu = nullptr;
-
-        uint32_t gx = s_ceilDiv(m1.m_size, WGX);
-        uint32_t gy = 1;
-        uint32_t gz = 1;
-
-        dim3 dimBlock(WGX, WGY, WGZ);
-        dim3 dimGrid(gx, gy, gz);
-
-        size_t bytes = sizeof(float) * m1.m_size;
+        preallocated = false;
 
         cudaMalloc(&a_gpu, bytes);
-        cudaMemset(a_gpu, 0, bytes);
-
         cudaMalloc(&c_gpu, bytes);
-        cudaMemset(c_gpu, 0, bytes);
-        
+    }
 
-        cudaMemcpy(a_gpu, a, bytes, cudaMemcpyHostToDevice);
-        
-        k_c_elem<<<dimGrid, dimBlock>>>(a_gpu, constant, c_gpu, push_constant);
-        
-        cudaDeviceSynchronize();
-        cudaMemcpy(c, c_gpu, bytes, cudaMemcpyDeviceToHost);
+    cudaMemset(a_gpu, 0, bytes);
+    cudaMemset(c_gpu, 0, bytes);
 
+    cudaMemcpy(a_gpu, a, bytes, cudaMemcpyHostToDevice);
+    
+    k_c_elem<<<dimGrid, dimBlock>>>(a_gpu, constant, c_gpu, push_constant);
+    
+    cudaDeviceSynchronize();
+    cudaMemcpy(c, c_gpu, bytes, cudaMemcpyDeviceToHost);
+
+    if (!preallocated)
+    {
         cudaFree(a_gpu);
         cudaFree(c_gpu);
     }
+    
     return m;
 }
 
-Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
+Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, float* a_gpu, float* b_gpu, float* c_gpu)
 {
     if (m1.m_rank < 2 || m2.m_rank < 2)
         throw std::invalid_argument("tensor 1 and tensor 2 rank must be > 1");
@@ -224,6 +236,7 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
     memcpy(temp_shape.get(), m1.m_shape, sizeof(size_t) * m1.m_rank);
     temp_shape[m1.m_rank - 1] = K;
 
+    bool preallocated = true;
     Tensor m = Tensor::create(temp_shape.get(), m1.m_rank);
 
     PC_M push_constant;
@@ -239,47 +252,52 @@ Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
     const uint32_t WGY = 16;
     const uint32_t WGZ = 1;
 
+    float* a = m1.m_tensor;
+    float* b = m2.m_tensor;
+    float* c = m.m_tensor;
+
+    uint32_t gx = s_ceilDiv(K, WGX);
+    uint32_t gy = s_ceilDiv(M, WGY);
+    uint32_t gz = m1.m_size/(M*N);
+
+    dim3 dimBlock(WGX, WGY, WGZ);
+    dim3 dimGrid(gx, gy, gz);
+
+    size_t size_a = sizeof(float) * m1.m_size;
+    size_t size_b = sizeof(float) * m2.m_size;
+    size_t size_c = sizeof(float) * m.m_size;
+
+    if (!a_gpu) // if GPU memory was not preallocated
     {
-        float* a = m1.m_tensor;
-        float* b = m2.m_tensor;
-        float* c = m.m_tensor;
+        if (b_gpu || c_gpu)
+            throw std::invalid_argument("[ERROR ] a_gpu is not preallocated while b_gpu or c_gpu are preallocated in wef::elemwise_GPU CUDA");
 
-        float* a_gpu = nullptr;
-        float* b_gpu = nullptr;
-        float* c_gpu = nullptr;
+        preallocated = false;
 
-        uint32_t gx = s_ceilDiv(K, WGX);
-        uint32_t gy = s_ceilDiv(M, WGY);
-        uint32_t gz = m1.m_size/(M*N);
+        cudaMalloc(&a_gpu, size_a);
+        cudaMalloc(&b_gpu, size_b);
+        cudaMalloc(&c_gpu, size_c);
+    }
 
-        dim3 dimBlock(WGX, WGY, WGZ);
-        dim3 dimGrid(gx, gy, gz);
+    cudaMemset(a_gpu, 0, size_a);
+    cudaMemset(b_gpu, 0, size_b);
+    cudaMemset(c_gpu, 0, size_c);
 
-        size_t sizeA = sizeof(float) * m1.m_size;
-        size_t sizeB = sizeof(float) * m2.m_size;
-        size_t sizeC = sizeof(float) * m.m_size;
-        
-        cudaMalloc(&a_gpu, sizeA);
-        cudaMemset(a_gpu, 0, sizeA);
+    cudaMemcpy(a_gpu, a, size_a, cudaMemcpyHostToDevice);
+    cudaMemcpy(b_gpu, b, size_b, cudaMemcpyHostToDevice);
+    
+    k_matmul<<<dimGrid, dimBlock>>>(a_gpu, b_gpu, c_gpu, push_constant);
+    
+    cudaDeviceSynchronize();
+    cudaMemcpy(c, c_gpu, size_c, cudaMemcpyDeviceToHost);
 
-        cudaMalloc(&b_gpu, sizeB);
-        cudaMemset(b_gpu, 0, sizeB);
-
-        cudaMalloc(&c_gpu, sizeC);
-        cudaMemset(c_gpu, 0, sizeC);
-
-        cudaMemcpy(a_gpu, a, sizeA, cudaMemcpyHostToDevice);
-        cudaMemcpy(b_gpu, b, sizeB, cudaMemcpyHostToDevice);
-        
-        k_matmul<<<dimGrid, dimBlock>>>(a_gpu, b_gpu, c_gpu, push_constant);
-        
-        cudaDeviceSynchronize();
-        cudaMemcpy(c, c_gpu, sizeC, cudaMemcpyDeviceToHost);
-
+    if (!preallocated)
+    {
         cudaFree(a_gpu);
         cudaFree(b_gpu);
         cudaFree(c_gpu);
     }
+    
     
     return m;
 }

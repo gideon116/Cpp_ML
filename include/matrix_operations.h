@@ -36,9 +36,9 @@ namespace wef {
         Tensor d_sigmoid(const Tensor& m1);
 
         // GPU
-        Tensor matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2);
-        Tensor elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul, 3 div*/);
-        Tensor c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& constant, const int operation/* 0 add, 1 sub, 2 mul, 3 div, 4 pow*/);
+        Tensor matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, float* a_gpu=nullptr, float* b_gpu=nullptr, float* c_gpu=nullptr);
+        Tensor elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul, 3 div*/, float* a_gpu=nullptr, float* b_gpu=nullptr, float* c_gpu=nullptr);
+        Tensor c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& constant, const int operation/* 0 add, 1 sub, 2 mul, 3 div, 4 pow*/, float* a_gpu=nullptr, float* c_gpu=nullptr);
 
 };
 

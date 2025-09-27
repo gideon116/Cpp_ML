@@ -1,6 +1,6 @@
 #include "matrix_operations.h"
 
-Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul, 3 div*/)
+Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, const int operation/* 0 add, 1 sub, 2 mul, 3 div*/, float*, float*, float*)
 {
     // TODO : add broadcast ability
     if (m1.m_rank != m2.m_rank)
@@ -32,7 +32,7 @@ Tensor wef::elemwise_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, co
     return m;
 }
 
-Tensor wef::c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& constant, const int operation/* 0 add, 1 sub, 2 mul, 3 div, 4 pow*/)
+Tensor wef::c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& constant, const int operation/* 0 add, 1 sub, 2 mul, 3 div, 4 pow*/, float*, float*)
 {
     
     // TODO : add += capability
@@ -61,7 +61,7 @@ Tensor wef::c_elemwise_GPU(const void* gpu, const Tensor& m1, const float& const
     return m;
 }
 
-Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2)
+Tensor wef::matmul_GPU(const void* gpu, const Tensor& m1, const Tensor& m2, float*, float*, float*)
 {
     if (m1.m_rank < 2 || m2.m_rank < 2)
         throw std::invalid_argument("tensor 1 and tensor 2 rank must be > 1");

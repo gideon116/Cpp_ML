@@ -300,9 +300,9 @@ private:
     Tensor m_W, m_X, m_out, m_dx, m_dw, m_B, m_db;
     std::unique_ptr<float[]> m_WB;
     bool m_use_bias = false;
-
-    size_t sizeA, sizeB, sizeC;
-    float *a, *b, *c, *a_gpu, *b_gpu, *c_gpu;
+    
+    size_t m_size_a, m_size_b, m_size_c;
+    float *m_a=nullptr, *m_b=nullptr, *m_c=nullptr, *m_a_gpu=nullptr, *m_b_gpu=nullptr, *m_c_gpu=nullptr;
 
 public:  
     // initilize weights
@@ -326,6 +326,9 @@ private:
     Tensor out, m_W, m_B, m_X, m_dx, m_dw, m_db;
     bool m_use_bias = false;
 
+    size_t m_size_a, m_size_b, m_size_c;
+    float *m_a_gpu=nullptr, *m_b_gpu=nullptr, *m_c_gpu=nullptr;
+
 public:
     // initilize weights
     Linear_GPU(size_t unit, bool use_bias=false, size_t rand=3) 
@@ -346,6 +349,10 @@ private:
     size_t m_argmax_len;
     Tensor m_X, m_out, m_dx;
 
+    size_t m_size_a, m_size_b, m_size_c;
+    float *m_a_gpu=nullptr, *m_c_gpu=nullptr;
+    uint32_t* m_b_gpu=nullptr;
+
 public: 
     // initilize weights
     MaxPool2D_GPU(size_t k_h, size_t k_w)
@@ -357,6 +364,8 @@ public:
     
     Tensor* forward_pass(const Tensor* px, const bool training, void* gpu) override;
     Tensor* backward_pass(const Tensor* dy, const float lr, void* gpu) override;
+
+    ~MaxPool2D_GPU();
 };
 
 class MHA : public Layer 

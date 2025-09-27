@@ -242,6 +242,34 @@ __global__ void k_mp2D_b(uint* argmax, float* dy, float* dx, PC_MP2DB pc)
     }
 }
 
+void check_mem(size_t size_temp, size_t& m_size, float*& m_gpu, const char* name="", const char* location="")
+{
+    if (size_temp > m_size)
+    {
+        std::cout << "[WARNING ] GPU memory reallocation triggred for " << name << " in " << location << ".\n";
+        if (m_gpu)
+            cudaFree(m_gpu);
+        m_gpu = nullptr;
+        m_size = size_temp;
+        cudaMalloc(&m_gpu, m_size);
+    }
+    cudaMemset(m_gpu, 0, m_size);
+}
+
+void check_mem(size_t size_temp, size_t& m_size, uint32_t*& m_gpu, const char* name="", const char* location="")
+{
+    if (size_temp > m_size)
+    {
+        std::cout << "[WARNING ] GPU memory reallocation triggred for " << name << " in " << location << ".\n";
+        if (m_gpu)
+            cudaFree(m_gpu);
+        m_gpu = nullptr;
+        m_size = size_temp;
+        cudaMalloc(&m_gpu, m_size);
+    }
+    cudaMemset(m_gpu, 0, m_size);
+}
+
 Tensor* Linear_GPU::forward_pass(const Tensor* px, const bool training, void* gpu) 
 {
     if (!m_init) 
@@ -258,15 +286,28 @@ Tensor* Linear_GPU::forward_pass(const Tensor* px, const bool training, void* gp
         std::fill_n(m_B.m_tensor, m_B.m_size, 0.0f); // zero fill
 
         float* pm = m_W.m_tensor;
-        for (size_t i = 0; i < size_t(px->m_shape[px->m_rank-1]) * m_units; i++) pm[i] = m_dist(m_g);
+        for (size_t i = 0; i < size_t(px->m_shape[px->m_rank-1]) * m_units; i++)
+            pm[i] = m_dist(m_g);
 
         m_num_param = m_W.m_size + (m_use_bias ? m_B.m_size : 0);
 
         m_out_rank = px->m_rank;
         m_out_shape = std::make_unique<size_t[]>(m_out_rank);
         std::memcpy(m_out_shape.get(), px->m_shape, m_out_rank * sizeof(size_t));
+        
         // TODO: CATCH < 1 RANK
         m_out_shape[m_out_rank - 1] = m_units;
+
+        m_size_a = sizeof(float) * px->m_size;
+        m_size_b = sizeof(float) * m_W.m_size;
+        m_size_c = sizeof(float);
+        
+        for (size_t i = 0; i < m_out_rank; i++)
+            m_size_c *= m_out_shape[i];
+
+        cudaMalloc(&m_a_gpu, m_size_a);
+        cudaMalloc(&m_b_gpu, m_size_b);
+        cudaMalloc(&m_c_gpu, m_size_c);
 
         m_init = true;
     }
@@ -278,29 +319,91 @@ Tensor* Linear_GPU::forward_pass(const Tensor* px, const bool training, void* gp
     }
     
     // copy px into m_X
-    if (training) std::memcpy(m_X.m_tensor, px->m_tensor, m_X.m_size * sizeof(float));
+    if (training)
+        std::memcpy(m_X.m_tensor, px->m_tensor, m_X.m_size * sizeof(float));
+
+    // recalculate size a b c
+    size_t size_a_temp = sizeof(float) * px->m_size;
+    size_t size_b_temp = sizeof(float) * m_W.m_size;
+    size_t size_c_temp = sizeof(float) * m_units;
+    for (size_t i = 0; i < px->m_rank - 1; i++)
+        size_c_temp *= px->m_shape[i];
+
+    check_mem(size_a_temp, m_size_a, m_a_gpu, "m_a_gpu", "Linear GPU CUDA");
+    check_mem(size_b_temp, m_size_b, m_b_gpu, "m_b_gpu", "Linear GPU CUDA");
+    check_mem(size_c_temp, m_size_c, m_c_gpu, "m_c_gpu", "Linear GPU CUDA");
     
-    if (m_use_bias) out = wef::matmul_GPU(gpu, *px, m_W) + m_B;
-    else out = wef::matmul_GPU(gpu, *px, m_W);
+    if (m_use_bias)
+    {    
+        out = wef::matmul_GPU(gpu, *px, m_W, m_a_gpu, m_b_gpu, m_c_gpu);
+        out = out + m_B;
+        // TODO: (MAJOR) we cant apply the sequence below cause broadcast is not enabled
+
+        // size_a_temp = sizeof(float) * out.m_size;
+        // size_b_temp = sizeof(float) * m_B.m_size;
+        // size_c_temp = sizeof(float) * out.m_size;
+
+        // check_mem(size_a_temp, m_size_a, m_a_gpu, "m_a_gpu", "Linear GPU CUDA");
+        // check_mem(size_b_temp, m_size_b, m_b_gpu, "m_b_gpu", "Linear GPU CUDA");
+        // check_mem(size_c_temp, m_size_c, m_c_gpu, "m_c_gpu", "Linear GPU CUDA");
+        
+        // out = wef::elemwise_GPU(gpu, out, m_B, /*operation=add=*/0, m_a_gpu, m_b_gpu, m_c_gpu);
+    }
+    else
+        out = wef::matmul_GPU(gpu, *px, m_W, m_a_gpu, m_b_gpu, m_c_gpu);
+
     return &out;
 
 }
 
 Tensor* Linear_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu) 
 {
+
+    // recalculate size a b c
+    size_t size_a_temp = sizeof(float) * dy->m_size;
+    size_t size_b_temp = sizeof(float) * m_W.m_size; // will be transposed later but that doesnt change the size
+    size_t size_c_temp = sizeof(float) * m_W.m_shape[0]; // cause its going to be transposed
+    for (size_t i = 0; i < dy->m_rank - 1; i++)
+        size_c_temp *= dy->m_shape[i];
+
+    check_mem(size_a_temp, m_size_a, m_a_gpu, "m_a_gpu", "Linear GPU CUDA");
+    check_mem(size_b_temp, m_size_b, m_b_gpu, "m_b_gpu", "Linear GPU CUDA");
+    check_mem(size_c_temp, m_size_c, m_c_gpu, "m_c_gpu", "Linear GPU CUDA");
+
     // gradient wrt the layer below
-    m_dx = wef::matmul_GPU(gpu, *dy, wef::transpose(m_W));
+    m_dx = wef::matmul_GPU(gpu, *dy, wef::transpose(m_W), m_a_gpu, m_b_gpu, m_c_gpu);
+
+    // recalculate size a b c
+    Tensor X_T = wef::transpose(m_X);
+    size_a_temp = sizeof(float) * X_T.m_size;
+    size_b_temp = sizeof(float) * dy->m_size; 
+    size_c_temp = sizeof(float) * dy->m_shape[dy->m_rank - 1];
+    for (size_t i = 0; i < X_T.m_rank - 1; i++)
+        size_c_temp *= X_T.m_shape[i];
+
+    check_mem(size_a_temp, m_size_a, m_a_gpu, "m_a_gpu", "Linear GPU CUDA");
+    check_mem(size_b_temp, m_size_b, m_b_gpu, "m_b_gpu", "Linear GPU CUDA");
+    check_mem(size_c_temp, m_size_c, m_c_gpu, "m_c_gpu", "Linear GPU CUDA");
 
     // gradient wrt weights sum everything aside from the last two axes. 
-    m_dw = wef::matmul_GPU(gpu, wef::transpose(m_X), *dy);
+    m_dw = wef::matmul_GPU(gpu, X_T, *dy, m_a_gpu, m_b_gpu, m_c_gpu);
 
     while (m_dw.m_rank > m_W.m_rank)
         m_dw = wef::reducesum(m_dw, /*axis*/0, /*keepkims*/false);
 
-    m_W = wef::elemwise_GPU(gpu, m_W, m_dw * lr / dy->m_shape[0], /*operation=subtract=*/1);
+    // recalculate size a b c
+    size_a_temp = sizeof(float) * m_W.m_size;
+    size_b_temp = sizeof(float) * m_dw.m_size; 
+    size_c_temp = sizeof(float) * m_W.m_size;
+
+    check_mem(size_a_temp, m_size_a, m_a_gpu, "m_a_gpu", "Linear GPU CUDA");
+    check_mem(size_b_temp, m_size_b, m_b_gpu, "m_b_gpu", "Linear GPU CUDA");
+    check_mem(size_c_temp, m_size_c, m_c_gpu, "m_c_gpu", "Linear GPU CUDA");
+
+    m_W = wef::elemwise_GPU(gpu, m_W, m_dw * lr / dy->m_shape[0], /*operation=subtract=*/1, m_a_gpu, m_b_gpu, m_c_gpu);
     // m_W -= m_dw * lr / dy->m_shape[0];
 
-    if (m_use_bias) 
+    if (m_use_bias)
     {
         // gradient wrt bias sum everything aside from the last axis
         m_db = *dy;
@@ -308,7 +411,16 @@ Tensor* Linear_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
             m_db = wef::reducesum(m_db, /*axis*/0, /*keepkims*/false);
         m_db = wef::reducesum(m_db, 0, /*keepkims*/true); // because bias is shape = [1, bias]
 
-        m_B = wef::elemwise_GPU(gpu, m_B, m_db * lr / dy->m_shape[0], 1);
+        // recalculate size a b c
+        size_a_temp = sizeof(float) * m_B.m_size;
+        size_b_temp = sizeof(float) * m_db.m_size; 
+        size_c_temp = sizeof(float) * m_B.m_size;
+
+        check_mem(size_a_temp, m_size_a, m_a_gpu, "m_a_gpu", "Linear GPU CUDA");
+        check_mem(size_b_temp, m_size_b, m_b_gpu, "m_b_gpu", "Linear GPU CUDA");
+        check_mem(size_c_temp, m_size_c, m_c_gpu, "m_c_gpu", "Linear GPU CUDA");
+
+        m_B = wef::elemwise_GPU(gpu, m_B, m_db * lr / dy->m_shape[0], 1, m_a_gpu, m_b_gpu, m_c_gpu);
         // m_B -= m_db * lr / dy->m_shape[0];
     }
 
@@ -356,18 +468,19 @@ Tensor* Conv2D_GPU::forward_pass(const Tensor* px, const bool training, void*)
 
         m_num_param = m_W.m_size + (m_use_bias ? m_B.m_size : 0);
 
-        m_sizeA = sizeof(float) * px->m_size;
-        m_sizeB = sizeof(float) * m_WB_size;
-        m_sizeC = sizeof(float) * px->m_shape[0];
+        m_size_a = sizeof(float) * px->m_size;
+        m_size_b = sizeof(float) * m_WB_size;
+        m_size_c = sizeof(float) * px->m_shape[0];
         
         for (size_t i = 1; i < px->m_rank; i++)
-            m_sizeC *= m_out_shape[i];
+            m_size_c *= m_out_shape[i];
 
-        cudaMalloc(&m_a_gpu, m_sizeA);
-        cudaMalloc(&m_b_gpu, m_sizeB);
-        cudaMalloc(&m_c_gpu, m_sizeC);
+        cudaMalloc(&m_a_gpu, m_size_a);
+        cudaMalloc(&m_b_gpu, m_size_b);
+        cudaMalloc(&m_c_gpu, m_size_c);
         m_init = true;
     }
+
     else
     {
         // if trying to use (reuse) the layer on a different tensor
@@ -421,38 +534,9 @@ Tensor* Conv2D_GPU::forward_pass(const Tensor* px, const bool training, void*)
     size_t size_b_temp = sizeof(float) * m_WB_size;
     size_t size_c_temp = sizeof(float) * m_out.m_size;
 
-    if (size_a_temp > m_sizeA)
-    {
-        std::cout << "[WARNING ] GPU memory reallocation triggred for m_sizeA.\n";
-        if (m_a_gpu)
-            cudaFree(m_a_gpu);
-        m_a_gpu = nullptr;
-        m_sizeA = size_a_temp;
-        cudaMalloc(&m_a_gpu, m_sizeA);
-        cudaMemset(m_a_gpu, 0, m_sizeA);
-    }
-
-    if (size_b_temp > m_sizeB)
-    {
-        std::cout << "[WARNING ] GPU memory reallocation triggred for m_sizeB.\n";
-        if (m_b_gpu)
-            cudaFree(m_b_gpu);
-        m_b_gpu = nullptr;
-        m_sizeB = size_b_temp;
-        cudaMalloc(&m_b_gpu, m_sizeB);
-        cudaMemset(m_b_gpu, 0, m_sizeB);
-    }
-
-    if (size_c_temp > m_sizeC)
-    {
-        std::cout << "[WARNING ] GPU memory reallocation triggred for m_sizeC.\n";
-        if (m_c_gpu)
-            cudaFree(m_c_gpu);
-        m_c_gpu = nullptr;
-        m_sizeC = size_c_temp;
-        cudaMalloc(&m_c_gpu, m_sizeC);
-        cudaMemset(m_c_gpu, 0, m_sizeC);
-    }
+    check_mem(size_a_temp, m_size_a, m_a_gpu, "m_a_gpu", "Conv2D GPU CUDA");
+    check_mem(size_b_temp, m_size_b, m_b_gpu, "m_b_gpu", "Conv2D GPU CUDA");
+    check_mem(size_c_temp, m_size_c, m_c_gpu, "m_c_gpu", "Conv2D GPU CUDA");
 
     m_a = px->m_tensor;
     m_b = m_WB.get();
@@ -516,10 +600,6 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
         float* c = dy->m_tensor;
         float* a = m_dx.m_tensor;
 
-        float* b_gpu = nullptr;
-        float* c_gpu = nullptr;
-        float* a_gpu = nullptr;
-
         uint32_t gx = s_ceil_div(m_dx.m_shape[0], WGX);
         uint32_t gy = s_ceil_div(m_dx.m_shape[2] * m_dx.m_shape[3], WGY);
         uint32_t gz = s_ceil_div(m_dx.m_shape[1], WGZ);
@@ -527,40 +607,29 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
         dim3 dimBlock(WGX, WGY, WGZ);
         dim3 dimGrid(gx, gy, gz);
 
-        size_t sizeB = sizeof(float) * m_W.m_size;
-        size_t sizeC = sizeof(float) * dy->m_size;
-        size_t sizeA = sizeof(float) * m_dx.m_size;
+        // recalculate size a b c
+        size_t size_b_temp = sizeof(float) * m_W.m_size;
+        size_t size_c_temp = sizeof(float) * dy->m_size;
+        size_t size_a_temp = sizeof(float) * m_dx.m_size;
 
-        cudaMalloc(&b_gpu, sizeB);
-        cudaMemset(b_gpu, 0, sizeB);
+        check_mem(size_a_temp, m_size_a, m_a_gpu, "m_a_gpu", "Conv2D Backward GPU CUDA");
+        check_mem(size_b_temp, m_size_b, m_b_gpu, "m_b_gpu", "Conv2D Backward GPU CUDA");
+        check_mem(size_c_temp, m_size_c, m_c_gpu, "m_c_gpu", "Conv2D Backward GPU CUDA");
 
-        cudaMalloc(&c_gpu, sizeC);
-        cudaMemset(c_gpu, 0, sizeC);
-
-        cudaMalloc(&a_gpu, sizeA);
-        cudaMemset(a_gpu, 0, sizeA);
-
-        cudaMemcpy(b_gpu, b, sizeB, cudaMemcpyHostToDevice);
-        cudaMemcpy(c_gpu, c, sizeC, cudaMemcpyHostToDevice);
+        cudaMemcpy(m_b_gpu, b, size_b_temp, cudaMemcpyHostToDevice);
+        cudaMemcpy(m_c_gpu, c, size_c_temp, cudaMemcpyHostToDevice);
         
-        k_conv2D_b_dx<<<dimGrid, dimBlock>>>(b_gpu, c_gpu, a_gpu, push_constant);
+        k_conv2D_b_dx<<<dimGrid, dimBlock>>>(m_b_gpu, m_c_gpu, m_a_gpu, push_constant);
         
         // cudaDeviceSynchronize();
-        cudaMemcpy(a, a_gpu, sizeA, cudaMemcpyDeviceToHost);
+        cudaMemcpy(a, m_a_gpu, size_a_temp, cudaMemcpyDeviceToHost);
 
-        cudaFree(b_gpu);
-        cudaFree(c_gpu);
-        cudaFree(a_gpu);
     }
 
     {
         float* c = dy->m_tensor;
         float* a = m_X.m_tensor;
         float* b = m_dw.m_tensor;
-
-        float* c_gpu = nullptr;
-        float* a_gpu = nullptr;
-        float* b_gpu = nullptr;
 
         uint32_t gx = s_ceil_div(m_dw.m_shape[3], WGX);
         uint32_t gy = s_ceil_div(m_dw.m_shape[2], WGY);
@@ -569,30 +638,22 @@ Tensor* Conv2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu)
         dim3 dimBlock(WGX, WGY, WGZ);
         dim3 dimGrid(gx, gy, gz);
 
-        size_t sizeC = sizeof(float) * dy->m_size;
-        size_t sizeA = sizeof(float) * m_X.m_size;
-        size_t sizeB = sizeof(float) * m_dw.m_size;
+        // recalculate size a b c
+        size_t size_c_temp = sizeof(float) * dy->m_size;
+        size_t size_a_temp = sizeof(float) * m_X.m_size;
+        size_t size_b_temp = sizeof(float) * m_dw.m_size;
+
+        check_mem(size_a_temp, m_size_a, m_a_gpu, "m_a_gpu", "Conv2D Backward GPU CUDA");
+        check_mem(size_b_temp, m_size_b, m_b_gpu, "m_b_gpu", "Conv2D Backward GPU CUDA");
+        check_mem(size_c_temp, m_size_c, m_c_gpu, "m_c_gpu", "Conv2D Backward GPU CUDA");
         
-        cudaMalloc(&c_gpu, sizeC);
-        cudaMemset(c_gpu, 0, sizeC);
-
-        cudaMalloc(&a_gpu, sizeA);
-        cudaMemset(a_gpu, 0, sizeA);
-
-        cudaMalloc(&b_gpu, sizeB);
-        cudaMemset(b_gpu, 0, sizeB);
-
-        cudaMemcpy(c_gpu, c, sizeC, cudaMemcpyHostToDevice);
-        cudaMemcpy(a_gpu, a, sizeA, cudaMemcpyHostToDevice);
+        cudaMemcpy(m_c_gpu, c, size_c_temp, cudaMemcpyHostToDevice);
+        cudaMemcpy(m_a_gpu, a, size_a_temp, cudaMemcpyHostToDevice);
         
-        k_conv2D_b_dw<<<dimGrid, dimBlock>>>(c_gpu, a_gpu, b_gpu, push_constant);
+        k_conv2D_b_dw<<<dimGrid, dimBlock>>>(m_c_gpu, m_a_gpu, m_b_gpu, push_constant);
         
         // cudaDeviceSynchronize();
-        cudaMemcpy(b, b_gpu, sizeB, cudaMemcpyDeviceToHost);
-
-        cudaFree(c_gpu);
-        cudaFree(a_gpu);
-        cudaFree(b_gpu);
+        cudaMemcpy(b, m_b_gpu, size_b_temp, cudaMemcpyDeviceToHost);
     }
 
     // divide lr by batch size
@@ -637,6 +698,17 @@ Tensor* MaxPool2D_GPU::forward_pass(const Tensor* px, const bool training, void*
         // m_dx is gradient wrt the layer below
         m_dx = Tensor(*px);
 
+        m_size_a = sizeof(float) * px->m_size;
+        m_size_b = m_argmax_len * sizeof(uint32_t);
+        m_size_c = sizeof(float) * px->m_shape[0];
+        
+        for (size_t i = 1; i < px->m_rank; i++)
+            m_size_c *= m_out_shape[i];
+
+        cudaMalloc(&m_a_gpu, m_size_a);
+        cudaMalloc(&m_b_gpu, m_size_b);
+        cudaMalloc(&m_c_gpu, m_size_c);
+
         m_init = true;
     }
     else
@@ -671,46 +743,34 @@ Tensor* MaxPool2D_GPU::forward_pass(const Tensor* px, const bool training, void*
     const uint32_t WGY = 16;
     const uint32_t WGZ = 1;
 
-    {
-        float* a = px->m_tensor;
-        uint32_t* b = argmax.get();
-        float* c = m_out.m_tensor;
+    float* a = px->m_tensor;
+    uint32_t* b = argmax.get();
+    float* c = m_out.m_tensor;
 
-        float* a_gpu = nullptr;
-        uint32_t* b_gpu = nullptr;
-        float* c_gpu = nullptr;
+    uint32_t gx = s_ceil_div(push_constant.outW * push_constant.outC, WGX);
+    uint32_t gy = s_ceil_div(push_constant.outH, WGY);
+    uint32_t gz = s_ceil_div(push_constant.batch, WGZ);
 
-        uint32_t gx = s_ceil_div(push_constant.outW * push_constant.outC, WGX);
-        uint32_t gy = s_ceil_div(push_constant.outH, WGY);
-        uint32_t gz = s_ceil_div(push_constant.batch, WGZ);
+    dim3 dimBlock(WGX, WGY, WGZ);
+    dim3 dimGrid(gx, gy, gz);
 
-        dim3 dimBlock(WGX, WGY, WGZ);
-        dim3 dimGrid(gx, gy, gz);
+    // recalculate size a b c
+    size_t size_a_temp = sizeof(float) * px->m_size;
+    size_t size_b_temp = m_argmax_len * sizeof(uint32_t);
+    size_t size_c_temp = sizeof(float) * m_out.m_size;
 
-        size_t sizePx = sizeof(float) * px->m_size;
-        size_t sizeOut = sizeof(float) * m_out.m_size;
+    check_mem(size_a_temp, m_size_a, m_a_gpu, "m_a_gpu", "MaxPool2D GPU CUDA");
+    check_mem(size_b_temp, m_size_b, m_b_gpu, "m_b_gpu", "MaxPool2D GPU CUDA");
+    check_mem(size_c_temp, m_size_c, m_c_gpu, "m_c_gpu", "MaxPool2D GPU CUDA");
 
-        cudaMalloc(&a_gpu, sizePx);
-        cudaMalloc(&b_gpu, m_argmax_len * sizeof(uint32_t));
-        cudaMalloc(&c_gpu, sizeOut);
-
-        cudaMemset(b_gpu, 0, m_argmax_len * sizeof(uint32_t));
-        cudaMemset(c_gpu, 0, sizeOut);
-
-        cudaMemcpy(a_gpu, a, sizePx, cudaMemcpyHostToDevice);
+    cudaMemcpy(m_a_gpu, a, size_a_temp, cudaMemcpyHostToDevice);
+    
+    k_mp2D_f<<<dimGrid, dimBlock>>>(m_a_gpu, m_b_gpu, m_c_gpu, push_constant);
+    
+    // cudaDeviceSynchronize();
+    cudaMemcpy(b, m_b_gpu, size_b_temp, cudaMemcpyDeviceToHost);
+    cudaMemcpy(c, m_c_gpu, size_c_temp, cudaMemcpyDeviceToHost);
         
-        k_mp2D_f<<<dimGrid, dimBlock>>>(a_gpu, b_gpu, c_gpu, push_constant);
-        
-        // cudaDeviceSynchronize();
-        cudaMemcpy(b, b_gpu, m_argmax_len * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-        cudaMemcpy(c, c_gpu, sizeOut, cudaMemcpyDeviceToHost);
-
-        cudaFree(a_gpu);
-        cudaFree(b_gpu);
-        cudaFree(c_gpu);
-        
-    }
-
 
     return &m_out;
 }
@@ -732,45 +792,48 @@ Tensor* MaxPool2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu
     const uint32_t WGY = 16;
     const uint32_t WGZ = 1;
 
+    float* a = dy->m_tensor;
+    uint32_t* b = argmax.get();
+    float* c = m_dx.m_tensor;
 
-    {
-        uint32_t* a = argmax.get();
-        float* b = dy->m_tensor;
-        float* c = m_dx.m_tensor;
+    uint32_t gx = s_ceil_div(push_constant.outW * push_constant.outC, WGX);
+    uint32_t gy = s_ceil_div(push_constant.outH, WGY);
+    uint32_t gz = s_ceil_div(push_constant.batch, WGZ);
 
-        uint32_t* a_gpu = nullptr;
-        float* b_gpu = nullptr;
-        float* c_gpu = nullptr;
+    dim3 dimBlock(WGX, WGY, WGZ);
+    dim3 dimGrid(gx, gy, gz);
 
-        uint32_t gx = s_ceil_div(push_constant.outW * push_constant.outC, WGX);
-        uint32_t gy = s_ceil_div(push_constant.outH, WGY);
-        uint32_t gz = s_ceil_div(push_constant.batch, WGZ);
+    // recalculate size a b c
+    size_t size_a_temp = sizeof(float) * dy->m_size;
+    size_t size_b_temp = m_argmax_len * sizeof(uint32_t);
+    size_t size_c_temp = sizeof(float) * m_dx.m_size;
 
-        dim3 dimBlock(WGX, WGY, WGZ);
-        dim3 dimGrid(gx, gy, gz);
+    check_mem(size_a_temp, m_size_a, m_a_gpu, "m_a_gpu", "MaxPool2D Backward GPU CUDA");
+    check_mem(size_b_temp, m_size_b, m_b_gpu, "m_b_gpu", "MaxPool2D Backward GPU CUDA");
+    check_mem(size_c_temp, m_size_c, m_c_gpu, "m_c_gpu", "MaxPool2D Backward GPU CUDA");
 
-        size_t sizedy = sizeof(float) * dy->m_size;
-        size_t sizem_dx = sizeof(float) * m_dx.m_size;
-
-        cudaMalloc(&a_gpu, m_argmax_len * sizeof(uint32_t));
-        cudaMalloc(&b_gpu, sizedy);
-        cudaMalloc(&c_gpu, sizem_dx);
-
-        cudaMemset(c_gpu, 0, sizem_dx);
-
-        cudaMemcpy(a_gpu, a, m_argmax_len * sizeof(uint32_t), cudaMemcpyHostToDevice);
-        cudaMemcpy(b_gpu, b, sizedy, cudaMemcpyHostToDevice);
-        
-        k_mp2D_b<<<dimGrid, dimBlock>>>(a_gpu, b_gpu, c_gpu, push_constant);
-        
-        // cudaDeviceSynchronize();
-        cudaMemcpy(c, c_gpu, sizem_dx, cudaMemcpyDeviceToHost);
-
-        cudaFree(a_gpu);
-        cudaFree(b_gpu);
-        cudaFree(c_gpu);
-        
-    }
-
+    cudaMemcpy(m_a_gpu, a, size_a_temp, cudaMemcpyHostToDevice);
+    cudaMemcpy(m_b_gpu, b, size_b_temp, cudaMemcpyHostToDevice);
+    
+    k_mp2D_b<<<dimGrid, dimBlock>>>(m_b_gpu, m_a_gpu, m_c_gpu, push_constant);
+    
+    // cudaDeviceSynchronize();
+    cudaMemcpy(c, m_c_gpu, size_c_temp, cudaMemcpyDeviceToHost);
+    
     return &m_dx;
+}
+
+MaxPool2D_GPU::~MaxPool2D_GPU()
+{
+    if (m_a_gpu)
+        cudaFree(m_a_gpu);
+    m_a_gpu = nullptr;
+
+    if (m_b_gpu)
+        cudaFree(m_b_gpu);
+    m_b_gpu = nullptr;
+
+    if (m_c_gpu)
+        cudaFree(m_c_gpu);
+    m_c_gpu = nullptr;
 }
