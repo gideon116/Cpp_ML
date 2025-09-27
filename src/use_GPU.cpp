@@ -1,21 +1,21 @@
-#include "../include/use_gpu.h"
+#include "../include/use_GPU.h"
 #include <iostream>
 
-use_gpu::use_gpu() {
+UseGPU::UseGPU() {
     createInstance();
     pickPhysicalDevice();
     createLogicalDevice();
     createCommandPool();
 }
 
-use_gpu::~use_gpu() {
+UseGPU::~UseGPU() {
     vkDeviceWaitIdle(m_device);
     vkDestroyCommandPool(m_device, m_commandPool, nullptr);
     vkDestroyDevice(m_device, nullptr);
     vkDestroyInstance(m_instance, nullptr);
 }
 
-bool use_gpu::validationCheck() // debug only
+bool UseGPU::validationCheck() // debug only
 {
     // get avaliable layers
     uint32_t layerCount;
@@ -42,7 +42,7 @@ bool use_gpu::validationCheck() // debug only
     return true;
 }
 
-void use_gpu::createInstance()
+void UseGPU::createInstance()
 {
     // validation in debug
     if (enablevalidationLayers && !validationCheck())
@@ -87,7 +87,7 @@ void use_gpu::createInstance()
     vkEnumerateInstanceExtensionProperties(nullptr, &vk_extension_ct, all_vk_Extensions.data());
 }
 
-void use_gpu::pickPhysicalDevice()
+void UseGPU::pickPhysicalDevice()
 {
     // get gpus
     uint32_t num_physicalDevices = 0;
@@ -111,7 +111,7 @@ void use_gpu::pickPhysicalDevice()
         throw std::runtime_error("failed to find a suitable GPU!");
 }
 
-bool use_gpu::isGPUsuitable(VkPhysicalDevice gpu)
+bool UseGPU::isGPUsuitable(VkPhysicalDevice gpu)
 {
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(gpu, &properties);
@@ -149,7 +149,7 @@ bool use_gpu::isGPUsuitable(VkPhysicalDevice gpu)
     return good;
 }
 
-bool use_gpu::checkdeviceExtensions_upport(VkPhysicalDevice gpu)
+bool UseGPU::checkdeviceExtensions_upport(VkPhysicalDevice gpu)
 {
     uint32_t extensionCount = 0;
     vkEnumerateDeviceExtensionProperties(gpu, nullptr, &extensionCount, nullptr);
@@ -183,7 +183,7 @@ bool use_gpu::checkdeviceExtensions_upport(VkPhysicalDevice gpu)
 
 }
 
-QueueFamilyIndices use_gpu::findQueueFamilies(VkPhysicalDevice gpu)
+QueueFamilyIndices UseGPU::findQueueFamilies(VkPhysicalDevice gpu)
 {
     QueueFamilyIndices indices;
 
@@ -207,7 +207,7 @@ QueueFamilyIndices use_gpu::findQueueFamilies(VkPhysicalDevice gpu)
     return indices;
 }
 
-void use_gpu::createLogicalDevice()
+void UseGPU::createLogicalDevice()
 {
     QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
 
@@ -254,7 +254,7 @@ void use_gpu::createLogicalDevice()
 
 }
 
-VkShaderModule use_gpu::createShaderModule(const std::vector<char>& code)
+VkShaderModule UseGPU::createShaderModule(const std::vector<char>& code)
 {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -268,7 +268,7 @@ VkShaderModule use_gpu::createShaderModule(const std::vector<char>& code)
     return shaderModule;
 }
 
-void use_gpu::createComputePipeline()
+void UseGPU::createComputePipeline()
 {
     auto computeShaderCode = readFile(m_shaderPath);
     VkShaderModule computeShaderModule = createShaderModule(computeShaderCode);
@@ -307,7 +307,7 @@ void use_gpu::createComputePipeline()
     
 }
 
-void use_gpu::createCommandPool()
+void UseGPU::createCommandPool()
 {
     QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice);
     VkCommandPoolCreateInfo poolInfo{};
@@ -318,7 +318,7 @@ void use_gpu::createCommandPool()
         throw std::runtime_error("failed to create command pool!");
 }
 
-void use_gpu::beginSingleTimeCommands()
+void UseGPU::beginSingleTimeCommands()
 {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -336,7 +336,7 @@ void use_gpu::beginSingleTimeCommands()
 
 }
 
-void use_gpu::endSingleTimeCommands()
+void UseGPU::endSingleTimeCommands()
 {
     vkEndCommandBuffer(m_commandBuffer);
 
@@ -351,7 +351,7 @@ void use_gpu::endSingleTimeCommands()
     vkFreeCommandBuffers(m_device, m_commandPool, 1, &m_commandBuffer);
 }
 
-uint32_t use_gpu::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+uint32_t UseGPU::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
@@ -363,7 +363,7 @@ uint32_t use_gpu::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags prop
 
 }
 
-void  use_gpu::createDescriptorSetLayout()
+void  UseGPU::createDescriptorSetLayout()
 {
     std::vector<VkDescriptorSetLayoutBinding> bindings((uint32_t)m_buffers.size());
     for (int i = 0; i < (uint32_t)bindings.size(); i++)
@@ -384,7 +384,7 @@ void  use_gpu::createDescriptorSetLayout()
     }
 }
 
-void use_gpu::createDescriptorSets()
+void UseGPU::createDescriptorSets()
 {
     
     VkDescriptorSetAllocateInfo allocInfo{};
@@ -416,7 +416,7 @@ void use_gpu::createDescriptorSets()
     vkUpdateDescriptorSets(m_device, (uint32_t)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 }
 
-void use_gpu::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+void UseGPU::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -443,7 +443,7 @@ void use_gpu::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemory
     
 }
 
-void use_gpu::createTensorBuffers(const std::vector<VkDeviceSize>& sizes)
+void UseGPU::createTensorBuffers(const std::vector<VkDeviceSize>& sizes)
 {
     for (const VkDeviceSize size : sizes)
     {
@@ -459,7 +459,7 @@ void use_gpu::createTensorBuffers(const std::vector<VkDeviceSize>& sizes)
     }
 }
 
-void use_gpu::uploadInputBuffers()
+void UseGPU::uploadInputBuffers()
 {
     for (uint32_t i = 0; i < (uint32_t)m_inputs.size(); i++)
     {
@@ -477,7 +477,7 @@ void use_gpu::uploadInputBuffers()
     }
 }
 
-void use_gpu::downloadOutputBuffers()
+void UseGPU::downloadOutputBuffers()
 {
     uint32_t offset = (uint32_t)m_inputs.size(); // m_buffer is input+output so I add and offset
     for (uint32_t i = 0; i < (uint32_t)m_outputs.size(); i++)
@@ -493,14 +493,14 @@ void use_gpu::downloadOutputBuffers()
     }
 }
 
-void use_gpu::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+void UseGPU::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
     VkBufferCopy copyRegion{};
     copyRegion.size = size;
     vkCmdCopyBuffer(m_commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 }
 
-void use_gpu::createDescriptorPool()
+void UseGPU::createDescriptorPool()
 {
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -517,7 +517,7 @@ void use_gpu::createDescriptorPool()
 
 }
 
-void use_gpu::dispatch(uint32_t gx, uint32_t gy, uint32_t gz)
+void UseGPU::dispatch(uint32_t gx, uint32_t gy, uint32_t gz)
 {
     vkCmdBindPipeline(m_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline);
     vkCmdBindDescriptorSets(m_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineLayout, 0, 1, &m_descriptorSet, 0, nullptr);
@@ -527,7 +527,7 @@ void use_gpu::dispatch(uint32_t gx, uint32_t gy, uint32_t gz)
     vkCmdDispatch(m_commandBuffer, gx, gy, gz);
 }
 
-void use_gpu::uploadBarrier()
+void UseGPU::uploadBarrier()
 {
     std::vector<VkBufferMemoryBarrier> barriers(m_inputs.size());
     for (uint32_t i = 0; i < (uint32_t)m_inputs.size(); i++)
@@ -551,7 +551,7 @@ void use_gpu::uploadBarrier()
         0, nullptr);
 }
 
-void use_gpu::downloadBarrier()
+void UseGPU::downloadBarrier()
 {
     uint32_t offset = (uint32_t)m_inputs.size();
     std::vector<VkBufferMemoryBarrier> barriers((uint32_t)m_output_sizes.size());
@@ -576,7 +576,7 @@ void use_gpu::downloadBarrier()
         0, nullptr);
 }
 
-void use_gpu::cleanAfterProgram()
+void UseGPU::cleanAfterProgram()
 {
     for (uint32_t i = 0; i < (uint32_t)m_outputs.size(); i++)
     {
@@ -621,7 +621,7 @@ void use_gpu::cleanAfterProgram()
 
 }
 
-void use_gpu::program(std::vector<VkDeviceSize> input_sizes, std::vector<VkDeviceSize> output_sizes, 
+void UseGPU::program(std::vector<VkDeviceSize> input_sizes, std::vector<VkDeviceSize> output_sizes, 
                             std::vector<void*> input_data, std::vector<void*> output_data, 
                             const char* binaryPath, void* pushConstant, VkDeviceSize pushConstantSize, 
                             uint32_t gx, uint32_t gy, uint32_t gz)

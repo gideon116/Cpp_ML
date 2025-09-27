@@ -39,8 +39,8 @@ Tensor* Linear::forward_pass(const Tensor* px, const bool training, void*)
     }
 
     // copy px into m_X
-    if (training) std::memcpy(m_X.m_tensor, px->m_tensor, m_X.m_size * sizeof(float));
-
+    if (training)
+        std::memcpy(m_X.m_tensor, px->m_tensor, m_X.m_size * sizeof(float));
 
     if (m_use_bias)
         m_out = wef::matmul(*px, m_W, true) + m_B;
@@ -66,7 +66,7 @@ Tensor* Linear::backward_pass(const Tensor* dy, const float lr, void*)
     
     m_W -= m_dw * lr / dy->m_shape[0];
 
-    if (m_use_bias) 
+    if (m_use_bias)
     {
         // gradient wrt bias sum everything aside from the last axis
         m_db = *dy;

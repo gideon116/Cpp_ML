@@ -97,8 +97,6 @@ void Model::fit(
             m_->unlock();
         }
 
-        
-
         float acc = 0;
         for (int i = 0; i < valid_real.m_size; i++)
             acc += wef::argmax(wef::softmax(*val_pred_ptr)).m_tensor[i] == valid_real.m_tensor[i];
