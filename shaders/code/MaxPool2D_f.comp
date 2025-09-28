@@ -1,0 +1,61 @@
+#version 450
+
+layout(binding = 0) readonly    buffer buffer_px        { float px[]; };
+layout(binding = 1) writeonly   buffer buffer_argmax    { uint argmax[]; };
+layout(binding = 2) writeonly   buffer buffer_out       { float O[]; };
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(push_constant) uniform pc
+{
+    uint    inH, inW, inC, 
+            kH, kW, outC, 
+            outH, outW, 
+            batch;
+    bool    training;
+};
+
+uint index_A(uint b, uint hi, uint wi, uint ci)
+{ return ((b * inH + hi) * inW + wi) * inC + ci; }
+
+uint index_C(uint b, uint ho, uint wo, uint co)
+{ return ((b * outH + ho) * outW + wo) * outC + co; }
+
+void main() {
+    uint wioc   = gl_GlobalInvocationID.x;
+    uint hi     = gl_GlobalInvocationID.y;
+    uint bi     = gl_GlobalInvocationID.z;
+
+    uint wi = wioc / outC;
+    uint oc = wioc % outC;
+
+    if (wi >= outW || hi >= outH || bi >= batch || oc >= outC) return;
+
+    float temp_val = -1e19f;
+    uint temp_ind[4];
+    for (uint h2 = hi * kH; h2 < hi * kH + kH; h2++)
+    {
+        if (h2 >= inH) break;
+        for (uint w2 = wi * kW; w2 < wi * kW + kW; w2++)
+        {
+            if (w2 >= inW) break;
+
+            float val = px[index_A(bi, h2, w2, oc)];
+            // X[index_A(bi, h2 + hi, w2 + wi, c2)]
+
+            if (val > temp_val)
+            {
+                temp_val = val;
+                temp_ind[0] = bi;
+                temp_ind[1] = h2;
+                temp_ind[2] = w2;
+                temp_ind[3] = oc;
+            }
+        }
+    }
+    O[index_C(bi, hi, wi, oc)] = temp_val;
+
+    if (training)
+        for (uint ii = 0; ii < 4; ii++)
+            argmax[index_C(bi, hi, wi, oc) * 4 + ii] = temp_ind[ii];
+}

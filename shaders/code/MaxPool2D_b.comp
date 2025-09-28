@@ -1,0 +1,42 @@
+#version 450
+
+layout(binding = 0) readonly    buffer buffer_argmax    { uint argmax[]; };
+layout(binding = 1) readonly    buffer buffer_dy        { float dy[]; };
+layout(binding = 2) writeonly   buffer buffer_dx        { float dx[]; };
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(push_constant) uniform pc
+{
+    uint    inH, inW, inC, 
+            outC, 
+            outH, outW, 
+            batch;
+};
+
+uint index_A(uint b, uint hi, uint wi, uint ci)
+{ return ((b * inH + hi) * inW + wi) * inC + ci; }
+
+uint index_C(uint b, uint ho, uint wo, uint co)
+{ return ((b * outH + ho) * outW + wo) * outC + co; }
+
+void main() {
+    uint wioc   = gl_GlobalInvocationID.x;
+    uint hi     = gl_GlobalInvocationID.y;
+    uint bi     = gl_GlobalInvocationID.z;
+
+    uint wi = wioc / outC;
+    uint oc = wioc % outC;
+
+    if (wi >= outW || hi >= outH || bi >= batch || oc >= outC) return;
+
+    uint i1[4];
+    i1[0] = argmax[index_C(bi, hi, wi, oc) * 4 + 0];
+    i1[1] = argmax[index_C(bi, hi, wi, oc) * 4 + 1];
+    i1[2] = argmax[index_C(bi, hi, wi, oc) * 4 + 2];
+    i1[3] = argmax[index_C(bi, hi, wi, oc) * 4 + 3];
+
+    dx[index_A(i1[0], i1[1], i1[2], i1[3])] = dy[index_C(bi, hi, wi, oc)];
+    
+
+}

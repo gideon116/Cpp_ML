@@ -1,0 +1,55 @@
+#version 450
+
+layout(binding = 0) readonly    buffer buffer_dy    { float dy[]; };
+layout(binding = 1) readonly    buffer buffer_dx    { float X[]; };
+layout(binding = 2) writeonly   buffer buffer_dw    { float dw[]; };
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(push_constant) uniform pc
+{
+    uint    inH, inW, inC, 
+            kH, kW, outC,
+            outH, outW,
+            batch;
+};
+
+uint index_A(uint b, uint hi, uint wi, uint ci)
+{ return ((b * inH + hi) * inW + wi) * inC + ci; }
+
+uint index_B(uint hk, uint wk, uint ci, uint co)
+{ return ((hk * kW + wk) * inC + ci) * outC + co; }
+
+uint index_C(uint b, uint ho, uint wo, uint co)
+{ return ((b * outH + ho) * outW + wo) * outC + co; }
+
+void main() {
+    uint co         = gl_GlobalInvocationID.x;
+    uint cin        = gl_GlobalInvocationID.y;
+    uint hk_wk    = gl_GlobalInvocationID.z;
+
+    uint hk = hk_wk / kW;
+    uint wk = hk_wk % kW;
+
+    if (wk >= kW || hk >= kH || cin >= inC || co >= outC) return;
+
+    float temp = 0.0f;
+    for (uint bin = 0; bin < batch; bin++)
+    {
+        for (uint ho = 0; ho < outH; ho++)
+        {
+            uint hin = ho + hk;
+            for (uint wo = 0; wo < outW; wo++)
+            {
+                uint win = wo + wk;
+                temp += dy[index_C(bin, ho, wo, co)] * X[index_A(bin, hin, win, cin)];
+
+            }
+                
+        }
+    
+    }
+
+    dw[index_B(hk, wk, cin, co)] = temp;
+
+}

@@ -1,0 +1,38 @@
+#version 450
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(binding = 0) readonly    buffer buffer_m1    { float m1[]; };
+layout(binding = 1) readonly    buffer buffer_m2    { float m2[]; };
+layout(binding = 2) writeonly   buffer buffer_m     { float m[]; };
+
+layout(push_constant) uniform pc
+{
+    uint    operation,
+            size;
+};
+
+void main()
+{
+    uint xi = gl_GlobalInvocationID.x;
+
+    if (xi >= size) return;
+
+    switch (operation)
+    {
+        case 0:
+            m[xi] = m1[xi] + m2[xi];
+            break;
+        case 1:
+            m[xi] = m1[xi] - m2[xi];
+            break;
+        case 2:
+            m[xi] = m1[xi] * m2[xi];
+            break;
+        case 3:
+            m[xi] = m1[xi] / m2[xi];
+            break;
+        default:
+            break;
+    }
+}
