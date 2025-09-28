@@ -19,11 +19,11 @@ If you'd rather run on a CPU, then you can use the custom CPU parallelization or
 
 ### **Core Components**
 
-* **`Tensor`** class that uses float32 datatype (this is generally good for models).
-* **Tensor Math Operations** (matmul, softmax, argmax, crossentropy loss, etc.) each with CPU multithreaded or GPU versions.
+* **Tensor Class** with a custom tensor display for printing tensors.
+* **Tensor Math Operations** such as matmul, softmax, argmax, crossentropy loss, etc. Each with CPU multithreaded or GPU versions.
 * **Layers**: `Linear`, `Conv2D`, `MaxPool2D`, `ReLU`, `MHA` (Multi-Head Attention), `Embedding`, and more; each implements `forward_pass` and `backward_pass` (meaning it lets you do backpropagation).
-* **`Sequential Model`** container with for simple neural networks with `fit()`, `predict()` and other specializations. There is a MNIST image classifier made using this as a demo.
-* `Functional Model`** for complex architectures that is massively customizable. There is an **English to Spanish transfomer** to show how this works and a tempelate file that serves as a backbone for you to make a functional model of your own.
+* **Sequential Model** container with for simple neural networks with `fit()`, `predict()` and other specializations. There is a MNIST image classifier made using this as a demo.
+* **Functional Model** for complex architectures that is massively customizable. There is an **English to Spanish transfomer** to show how this works and a tempelate file that serves as a backbone for you to make a functional model of your own.
 ---
 
 ## Usage Example
@@ -58,21 +58,6 @@ cd build
 cmake -DCMAKE_BUILD_TYPE=release .. && make && ./wef
 ```
 
-## Project Architecture
-
-<div align="center">
-
-```mermaid
-graph TD
-    A[🔢 tensor.h] --> B[layers.h]
-    B --> C[model.h]
-    A --> D[use_GPU.h]
-    D --> B
-    C --> E[transformer.cpp]
-    C --> F[functional_model_template.cpp]
-```
-
-</div>
 
 ### **File Structure**
 
