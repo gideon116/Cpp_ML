@@ -371,3 +371,8 @@ Tensor* MaxPool2D_GPU::backward_pass(const Tensor* dy, const float lr, void* gpu
 
     return &m_dx;
 }
+
+MaxPool2D_GPU::~MaxPool2D_GPU()
+{
+    // only implimented in the CUDA version
+}

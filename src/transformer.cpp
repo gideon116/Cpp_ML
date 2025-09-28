@@ -93,7 +93,7 @@ public:
         m_max_len = enc_input.m_shape[1];
 
         // batching stuff
-        size_t batch_size = 50;
+        size_t batch_size = 50; // TODO
         if (!batch_size)
             batch_size = enc_input.m_shape[0];
         size_t num_batches = enc_input.m_shape[0] / batch_size; // drop remainder
@@ -163,9 +163,9 @@ private:
     
     Embedding embedding{/*vocab*/m_vocab_size, m_d_model}, embedding_out{m_vocab_size, m_d_model};
 
-    MHA mha_input{m_d_model, /*self_attention*/true, /*num_heads*/2, /*use_bias*/true, /*use_mask*/true, /*use_gpu*/true};
-    MHA mha_output{m_d_model, true, 2, true, true, true};
-    MHA mha_cross{m_d_model, false, 2, true, true, true};
+    MHA mha_input{m_d_model, /*self_attention*/true, /*num_heads*/4, /*use_bias*/true, /*use_mask*/true, /*use_gpu*/true};
+    MHA mha_output{m_d_model, true, 4, true, true, true};
+    MHA mha_cross{m_d_model, false, 4, true, true, true};
 
     UseGPU gpu;
 
@@ -265,9 +265,9 @@ private:
 void transformer()
 {
     Tokenizer tokenizer;
-    tokenizer.process("../english_spanish_tab.txt", 3000);
-    std::cout << tokenizer.english_sen.size() << std::endl;
-    std::cout << tokenizer.spanish_sen.size() << std::endl;
+    tokenizer.process("../english_spanish_tab.txt", 4000);
+    std::cout << "English Sentences: " << tokenizer.english_sen.size() << std::endl;
+    std::cout << "Spanish Sentences: " << tokenizer.spanish_sen.size() << std::endl;
     
     size_t batch = (size_t)tokenizer.english_sen.size();
     size_t de_batch = (size_t)tokenizer.spanish_sen.size();
