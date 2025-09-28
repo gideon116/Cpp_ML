@@ -5,7 +5,7 @@
 ![C++](https://img.shields.io/badge/C%2B%2B-11%2B-blue.svg)
 ![GPU](https://img.shields.io/badge/GPU-Vulkan%20%7C%20CUDA-green.svg)
 ![CPU](https://img.shields.io/badge/CPU-OpenMP%20%7C%20Multithreaded-orange.svg)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![License](https://img.shields.io/badge/License-GPL_v2-blue.svg)
 
 </div>
 
@@ -74,7 +74,7 @@ cmake -DCMAKE_BUILD_TYPE=release .. && make && ./wef
 
 <div align="center">
 
-**⭐ Star this repository if you find it useful! ⭐**
+**⭐ Star this repository if you find it useful and thank you ⭐**
 
 Made by [gideon116](https://github.com/gideon116)
 
