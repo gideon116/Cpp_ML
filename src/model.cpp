@@ -150,6 +150,51 @@ void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const
     std::cout << "\nTotal training time = ";
 }
 
+void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const float lr, const char* lossfn)
+{
+    Timer timer;
+    std::cout << "\n____________________________________________";
+    std::cout << "\nBeginning training\n\n";
+
+    float loss;
+    const Tensor* y_ptr = nullptr;
+    Tensor* dy_ptr = nullptr;
+    Tensor dy;
+
+    for (int epoch = 0; epoch < epochs; epoch++) 
+    {
+        Timer timer;
+        
+        // train
+        y_ptr = &input;
+        for (Layer* layer : m_network) y_ptr = (*layer).forward_pass(y_ptr, true, m_gpu);
+
+        // loss calc
+        if (!dy_ptr) dy = *y_ptr;
+
+        if (strcmp(lossfn, "mse") == 0)
+            loss = wef::mse(real, *y_ptr, dy);
+        else if (strcmp(lossfn, "categoricalcrossentropy") == 0)
+            loss = wef::categoricalcrossentropy(real, *y_ptr, dy);
+        else
+            throw std::invalid_argument("currently only supports mse and categoricalcrossentropy");
+
+        std::cout << "epoch: " << epoch + 1 << "\n\tloss = " << loss << "\n";
+
+        // backprop
+        dy_ptr = &dy;
+        for (int i = (int)m_network.size() - 1; i >= 0; i--) {
+            dy_ptr = (*m_network[i]).backward_pass(dy_ptr, lr, m_gpu);
+        }
+
+        std::cout << "\ttime per epoch = ";
+    }
+
+    std::cout << "\n____________________________________________";
+    std::cout << "\nTraining complete";
+    std::cout << "\nTotal training time = ";
+}
+
 Tensor Model::predict(const Tensor& input)
 { 
     const Tensor* y_ptr = &input;

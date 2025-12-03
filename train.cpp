@@ -1,5 +1,5 @@
 // TODO: mutithread tensor ops and maxpool
-// TODO: add gpu support for linux and windows
+// TODO: add gpu support for windows
 // TODO: tile dw and dx shaders for conv2d backward pass
 // TODO: make tensor class tempelatable
 // TODO: add shaders for reduce sum / layer normalization

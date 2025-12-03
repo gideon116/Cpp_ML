@@ -556,6 +556,33 @@ float wef::categoricalcrossentropy(const Tensor& m1, const Tensor& m2, Tensor* m
     return loss / batch;
 }
 
+float wef::mse(const Tensor& m1, const Tensor& m2, Tensor& m /*m is same as pred*/) // m1 is real and m2 pred !!
+{
+    // Note m1 is actual labels and m2 is probabilities 
+    
+    // eg: m1 = {{1, 0, 0}, {0, 0, 1}}, m2 = {{0, 1, 0}, {0, 0, 1}}
+    // different from categoricalcrossentropy!!
+
+    // TODO: catch mismatch tensor
+
+    const float* pm1 = m1.m_tensor; // grab raw pointers for speeeed
+    const float* pm2 = m2.m_tensor;
+    float* pm = m.m_tensor;
+    memset(pm, 0, sizeof(float)*m.m_size);
+    float loss = 0.0f;
+    
+    const size_t num_classes = m2.m_shape[m2.m_rank - 1];
+
+    #pragma omp parallel for reduction(+:loss,batch) schedule(static)
+    for (size_t i = 0; i < m1.m_size; i++) 
+    {
+
+        pm[i] = pm2[i] - pm1[i];
+        loss += 0.5 * pm[i] * pm[i];
+    }
+    return loss;
+}
+
 void wef::print(const Tensor& m1, size_t* arr, size_t num, bool allc)
 {   
     if (!allc) arr = new size_t[m1.m_rank];

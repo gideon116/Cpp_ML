@@ -54,6 +54,10 @@ public:
     
     // no validation
     void fit(const Tensor& real, const Tensor& input, const int epochs=10, const float lr=0.01f);
+
+    // choose loss fn
+    void fit(const Tensor& real, const Tensor& input, const int epochs, const float lr, const char* lossfn);
+
     Tensor predict(const Tensor& input);
     void summary();
 
