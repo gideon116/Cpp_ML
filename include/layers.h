@@ -288,6 +288,8 @@ public:
     Tensor* backward_pass(const Tensor* dy, const float lr, void*);
 };
 
+#if defined(LEARNN_HAS_VULKAN) || defined(LEARNN_HAS_CUDA)
+
 class Conv2D_GPU : public Layer
 {
 
@@ -368,6 +370,8 @@ public:
     ~MaxPool2D_GPU();
 };
 
+#endif // LEARNN_HAS_VULKAN || LEARNN_HAS_CUDA
+
 class MHA : public Layer 
 {
 
@@ -400,10 +404,14 @@ public:
         m_depth = m_d_model / m_num_heads;
         if (use_gpu)
         {
+#if defined(LEARNN_HAS_VULKAN) || defined(LEARNN_HAS_CUDA)
             m_wq = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
             m_wk = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
             m_wv = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
             m_out_layer = std::make_unique<Linear_GPU>(m_d_model, m_use_bias, 3);
+#else
+            throw std::runtime_error("GPU support not available, rebuild with Vulkan or CUDA");
+#endif
         }
         else
         {

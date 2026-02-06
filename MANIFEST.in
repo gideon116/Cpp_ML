@@ -1,0 +1,16 @@
+"""MANIFEST.in — include needed files in the source distribution."""
+include CMakeLists.txt
+include pyproject.toml
+include LICENSE
+recursive-include include *.h *.hpp
+recursive-include src *.cpp *.cu
+recursive-include python *.cpp
+recursive-include shaders/binaries *.spv
+recursive-include wefml *.py
+recursive-include wefml/data *
+exclude train.cpp
+exclude english_spanish_tab.txt
+prune mnist
+prune dependencies
+prune build
+prune train.dSYM

@@ -1,0 +1,41 @@
+[build-system]
+requires = ["scikit-build-core>=0.3.3", "pybind11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "wefml"
+version = "0.1.4"
+description = "A C++ deep learning library with Vulkan GPU acceleration, exposed to Python"
+readme = "README_pip.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+authors = [{ name = "wefml contributors" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.scikit-build]
+cmake.build-type = "Release"
+cmake.source-dir = "."
+cmake.args = ["-DBUILD_PYTHON=ON"]
+sdist.exclude = [
+    "/english_spanish_tab.txt",
+    "mnist/",
+    "dependencies/",
+    "build/",
+    "train.dSYM/",
+    "train",
+    "train.cpp",
+    "CMakeLists_pip.txt",
+    "build_pip.sh",
+    "tensorflow_benchmark.ipynb",
+    ".venv/",
+    "dist/",
+]

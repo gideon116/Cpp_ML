@@ -1,0 +1,77 @@
+cmake_minimum_required(VERSION 3.15)
+project(learnn_python LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# pybind11
+find_package(pybind11 CONFIG REQUIRED)
+
+# Vulkan (optional)
+option(LEARNN_USE_VULKAN "Build with Vulkan GPU support" ON)
+
+if(LEARNN_USE_VULKAN)
+    # Try the bundled SDK first (macOS), then system
+    if(APPLE)
+        set(VULKAN_SDK "${CMAKE_SOURCE_DIR}/dependencies/vulkan/macOS")
+    elseif(WIN32)
+        set(VULKAN_SDK "${CMAKE_SOURCE_DIR}/dependencies/vulkan/x86_64")
+    else()
+        set(VULKAN_SDK "${CMAKE_SOURCE_DIR}/dependencies/vulkan/x86_64")
+    endif()
+
+    find_library(VULKAN_LIB vulkan HINTS ${VULKAN_SDK}/lib)
+
+    if(VULKAN_LIB)
+        message(STATUS "Vulkan found: ${VULKAN_LIB}")
+        add_definitions(-DLEARNN_HAS_VULKAN)
+    else()
+        message(WARNING "Vulkan NOT found – building CPU-only")
+        set(LEARNN_USE_VULKAN OFF)
+    endif()
+endif()
+
+# Collect C++ sources
+set(LEARNN_SOURCES
+    src/tensor.cpp
+    src/matrix_ops.cpp
+    src/layers.cpp
+    src/layers_multithreaded.cpp
+    src/model.cpp
+    src/transformer.cpp
+    src/img_class.cpp
+)
+
+if(LEARNN_USE_VULKAN)
+    list(APPEND LEARNN_SOURCES
+        src/use_GPU.cpp
+        src/layers_GPU.cpp
+        src/matrix_ops_GPU.cpp
+    )
+endif()
+
+# pybind11 module
+pybind11_add_module(_learnn_core
+    python/bindings.cpp
+    ${LEARNN_SOURCES}
+)
+
+target_include_directories(_learnn_core PRIVATE
+    include
+)
+
+if(LEARNN_USE_VULKAN)
+    target_include_directories(_learnn_core PRIVATE ${VULKAN_SDK}/include)
+    target_link_libraries(_learnn_core PRIVATE ${VULKAN_LIB})
+    if(APPLE)
+        set_target_properties(_learnn_core PROPERTIES
+            BUILD_RPATH "${VULKAN_SDK}/lib"
+            INSTALL_RPATH "${VULKAN_SDK}/lib"
+        )
+    endif()
+endif()
+
+target_link_libraries(_learnn_core PRIVATE pthread)
+
+# Install 
+install(TARGETS _learnn_core DESTINATION wefml)

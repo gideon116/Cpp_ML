@@ -13,7 +13,7 @@ static inline uint32_t read_u32_be(std::ifstream& file)
 }
 
 // images (b, h, c, 1) normalized
-Tensor load_mnist_images(const std::string& path, size_t max_items=1e19)
+inline Tensor load_mnist_images(const std::string& path, size_t max_items=1e19)
 {
     std::ifstream file(path, std::ios::binary);
     if (!file)
@@ -47,7 +47,7 @@ Tensor load_mnist_images(const std::string& path, size_t max_items=1e19)
 }
 
 // labels 0 - 9
-Tensor load_mnist_labels(const std::string& path, size_t max_items=1e19)
+inline Tensor load_mnist_labels(const std::string& path, size_t max_items=1e19)
 {
     std::ifstream file(path, std::ios::binary);
     if (!file) 

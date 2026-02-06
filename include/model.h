@@ -5,7 +5,9 @@
 #include "layers.h"
 #include "tensor.h"
 #include "matrix_operations.h"
+#ifdef LEARNN_HAS_VULKAN
 #include "use_GPU.h"
+#endif
 #include <mutex>
 
 class Timer
@@ -34,14 +36,30 @@ class Model
 public:
     Model(bool use_gpu=false)
         : m_use_gpu(use_gpu)
-        { if (use_gpu) m_gpu = new UseGPU; }
+        {
+#ifdef LEARNN_HAS_VULKAN
+            if (use_gpu) m_gpu = new UseGPU;
+#elif defined(LEARNN_HAS_CUDA)
+            // CUDA layers manage their own device memory; m_gpu stays nullptr
+#endif
+        }
 
     Model(std::vector<Layer*> inputNetwork, bool use_gpu=false)
         : m_network(inputNetwork), m_use_gpu(use_gpu)
-        { if (use_gpu) m_gpu = new UseGPU; }
+        {
+#ifdef LEARNN_HAS_VULKAN
+            if (use_gpu) m_gpu = new UseGPU;
+#elif defined(LEARNN_HAS_CUDA)
+            // CUDA layers manage their own device memory; m_gpu stays nullptr
+#endif
+        }
         
     ~Model()
-        { if (m_use_gpu) delete (UseGPU*)m_gpu; }
+        {
+#ifdef LEARNN_HAS_VULKAN
+            if (m_use_gpu) delete (UseGPU*)m_gpu;
+#endif
+        }
 
     void add(Layer* i)
         { m_network.push_back(i); }
@@ -56,14 +74,14 @@ public:
     void fit(const Tensor& real, const Tensor& input, const int epochs=10, const float lr=0.01f);
 
     // choose loss fn
-    void fit(const Tensor& real, const Tensor& input, const int epochs, const float lr, const char* lossfn);
+    void fit(const Tensor& real, const Tensor& input, const int epochs, const float lr, const char* lossfn, const bool print=true);
 
     Tensor predict(const Tensor& input);
     void summary();
 
 private:
     std::vector<Layer*> m_network;
-    void* m_gpu;
+    void* m_gpu = nullptr;
     bool m_use_gpu;
 };
 

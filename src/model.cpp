@@ -150,11 +150,14 @@ void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const
     std::cout << "\nTotal training time = ";
 }
 
-void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const float lr, const char* lossfn)
+void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const float lr, const char* lossfn, const bool verbose)
 {
-    Timer timer;
-    std::cout << "\n____________________________________________";
-    std::cout << "\nBeginning training\n\n";
+    if (verbose)
+    {
+        Timer timer;
+        std::cout << "\n____________________________________________";
+        std::cout << "\nBeginning training\n\n";
+    }
 
     float loss;
     const Tensor* y_ptr = nullptr;
@@ -187,12 +190,16 @@ void Model::fit(const Tensor& real, const Tensor& input, const int epochs, const
             dy_ptr = (*m_network[i]).backward_pass(dy_ptr, lr, m_gpu);
         }
 
-        std::cout << "\ttime per epoch = ";
+        if (verbose)
+            std::cout << "\ttime per epoch = ";
     }
 
-    std::cout << "\n____________________________________________";
-    std::cout << "\nTraining complete";
-    std::cout << "\nTotal training time = ";
+    if (verbose)
+    {
+        std::cout << "\n____________________________________________";
+        std::cout << "\nTraining complete";
+        std::cout << "\nTotal training time = ";
+    }
 }
 
 Tensor Model::predict(const Tensor& input)
