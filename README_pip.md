@@ -42,7 +42,7 @@ A built-in encoder-decoder transformer for seq2seq tasks. The bundled `english_s
 import wefml
 
 tok = wefml.Tokenizer()
-tok.process("english_spanish_tab.txt", early_stop=4000)
+tok.process("english_spanish_tab.txt", early_stop=200)   # use more for better results
 data = wefml.prepare_translation_data(tok, val_size=50)
 
 model = wefml.Transformer(
@@ -55,7 +55,7 @@ model = wefml.Transformer(
 model.train(
     data["enc"], data["dec"], data["target"],
     data["val_enc"], data["val_dec"], data["val_target"],
-    epochs=10, lr=0.05,
+    epochs=1, lr=0.05,   # increase epochs for better results
 )
 print(model.loss)
 

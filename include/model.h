@@ -23,7 +23,7 @@ public:
         auto end = std::chrono::time_point_cast<std::chrono::milliseconds>(m_end_point);
         auto duration = end - start;
         float sec = duration.count() * 0.001f;
-        std::cout << sec << " sec" << "\n";
+        std::cout << sec << " sec" << std::endl;
     }
     
 private:

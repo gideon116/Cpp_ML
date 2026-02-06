@@ -150,7 +150,7 @@ public:
 
         Timer timer;
         std::cout << "\n____________________________________________";
-        std::cout << "\nBeginning training\n\n";
+        std::cout << "\nBeginning training\n" << std::endl;
 
         m_lr = lr;
 
@@ -193,13 +193,13 @@ public:
                     m_dy = *(pred.val);
                 backward(min_dec_target, pred, &min_target_mask);
             }
-            std::cout << "epoch: " << epoch + 1 << "\n\tloss = " << m_loss << "\n";
+            std::cout << "epoch: " << epoch + 1 << "\n\tloss = " << m_loss << std::endl;
             validate(val_enc_input, val_dec_input, val_dec_target, val_enc_mask, val_dec_mask, &val_target_mask);
         }
 
         std::cout << "\n____________________________________________";
         std::cout << "\nTraining complete";
-        std::cout << "\nTotal training time = ";
+        std::cout << "\nTotal training time = " << std::flush;
     }
 
     Tensor generate(const Tensor& enc_input, size_t start_token, size_t end_token, size_t max_tokens = 10)
@@ -292,8 +292,8 @@ private:
     {
         ValLayer val_pred = forward(val_enc_input, val_dec_input, false, val_enc_mask, val_dec_mask);
         float val_loss = wef::categoricalcrossentropy(val_dec_target, *(val_pred.val), val_target_mask);
-        std::cout << "\tvalid_loss = " << val_loss << "\n";
-        std::cout << "\ttime per epoch = ";
+        std::cout << "\tvalid_loss = " << val_loss << std::endl;
+        std::cout << "\ttime per epoch = " << std::flush;
     }
 
     Tensor create_minibatch(const Tensor& original, size_t mini_batch_size)
