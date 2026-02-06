@@ -389,6 +389,73 @@ def load_mnist_labels(path: str, max_items: int = int(1e9)) -> Tensor:
     return Tensor(_C.load_mnist_labels(path, max_items))
 
 
+def prepare_translation_data(
+    tok: Tokenizer,
+    val_size: int = 50,
+):
+    """Build encoder/decoder/target tensors from a processed Tokenizer.
+
+    Returns a dict with keys:
+        enc, dec, target, val_enc, val_dec, val_target,
+        start_token, end_token, vocab_size, maxlen
+
+    Usage:
+        tok = wefml.Tokenizer()
+        tok.process("english_spanish_tab.txt", early_stop=4000)
+        data = wefml.prepare_translation_data(tok, val_size=50)
+
+        model = wefml.Transformer(vocab_size=data["vocab_size"])
+        model.train(data["enc"], data["dec"], data["target"],
+                     data["val_enc"], data["val_dec"], data["val_target"],
+                     epochs=10, lr=0.05)
+    """
+    eng = tok.english_sen
+    spa = tok.spanish_sen
+    n_total = len(eng)
+    if n_total <= val_size:
+        raise ValueError(f"Not enough sentences ({n_total}) for val_size={val_size}")
+
+    n_train = n_total - val_size
+    vocab = max(tok.english_vsize, tok.spanish_vsize)
+    start_token = vocab + 1
+    end_token = start_token + 1
+    ml = tok.maxlen + 1
+
+    def _fill(sentences_eng, sentences_spa, n):
+        enc = np.zeros((n, ml), dtype=np.float32)
+        dec = np.zeros((n, ml), dtype=np.float32)
+        tar = np.zeros((n, ml), dtype=np.float32)
+        for i in range(n):
+            es, ss = sentences_eng[i], sentences_spa[i]
+            for j, t in enumerate(es):
+                enc[i, j] = float(t)
+            enc[i, len(es)] = end_token
+            dec[i, 0] = start_token
+            for j, t in enumerate(ss):
+                dec[i, j + 1] = float(t)
+                tar[i, j] = float(t)
+            tar[i, len(ss)] = end_token
+        return enc, dec, tar
+
+    enc_np, dec_np, tar_np = _fill(eng, spa, n_train)
+    val_enc_np, val_dec_np, val_tar_np = _fill(
+        eng[n_train:], spa[n_train:], val_size
+    )
+
+    return {
+        "enc": Tensor.from_numpy(enc_np),
+        "dec": Tensor.from_numpy(dec_np),
+        "target": Tensor.from_numpy(tar_np),
+        "val_enc": Tensor.from_numpy(val_enc_np),
+        "val_dec": Tensor.from_numpy(val_dec_np),
+        "val_target": Tensor.from_numpy(val_tar_np),
+        "start_token": start_token,
+        "end_token": end_token,
+        "vocab_size": vocab,
+        "maxlen": ml,
+    }
+
+
 # ─── Transformer (seq2seq) ────────────────────────────────
 class Transformer:
     """Encoder-decoder transformer for sequence-to-sequence tasks.
@@ -457,8 +524,18 @@ class Transformer:
         end_token: int,
         max_tokens: int = 10,
     ) -> Tensor:
-        """Auto-regressively generate from a single encoder input [1, max_len]."""
-        inp = enc_input._t if isinstance(enc_input, Tensor) else enc_input
+        """Auto-regressively generate from an encoder input.
+
+        If enc_input has batch > 1, only the first sample is used.
+        """
+        if isinstance(enc_input, Tensor):
+            inp = enc_input._t
+        else:
+            inp = enc_input
+        # If batch > 1, slice to first sample [1, max_len]
+        if inp.shape[0] > 1:
+            arr = Tensor(inp).numpy()[:1]
+            inp = _C.Tensor.from_numpy(np.ascontiguousarray(arr, dtype=np.float32))
         return Tensor(self._model.generate(inp, start_token, end_token, max_tokens))
 
     @property

@@ -58,11 +58,12 @@ from wefml._api import (
     Tokenizer,
     load_mnist_images,
     load_mnist_labels,
+    prepare_translation_data,
     # Transformer
     Transformer,
 )
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 __all__ = [
     "use_gpu",
@@ -91,5 +92,6 @@ __all__ = [
     "Tokenizer",
     "load_mnist_images",
     "load_mnist_labels",
+    "prepare_translation_data",
     "Transformer",
 ]

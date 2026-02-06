@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "wefml"
-version = "0.1.4"
+version = "0.1.5"
 description = "A C++ deep learning library with Vulkan GPU acceleration, exposed to Python"
 readme = "README_pip.md"
 license = { text = "MIT" }
